@@ -33,9 +33,6 @@ contract HumaConfig is Ownable, Pausable {
     /// Pausers can pause the pool.
     mapping(address => bool) private pausers;
 
-    // poolAdmins has the list of approved accounts who can create and operate pools.
-    mapping(address => bool) private poolAdmins;
-
     /// List of assets supported by the protocol for investing and borrowing.
     mapping(address => bool) private validLiquidityAssets;
 
@@ -91,20 +88,6 @@ contract HumaConfig is Ownable, Pausable {
      */
     event SentinelServiceAccountChanged(address sentinelService);
 
-    /**
-     * @notice A pool admin has been added.
-     * @param poolAdmin The address of the pool admin being added.
-     * @param by The address that triggered the addition.
-     */
-    event PoolAdminAdded(address indexed poolAdmin, address by);
-
-    /**
-     * @notice A pool admin has been removed.
-     * @param poolAdmin The address of the pool admin being removed.
-     * @param by The address that triggered the removal.
-     */
-    event PoolAdminRemoved(address indexed poolAdmin, address by);
-
     event ProtocolDefaultGracePeriodChanged(uint256 gracePeriod);
 
     /**
@@ -152,20 +135,6 @@ contract HumaConfig is Ownable, Pausable {
     }
 
     /**
-     * @notice Adds a pool admin.
-     * @param _poolAdmin Address to be added as a pool admin
-     * @custom:access Only the protocol owner can call this function.
-     */
-    function addPoolAdmin(address _poolAdmin) external onlyOwner {
-        if (_poolAdmin == address(0)) revert Errors.ZeroAddressProvided();
-        if (poolAdmins[_poolAdmin]) revert Errors.AlreadyPoolAdmin();
-
-        poolAdmins[_poolAdmin] = true;
-
-        emit PoolAdminAdded(_poolAdmin, msg.sender);
-    }
-
-    /**
      * @notice Pauses the entire protocol. Used in extreme cases by the pausers.
      * @dev This function will not be governed by timelock due to its sensitivity to timing.
      * @custom:access Only pausers can call this function.
@@ -186,20 +155,6 @@ contract HumaConfig is Ownable, Pausable {
         pausers[_pauser] = false;
 
         emit PauserRemoved(_pauser, msg.sender);
-    }
-
-    /**
-     * @notice Removes a pool admin.
-     * @param _poolAdmin Address to be removed from the poolAdmin list
-     * @custom:access Only the protocol owner can call this function.
-     */
-    function removePoolAdmin(address _poolAdmin) external onlyOwner {
-        if (_poolAdmin == address(0)) revert Errors.ZeroAddressProvided();
-        if (!poolAdmins[_poolAdmin]) revert Errors.PoolOwnerRequired();
-
-        poolAdmins[_poolAdmin] = false;
-
-        emit PoolAdminRemoved(_poolAdmin, msg.sender);
     }
 
     /**
@@ -232,10 +187,8 @@ contract HumaConfig is Ownable, Pausable {
      */
     function setHumaTreasury(address treasury) external onlyOwner {
         if (treasury == address(0)) revert Errors.ZeroAddressProvided();
-        if (treasury != humaTreasury) {
-            humaTreasury = treasury;
-            emit HumaTreasuryChanged(treasury);
-        }
+        humaTreasury = treasury;
+        emit HumaTreasuryChanged(treasury);
     }
 
     /**
@@ -303,14 +256,5 @@ contract HumaConfig is Ownable, Pausable {
      */
     function isPauser(address account) external view returns (bool) {
         return pausers[account];
-    }
-
-    /**
-     * @notice Reports ia given user account is an approved pool admin.
-     * @param account The account to check.
-     * @return Whether the account is a pool admin.
-     */
-    function isPoolAdmin(address account) external view returns (bool) {
-        return poolAdmins[account];
     }
 }

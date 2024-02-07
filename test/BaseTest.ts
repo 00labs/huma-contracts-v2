@@ -944,10 +944,8 @@ async function calcLoss(
         }
         lossesCoveredByFirstLossCovers.push(coveredAmount);
     }
-    const juniorLoss = loss.gt(assets[CONSTANTS.JUNIOR_TRANCHE])
-        ? assets[CONSTANTS.JUNIOR_TRANCHE]
-        : loss;
-    const seniorLoss = loss.sub(juniorLoss);
+    const juniorLoss = minBigNumber(loss, assets[CONSTANTS.JUNIOR_TRANCHE]);
+    const seniorLoss = minBigNumber(loss.sub(juniorLoss), assets[CONSTANTS.SENIOR_TRANCHE]);
 
     return [
         [
