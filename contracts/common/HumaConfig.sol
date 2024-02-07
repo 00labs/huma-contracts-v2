@@ -135,23 +135,6 @@ contract HumaConfig is Ownable, Pausable {
     }
 
     /**
-<<<<<<< HEAD
-     * @notice Adds a pool admin.
-     * @param _poolAdmin The address to be added as a pool admin
-     * @custom:access Only the protocol owner can call this function.
-     */
-    function addPoolAdmin(address _poolAdmin) external onlyOwner {
-        if (_poolAdmin == address(0)) revert Errors.ZeroAddressProvided();
-        if (poolAdmins[_poolAdmin]) revert Errors.AlreadyPoolAdmin();
-
-        poolAdmins[_poolAdmin] = true;
-
-        emit PoolAdminAdded(_poolAdmin, msg.sender);
-    }
-
-    /**
-=======
->>>>>>> heads/spearbit-audit-updated
      * @notice Pauses the entire protocol. Used in extreme cases by the pausers.
      * @dev This function will not be governed by timelock due to its sensitivity to timing.
      * @custom:access Only pausers can call this function.
