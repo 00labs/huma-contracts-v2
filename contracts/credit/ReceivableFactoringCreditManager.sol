@@ -84,7 +84,7 @@ contract ReceivableFactoringCreditManager is
             revert Errors.InsufficientReceivableAmount();
         if (receivableInput.receivableId == 0) revert Errors.ZeroReceivableIdProvided();
 
-        bytes32 creditHash = _getCreditHash(receivableInput.receivableId);
+        bytes32 creditHash = getCreditHash(receivableInput.receivableId);
         _approveCredit(
             borrower,
             creditHash,
@@ -112,7 +112,7 @@ contract ReceivableFactoringCreditManager is
     function refreshCredit(uint256 receivableId) external virtual {
         poolConfig.onlyProtocolAndPoolOn();
 
-        bytes32 creditHash = _getCreditHash(receivableId);
+        bytes32 creditHash = getCreditHash(receivableId);
         _refreshCredit(creditHash);
     }
 
@@ -123,7 +123,7 @@ contract ReceivableFactoringCreditManager is
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
-        bytes32 creditHash = _getCreditHash(receivableId);
+        bytes32 creditHash = getCreditHash(receivableId);
         return _triggerDefault(creditHash);
     }
 
@@ -133,7 +133,7 @@ contract ReceivableFactoringCreditManager is
         if (msg.sender != borrower && msg.sender != humaConfig.eaServiceAccount())
             revert Errors.BorrowerOrEARequired();
 
-        bytes32 creditHash = _getCreditHash(receivableId);
+        bytes32 creditHash = getCreditHash(receivableId);
         onlyCreditBorrower(creditHash, borrower);
         _closeCredit(creditHash);
     }
@@ -143,7 +143,7 @@ contract ReceivableFactoringCreditManager is
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
-        bytes32 creditHash = _getCreditHash(receivableId);
+        bytes32 creditHash = getCreditHash(receivableId);
         _updateYield(creditHash, yieldInBps);
     }
 
@@ -152,7 +152,7 @@ contract ReceivableFactoringCreditManager is
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
-        bytes32 creditHash = _getCreditHash(receivableId);
+        bytes32 creditHash = getCreditHash(receivableId);
         _extendRemainingPeriod(creditHash, numOfPeriods);
     }
 
@@ -161,7 +161,7 @@ contract ReceivableFactoringCreditManager is
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
-        bytes32 creditHash = _getCreditHash(receivableId);
+        bytes32 creditHash = getCreditHash(receivableId);
         _waiveLateFee(creditHash, waivedAmount);
     }
 
@@ -171,9 +171,7 @@ contract ReceivableFactoringCreditManager is
         return _creditBorrowerMap[creditHash];
     }
 
-    function _getCreditHash(
-        uint256 receivableId
-    ) internal view virtual returns (bytes32 creditHash) {
+    function getCreditHash(uint256 receivableId) public view virtual returns (bytes32 creditHash) {
         return keccak256(abi.encode(address(credit), poolConfig.receivableAsset(), receivableId));
     }
 }
