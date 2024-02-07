@@ -105,6 +105,7 @@ describe("Receivable Test", function () {
             "MockPoolCredit",
             "CreditLineManager",
             evaluationAgent,
+            protocolTreasury,
             poolOwnerTreasury,
             poolOperator,
             [lender],
