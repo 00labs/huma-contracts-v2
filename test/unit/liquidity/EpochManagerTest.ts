@@ -231,11 +231,11 @@ describe("EpochManager Test", function () {
         const newJuniorRedemptionSummary =
             await juniorTrancheVaultContract.epochRedemptionSummary(currentEpochId);
 
-        expect(oldJuniorRedemptionSummary.totalSharesRequested).to.greaterThan(0);
+        expect(oldJuniorRedemptionSummary.totalSharesRequested).to.be.gt(0);
         expect(oldJuniorRedemptionSummary.totalSharesRequested).to.equal(
             newJuniorRedemptionSummary.totalSharesRequested,
         );
-        expect(oldSeniorRedemptionSummary.totalSharesRequested).to.greaterThan(0);
+        expect(oldSeniorRedemptionSummary.totalSharesRequested).to.be.gt(0);
         expect(oldSeniorRedemptionSummary.totalSharesRequested).to.equal(
             newSeniorRedemptionSummary.totalSharesRequested,
         );

@@ -1077,8 +1077,8 @@ describe("Pool Test", function () {
                 );
                 const lpConfig = await poolConfigContract.getLPConfig();
                 const tranchesAssets = await poolContract.currentTranchesAssets();
-                expect(seniorAvailableCap).to.greaterThan(0);
-                expect(juniorAvailableCap).to.greaterThan(0);
+                expect(seniorAvailableCap).to.be.gt(0);
+                expect(juniorAvailableCap).to.be.gt(0);
                 expect(juniorAvailableCap).to.equal(
                     lpConfig.liquidityCap.sub(
                         tranchesAssets[CONSTANTS.JUNIOR_TRANCHE].add(
