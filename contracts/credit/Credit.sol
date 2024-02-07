@@ -43,31 +43,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     event BillRefreshed(bytes32 indexed creditHash, uint256 newDueDate, uint256 amountDue);
 
     /**
-     * @notice Credit line created
-     * @param borrower the address of the borrower
-     * @param creditLimit the credit limit of the credit line
-     * @param aprInBps interest rate (APR) expressed in basis points, 1% is 100, 100% is 10000
-     * @param periodDuration The pay period duration
-     * @param remainingPeriods how many cycles are there before the credit line expires
-     * @param approved flag that shows if the credit line has been approved or not
-     */
-    event CreditInitiated(
-        address indexed borrower,
-        uint256 creditLimit,
-        uint256 aprInBps,
-        PayPeriodDuration periodDuration,
-        uint256 remainingPeriods,
-        bool approved
-    );
-
-    /// Credit limit for an existing credit line has been changed
-    event CreditLineChanged(
-        address indexed borrower,
-        uint256 oldCreditLimit,
-        uint256 newCreditLimit
-    );
-
-    /**
      * @notice A borrowing event has happened to the credit.
      * @param borrower The address of the borrower.
      * @param borrowAmount The amount the user has borrowed.
@@ -265,7 +240,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
 
         uint256 platformProfit = 0;
         (netAmountToBorrower, platformProfit) = dueManager.distBorrowingAmount(borrowAmount);
-        IPool(poolConfig.pool()).distributeProfit(platformProfit);
+        pool.distributeProfit(platformProfit);
 
         // Transfer funds to the borrower
         poolSafe.withdraw(borrower, netAmountToBorrower);
@@ -322,8 +297,8 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
                     if (cr.state == CreditState.Delayed) cr.state = CreditState.GoodStanding;
                 } else {
                     // If the payment is not enough to cover the total amount past due, then
-                    // apply the payment to the yield past due, followed by principal past due,
-                    // then lastly late fees.
+                    // apply the payment to the yield past due, followed by late fees, and lastly
+                    // principal past due.
                     if (amount > dd.yieldPastDue) {
                         amount -= dd.yieldPastDue;
                         paymentRecord.yieldPastDuePaid = dd.yieldPastDue;
@@ -424,13 +399,13 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             address payer = _getPaymentOriginator(borrower);
             poolSafe.deposit(payer, amountToCollect);
             if (oldCRState == CreditState.Defaulted) {
-                IPool(poolConfig.pool()).distributeLossRecovery(amountToCollect);
+                pool.distributeLossRecovery(amountToCollect);
             } else {
                 uint256 profit = paymentRecord.yieldPastDuePaid +
                     paymentRecord.yieldDuePaid +
                     paymentRecord.lateFeePaid;
                 if (profit > 0) {
-                    IPool(poolConfig.pool()).distributeProfit(profit);
+                    pool.distributeProfit(profit);
                 }
             }
             emit PaymentMade(
@@ -535,6 +510,10 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         addr = _poolConfig.creditDueManager();
         assert(addr != address(0));
         dueManager = ICreditDueManager(addr);
+
+        addr = _poolConfig.pool();
+        assert(addr != address(0));
+        pool = IPool(addr);
 
         addr = _poolConfig.poolSafe();
         assert(addr != address(0));

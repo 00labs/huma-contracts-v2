@@ -17,8 +17,6 @@ contract ReceivableFactoringCredit is
     IReceivableFactoringCredit,
     IReceivablePayable
 {
-    bytes32 public constant PAYER_ROLE = keccak256("PAYER");
-
     /**
      * @notice The funds not used for payment has been disbursed to the receiver. This happens when
      * the payer paid more than the payoff amount of the credit.

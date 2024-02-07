@@ -35,7 +35,6 @@ contract CreditLine is Credit, ICreditLine {
         creditManager.onlyCreditBorrower(creditHash, borrower);
 
         (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
-        return (amountPaid, paidoff);
     }
 
     /// @inheritdoc ICreditLine
@@ -48,7 +47,6 @@ contract CreditLine is Credit, ICreditLine {
         creditManager.onlyCreditBorrower(creditHash, msg.sender);
 
         (amountPaid, paidoff) = _makePrincipalPayment(msg.sender, creditHash, amount);
-        return (amountPaid, paidoff);
     }
 
     /// @inheritdoc ICreditLine

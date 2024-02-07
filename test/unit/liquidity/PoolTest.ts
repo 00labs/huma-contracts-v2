@@ -178,7 +178,7 @@ describe("Pool Test", function () {
         it("Should not allow non-poolOwner and non-protocolAdmin to enable a pool", async function () {
             await expect(poolContract.enablePool()).to.be.revertedWithCustomError(
                 poolConfigContract,
-                "AdminRequired",
+                "PoolOwnerOrHumaOwnerRequired",
             );
             const isPoolOn = await poolContract.isPoolOn();
             expect(isPoolOn).to.be.false;
@@ -977,6 +977,8 @@ describe("Pool Test", function () {
                 await poolConfigContract
                     .connect(poolOwner)
                     .setTranches(defaultDeployer.getAddress(), defaultDeployer.getAddress());
+                await poolContract.connect(poolOwner).updatePoolConfigData();
+
                 await poolContract.updateTranchesAssets(tranchesAssets);
 
                 expect(await poolContract.currentTranchesAssets()).to.eql(tranchesAssets);
@@ -986,6 +988,8 @@ describe("Pool Test", function () {
                 await poolConfigContract
                     .connect(poolOwner)
                     .setEpochManager(defaultDeployer.getAddress());
+                await poolContract.connect(poolOwner).updatePoolConfigData();
+
                 await poolContract.updateTranchesAssets(tranchesAssets);
 
                 expect(await poolContract.currentTranchesAssets()).to.eql(tranchesAssets);

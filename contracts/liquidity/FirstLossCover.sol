@@ -135,6 +135,10 @@ contract FirstLossCover is
     function depositCover(uint256 assets) external returns (uint256 shares) {
         if (assets == 0) revert Errors.ZeroAmountProvided();
         _onlyCoverProvider(msg.sender);
+        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
+        if (assets < poolSettings.minDepositAmount) {
+            revert Errors.DepositAmountTooLow();
+        }
 
         // Note: we have to mint the shares first by calling _deposit() before transferring the assets.
         // Transferring assets first would increase the total cover assets without increasing the supply, resulting in
@@ -343,6 +347,10 @@ contract FirstLossCover is
         addr = _poolConfig.pool();
         assert(addr != address(0));
         pool = IPool(addr);
+
+        addr = _poolConfig.poolFeeManager();
+        assert(addr != address(0));
+        poolFeeManager = addr;
     }
 
     /**
@@ -373,10 +381,6 @@ contract FirstLossCover is
     }
 
     function _deposit(uint256 assets, address account) internal returns (uint256 shares) {
-        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
-        if (assets < poolSettings.minDepositAmount) {
-            revert Errors.DepositAmountTooLow();
-        }
         if (assets > getAvailableCap()) {
             revert Errors.FirstLossCoverLiquidityCapExceeded();
         }
@@ -424,7 +428,6 @@ contract FirstLossCover is
     }
 
     function _onlyPoolFeeManager(address account) internal view {
-        if (account != poolConfig.poolFeeManager())
-            revert Errors.AuthorizedContractCallerRequired();
+        if (account != poolFeeManager) revert Errors.AuthorizedContractCallerRequired();
     }
 }
