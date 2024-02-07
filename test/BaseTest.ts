@@ -15,6 +15,7 @@ import {
     FixedSeniorYieldTranchePolicy,
     HumaConfig,
     MockPoolCredit,
+    MockPoolCreditManager,
     MockToken,
     Pool,
     PoolConfig,
@@ -50,7 +51,7 @@ export type CreditContractType =
     | ReceivableBackedCreditLine
     | ReceivableFactoringCredit;
 export type CreditManagerContractType =
-    | MockPoolCredit
+    | MockPoolCreditManager
     | CreditLineManager
     | ReceivableBackedCreditLineManager
     | ReceivableFactoringCreditManager;
@@ -115,7 +116,7 @@ export type CreditManagerContractName =
     | "CreditLineManager"
     | "ReceivableBackedCreditLineManager"
     | "ReceivableFactoringCreditManager"
-    | "MockPoolCredit";
+    | "MockPoolCreditManager";
 
 export enum PayPeriodDuration {
     Monthly,
@@ -257,15 +258,15 @@ export async function deployPoolContracts(
     const Credit = await getCreditContractFactory(creditContractName);
     const creditContract = (await deployProxyContract(Credit)) as CreditContractType;
 
-    const CreditDueManager = await ethers.getContractFactory("CreditDueManager");
-    const creditDueManagerContract = (await deployProxyContract(
-        CreditDueManager,
-    )) as CreditDueManager;
-
     const CreditManager = await getCreditManagerContractFactory(creditManagerContractName);
     const creditManagerContract = (await deployProxyContract(
         CreditManager,
     )) as CreditManagerContractType;
+
+    const CreditDueManager = await ethers.getContractFactory("CreditDueManager");
+    const creditDueManagerContract = (await deployProxyContract(
+        CreditDueManager,
+    )) as CreditDueManager;
 
     const Receivable = await ethers.getContractFactory("Receivable");
     const receivableContract = (await deployProxyContract(Receivable, "initialize")) as Receivable;
@@ -586,22 +587,19 @@ export async function deployPoolWithFactory(
     poolFactoryContract: PoolFactory,
     mockTokenContract: MockToken,
     receivableContract: Receivable,
-    deployer: SignerWithAddress,
-    poolOwner: SignerWithAddress,
     creditType: CreditType,
-    trachesPolicyType: TranchesPolicyType,
+    tranchesPolicyType: TranchesPolicyType,
     poolName: string,
 ): Promise<PoolRecord> {
     await poolFactoryContract.deployPool(
         poolName,
         mockTokenContract.address,
         receivableContract.address,
-        trachesPolicyType,
+        tranchesPolicyType,
         creditType,
     );
     const poolId = await poolFactoryContract.poolId();
-    const poolRecords = await poolFactoryContract.checkPool(poolId);
-    return poolRecords;
+    return await poolFactoryContract.checkPool(poolId);
 }
 
 export async function setupPoolContracts(
@@ -821,7 +819,7 @@ export async function deployAndSetupPoolContracts(
 
 export async function mockDistributePnL(
     creditContract: MockPoolCredit,
-    creditManagerContract: MockPoolCredit,
+    creditManagerContract: MockPoolCreditManager,
     profit: BigNumberish,
     loss: BigNumberish,
     lossRecovery: BigNumberish,
@@ -1924,7 +1922,7 @@ async function getCreditManagerContractFactory(
         case "CreditLineManager":
         case "ReceivableBackedCreditLineManager":
         case "ReceivableFactoringCreditManager":
-        case "MockPoolCredit":
+        case "MockPoolCreditManager":
             return await ethers.getContractFactory(creditManagerContractName);
         default:
             throw new Error("Invalid creditManagerContractName");

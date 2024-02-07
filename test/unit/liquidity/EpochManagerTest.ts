@@ -11,6 +11,7 @@ import {
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
+    MockPoolCreditManager,
     MockToken,
     Pool,
     PoolConfig,
@@ -65,7 +66,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditManagerContract: MockPoolCredit,
+    creditManagerContract: MockPoolCreditManager,
     creditDueManagerContract: CreditDueManager;
 
 let epochChecker: EpochChecker, feeCalculator: FeeCalculator;
@@ -144,7 +145,7 @@ describe("EpochManager Test", function () {
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
-            "MockPoolCredit",
+            "MockPoolCreditManager",
             evaluationAgent,
             treasury,
             poolOwnerTreasury,

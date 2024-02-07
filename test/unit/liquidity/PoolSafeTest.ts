@@ -11,6 +11,7 @@ import {
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
+    MockPoolCreditManager,
     MockToken,
     Pool,
     PoolConfig,
@@ -54,7 +55,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditManagerContract: MockPoolCredit,
+    creditManagerContract: MockPoolCreditManager,
     creditDueManagerContract: CreditDueManager;
 
 describe("PoolSafe Tests", function () {
@@ -106,7 +107,7 @@ describe("PoolSafe Tests", function () {
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
-            "MockPoolCredit",
+            "MockPoolCreditManager",
             evaluationAgent,
             protocolTreasury,
             poolOwnerTreasury,

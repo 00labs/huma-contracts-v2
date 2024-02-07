@@ -12,6 +12,7 @@ import {
     FixedSeniorYieldTranchePolicy,
     HumaConfig,
     MockPoolCredit,
+    MockPoolCreditManager,
     MockToken,
     Pool,
     PoolConfig,
@@ -62,7 +63,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditManagerContract: MockPoolCredit,
+    creditManagerContract: MockPoolCreditManager,
     creditDueManagerContract: CreditDueManager;
 
 describe("FixedSeniorYieldTranchesPolicy Test", function () {
@@ -115,7 +116,7 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
-            "MockPoolCredit",
+            "MockPoolCreditManager",
             evaluationAgent,
             treasury,
             poolOwnerTreasury,

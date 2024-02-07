@@ -11,6 +11,7 @@ import {
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
+    MockPoolCreditManager,
     MockToken,
     Pool,
     PoolConfig,
@@ -67,7 +68,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditManagerContract: MockPoolCredit,
+    creditManagerContract: MockPoolCreditManager,
     creditDueManagerContract: CreditDueManager;
 
 let feeCalculator: FeeCalculator;
@@ -123,7 +124,7 @@ describe("Pool Test", function () {
                 defaultDeployer,
                 poolOwner,
                 "MockPoolCredit",
-                "MockPoolCredit",
+                "MockPoolCreditManager",
             );
 
             // Set up first loss cover requirements.
@@ -283,6 +284,7 @@ describe("Pool Test", function () {
                 juniorTrancheVaultContract,
                 creditContract as unknown,
                 creditDueManagerContract,
+                creditManagerContract as unknown,
             ] = await deployAndSetupPoolContracts(
                 humaConfigContract,
                 mockTokenContract,
@@ -291,7 +293,7 @@ describe("Pool Test", function () {
                 defaultDeployer,
                 poolOwner,
                 "MockPoolCredit",
-                "CreditLineManager",
+                "MockPoolCreditManager",
                 evaluationAgent,
                 treasury,
                 poolOwnerTreasury,
@@ -1064,7 +1066,13 @@ describe("Pool Test", function () {
                         liquidityCap: seniorAssets.add(toToken(1)),
                     });
                     // Mark all junior assets as loss.
-                    await creditContract.mockDistributePnL(BN.from(0), juniorAssets, BN.from(0));
+                    await mockDistributePnL(
+                        creditContract,
+                        creditManagerContract,
+                        0,
+                        juniorAssets,
+                        0,
+                    );
                     const [newSeniorAssets, newJuniorAssets] =
                         await poolContract.currentTranchesAssets();
                     expect(newJuniorAssets).to.equal(0);
