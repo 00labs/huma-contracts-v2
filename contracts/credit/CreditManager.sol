@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {HumaConfig} from "../common/HumaConfig.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
@@ -20,18 +20,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
      * @param creditHash The hash of the credit.
      */
     event CommittedCreditStarted(bytes32 indexed creditHash);
-
-    /**
-     * @notice A credit has beed paused.
-     * @param creditHash The hash of the credit.
-     */
-    event CreditPaused(bytes32 indexed creditHash);
-
-    /**
-     * @notice A paused credit has been unpaused.
-     * @param creditHash The hash of the credit.
-     */
-    event CreditUnpaused(bytes32 indexed creditHash);
 
     /**
      * @notice An existing credit has been closed.
@@ -203,14 +191,16 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         if (creditLimit == 0) revert Errors.ZeroAmountProvided();
         if (remainingPeriods == 0) revert Errors.ZeroPayPeriods();
         if (committedAmount > creditLimit) revert Errors.CommittedAmountGreaterThanCreditLimit();
-        // It doesn't make sense for a credit to have no commitment but a non-zero designated startt date.
-        if (committedAmount == 0 && designatedStartDate != 0)
-            revert Errors.CreditWithoutCommitmentShouldHaveNoDesignatedStartDate();
-        if (designatedStartDate > 0 && block.timestamp > designatedStartDate)
-            revert Errors.DesignatedStartDateInThePast();
-        if (designatedStartDate > 0 && remainingPeriods <= 1) {
-            // Business rule: do not allow credits with designated start date to have only 1 period.
-            revert Errors.PayPeriodsTooLowForCreditsWithDesignatedStartDate();
+        if (designatedStartDate > 0) {
+            if (committedAmount == 0)
+                // It doesn't make sense for a credit to have no commitment but a non-zero designated start date.
+                revert Errors.CreditWithoutCommitmentShouldHaveNoDesignatedStartDate();
+            if (block.timestamp > designatedStartDate)
+                revert Errors.DesignatedStartDateInThePast();
+            if (remainingPeriods <= 1) {
+                // Business rule: do not allow credits with designated start date to have only 1 period.
+                revert Errors.PayPeriodsTooLowForCreditsWithDesignatedStartDate();
+            }
         }
 
         PoolSettings memory ps = poolConfig.getPoolSettings();
@@ -222,7 +212,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         // Once a drawdown has happened, it is disallowed to re-approve a credit. One has to call
         // other admin functions to change the terms of the credit.
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
-        if (cr.state > CreditState.Approved) revert Errors.CreditNotInStateForUpdate();
+        if (cr.state != CreditState.Deleted && cr.state != CreditState.Approved)
+            revert Errors.CreditNotInStateForUpdate();
 
         CreditConfig memory cc = getCreditConfig(creditHash);
         cc.creditLimit = creditLimit;
@@ -300,32 +291,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         credit.setCreditRecord(creditHash, cr);
 
         emit CreditClosedByAdmin(creditHash, msg.sender);
-    }
-
-    /**
-     * @notice Pauses the credit. No drawdown is allowed for paused credit.
-     * @param creditHash The hash of the credit.
-     */
-    function _pauseCredit(bytes32 creditHash) internal {
-        CreditRecord memory cr = credit.getCreditRecord(creditHash);
-        if (cr.state == CreditState.GoodStanding) {
-            cr.state = CreditState.Paused;
-            credit.setCreditRecord(creditHash, cr);
-            emit CreditPaused(creditHash);
-        }
-    }
-
-    /**
-     * @notice Unpauses the credit to return the credit to normal.
-     * @param creditHash The hash of the credit.
-     */
-    function _unpauseCredit(bytes32 creditHash) internal virtual {
-        CreditRecord memory cr = credit.getCreditRecord(creditHash);
-        if (cr.state == CreditState.Paused) {
-            cr.state = CreditState.GoodStanding;
-            credit.setCreditRecord(creditHash, cr);
-            emit CreditUnpaused(creditHash);
-        }
     }
 
     /**
@@ -492,6 +457,17 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         uint256 creditLimit,
         uint256 committedAmount
     ) internal virtual {
+        if (creditLimit != 0 && committedAmount > creditLimit) {
+            // If creditLimit is adjusted down to 0, then the intention is to temporarily prevent the borrower from
+            // further drawdown, hence we allow a non-zero committedAmount here so that the borrower is still bound by
+            // their existing commitment.
+            revert Errors.CommittedAmountGreaterThanCreditLimit();
+        }
+        PoolSettings memory ps = poolConfig.getPoolSettings();
+        if (creditLimit > ps.maxCreditLine) {
+            revert Errors.CreditLimitTooHigh();
+        }
+
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
         if (cr.state == CreditState.Approved || cr.state == CreditState.Deleted) {
             revert Errors.CreditNotInStateForUpdate();

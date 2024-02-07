@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {PayPeriodDuration} from "../common/SharedDefs.sol";
 
@@ -82,7 +82,6 @@ struct DueDetail {
 
 enum CreditState {
     Deleted,
-    Paused,
     Approved,
     GoodStanding,
     Delayed,

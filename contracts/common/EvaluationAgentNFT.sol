@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {ERC721, IERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Counters} from "@openzeppelin/contracts/utils/Counters.sol";
@@ -59,7 +59,7 @@ contract EvaluationAgentNFT is ERC721URIStorage, Ownable {
         address to,
         uint256 tokenId
     ) public virtual override(ERC721, IERC721) {
-        // Intentionally disable transfer by doing nothing.
+        revert Errors.UnsupportedFunction();
     }
 
     function safeTransferFrom(
@@ -67,7 +67,7 @@ contract EvaluationAgentNFT is ERC721URIStorage, Ownable {
         address to,
         uint256 tokenId
     ) public virtual override(ERC721, IERC721) {
-        // Intentionally disable transfer by doing nothing.
+        revert Errors.UnsupportedFunction();
     }
 
     function safeTransferFrom(
@@ -76,6 +76,6 @@ contract EvaluationAgentNFT is ERC721URIStorage, Ownable {
         uint256 tokenId,
         bytes memory data
     ) public virtual override(ERC721, IERC721) {
-        // Intentionally disable transfer by doing nothing.
+        revert Errors.UnsupportedFunction();
     }
 }

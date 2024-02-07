@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {IERC721, IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Credit} from "./Credit.sol";
@@ -179,6 +179,10 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         );
 
         if (paymentAmount == drawdownAmount) {
+            // When the payment and drawdown amounts are the same, calling `makePaymentWithReceivable()`
+            // and then `drawdownWithReceivable()` would cause additional yield to be incurred, which is not
+            // desired. Instead, we deposit and then withdraw from the `poolSafe` to show that the pool has
+            // received payment and then disbursed the same amount back to the borrower.
             poolSafe.deposit(msg.sender, paymentAmount);
             poolSafe.withdraw(borrower, paymentAmount);
         } else if (paymentAmount > drawdownAmount) {
@@ -207,6 +211,10 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
             drawdownAmount,
             msg.sender
         );
+    }
+
+    function getCreditHash(address borrower) public view virtual returns (bytes32 creditHash) {
+        return keccak256(abi.encode(address(this), borrower));
     }
 
     function _prepareForDrawdown(
@@ -250,9 +258,5 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         );
         if (IERC721(receivableAsset).ownerOf(receivableId) != address(this))
             revert Errors.ReceivableOwnerRequired();
-    }
-
-    function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
-        return keccak256(abi.encode(address(this), borrower));
     }
 }

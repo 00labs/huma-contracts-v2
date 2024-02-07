@@ -115,19 +115,16 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
             "MockPoolCredit",
             "CreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender],
         );
 
         let juniorDepositAmount = toToken(100_000);
-        await juniorTrancheVaultContract
-            .connect(lender)
-            .deposit(juniorDepositAmount, lender.address);
+        await juniorTrancheVaultContract.connect(lender).deposit(juniorDepositAmount);
         let seniorDepositAmount = toToken(300_000);
-        await seniorTrancheVaultContract
-            .connect(lender)
-            .deposit(seniorDepositAmount, lender.address);
+        await seniorTrancheVaultContract.connect(lender).deposit(seniorDepositAmount);
 
         await overrideLPConfig(poolConfigContract, poolOwner, {
             fixedSeniorYieldInBps: apy,
@@ -335,9 +332,7 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
             let newTracker = PnLCalculator.calcLatestSeniorTracker(nextDate, apy, tracker);
             newTracker.totalAssets = tracker.totalAssets.add(amount);
 
-            await expect(
-                seniorTrancheVaultContract.connect(lender).deposit(amount, lender.address),
-            )
+            await expect(seniorTrancheVaultContract.connect(lender).deposit(amount))
                 .to.emit(tranchesPolicyContract, "YieldTrackerRefreshed")
                 .withArgs(
                     newTracker.totalAssets,
@@ -362,9 +357,7 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
             let newTracker = PnLCalculator.calcLatestSeniorTracker(nextDate, apy, tracker);
             newTracker.totalAssets = tracker.totalAssets;
 
-            await expect(
-                juniorTrancheVaultContract.connect(lender).deposit(amount, lender.address),
-            )
+            await expect(juniorTrancheVaultContract.connect(lender).deposit(amount))
                 .to.emit(tranchesPolicyContract, "YieldTrackerRefreshed")
                 .withArgs(
                     newTracker.totalAssets,

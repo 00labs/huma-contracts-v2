@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 interface ICreditLineManager {
     /**
@@ -61,20 +61,6 @@ interface ICreditLineManager {
      * @custom:access Only the borrower or EA Service account can call this function.
      */
     function closeCredit(address borrower) external;
-
-    /**
-     * @notice Pauses the credit. No drawdown is allowed for paused credit.
-     * @param borrower The address of the borrower.
-     * @custom:access Only the EA can call this function
-     */
-    function pauseCredit(address borrower) external;
-
-    /**
-     * @notice Unpauses the credit to return the credit to normal.
-     * @param borrower The address of the borrower.
-     * @custom:access Only the EA can call this function.
-     */
-    function unpauseCredit(address borrower) external;
 
     /**
      * @notice Updates the yield for the credit.
