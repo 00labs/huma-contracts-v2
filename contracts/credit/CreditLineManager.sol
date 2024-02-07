@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {ICreditLineManager} from "./interfaces/ICreditLineManager.sol";
 import {CreditManager} from "./CreditManager.sol";
@@ -119,24 +119,6 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
     }
 
     /// @inheritdoc ICreditLineManager
-    function pauseCredit(address borrower) external virtual override {
-        poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
-
-        bytes32 creditHash = getCreditHash(borrower);
-        _pauseCredit(creditHash);
-    }
-
-    /// @inheritdoc ICreditLineManager
-    function unpauseCredit(address borrower) external virtual override {
-        poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
-
-        bytes32 creditHash = getCreditHash(borrower);
-        _unpauseCredit(creditHash);
-    }
-
-    /// @inheritdoc ICreditLineManager
     function updateYield(address borrower, uint256 yieldInBps) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
@@ -165,7 +147,6 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
     ) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
-        if (committedAmount > creditLimit) revert Errors.CommittedAmountGreaterThanCreditLimit();
 
         _updateLimitAndCommitment(getCreditHash(borrower), creditLimit, committedAmount);
     }
@@ -178,7 +159,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
         _waiveLateFee(getCreditHash(borrower), amount);
     }
 
-    function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
+    function getCreditHash(address borrower) public view virtual returns (bytes32 creditHash) {
         return keccak256(abi.encode(address(credit), borrower));
     }
 }
