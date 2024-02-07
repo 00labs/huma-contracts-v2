@@ -150,7 +150,7 @@ contract Pool is PoolConfigCache, IPool {
      * @custom:access Only the pool owner or protocol owner can close a pool.
      */
     function closePool() external {
-        poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
+        poolConfig.onlyPoolOwnerOrHumaOwner(msg.sender);
         _status = PoolStatus.Closed;
 
         // Set `readyForFirstLossCoverWithdrawal` to `true` so that first loss cover providers
