@@ -33,7 +33,6 @@ contract Errors {
     // Protocol config
     error TreasuryFeeHighThanUpperLimit(); // 0x743a9631
     error AlreadyAPauser(); // 0x2fe391f2
-    error AlreadyPoolAdmin(); // 0xebe277bd
 
     // Pool config
     error ProposedEADoesNotOwnProvidedEANFT(); // 0xc7388fc8

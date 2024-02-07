@@ -69,7 +69,7 @@ contract CreditLine is Credit, ICreditLine {
         return _getDueInfo(creditHash);
     }
 
-    function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
+    function getCreditHash(address borrower) public view virtual returns (bytes32 creditHash) {
         return keccak256(abi.encode(address(this), borrower));
     }
 }

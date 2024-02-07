@@ -213,6 +213,10 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         );
     }
 
+    function getCreditHash(address borrower) public view virtual returns (bytes32 creditHash) {
+        return keccak256(abi.encode(address(this), borrower));
+    }
+
     function _prepareForDrawdown(
         address borrower,
         bytes32 creditHash,
@@ -254,9 +258,5 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         );
         if (IERC721(receivableAsset).ownerOf(receivableId) != address(this))
             revert Errors.ReceivableOwnerRequired();
-    }
-
-    function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
-        return keccak256(abi.encode(address(this), borrower));
     }
 }

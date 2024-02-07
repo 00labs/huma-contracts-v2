@@ -640,6 +640,23 @@ describe("Pool Test", function () {
                     expect(await seniorTrancheVaultContract.totalAssets()).to.equal(toToken(1));
                 });
 
+                it("Should distribute loss correctly when the loss exceeds tranche total assets", async function () {
+                    const assets = await poolContract.currentTranchesAssets();
+                    const profit = toToken(0);
+                    const loss = coverTotalAssets
+                        .add(assets[CONSTANTS.JUNIOR_TRANCHE])
+                        .add(assets[CONSTANTS.SENIOR_TRANCHE])
+                        .add(toToken(1_000));
+                    const recovery = toToken(0);
+
+                    await testDistribution(profit, loss, recovery);
+
+                    expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(0);
+                    expect(await adminFirstLossCoverContract.totalAssets()).to.equal(0);
+                    expect(await juniorTrancheVaultContract.totalAssets()).to.equal(0);
+                    expect(await seniorTrancheVaultContract.totalAssets()).to.equal(0);
+                });
+
                 it("Should distribute loss recovery correctly when senior loss can be partially recovered", async function () {
                     const assets = await poolContract.currentTranchesAssets();
                     const profit = toToken(0);
@@ -1029,12 +1046,8 @@ describe("Pool Test", function () {
                 });
 
                 it("Should return 0 if the senior total assets is already higher than the 'junior total assets * max senior : junior ratio'", async function () {
-                    await seniorTrancheVaultContract
-                        .connect(lender)
-                        .deposit(toToken(10_000));
-                    await juniorTrancheVaultContract
-                        .connect(lender)
-                        .deposit(toToken(10_000));
+                    await seniorTrancheVaultContract.connect(lender).deposit(toToken(10_000));
+                    await juniorTrancheVaultContract.connect(lender).deposit(toToken(10_000));
 
                     const [seniorAssets, juniorAssets] =
                         await poolContract.currentTranchesAssets();

@@ -159,7 +159,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
         _waiveLateFee(getCreditHash(borrower), amount);
     }
 
-    function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
+    function getCreditHash(address borrower) public view virtual returns (bytes32 creditHash) {
         return keccak256(abi.encode(address(credit), borrower));
     }
 }

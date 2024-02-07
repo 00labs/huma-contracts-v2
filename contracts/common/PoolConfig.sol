@@ -162,7 +162,9 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     event PoolSafeChanged(address poolSafe, address by);
     event TranchesPolicyChanged(address tranchesPolicy, address by);
     event EpochManagerChanged(address epochManager, address by);
+    event CreditDueManagerChanged(address creditDueManager, address by);
     event CreditChanged(address credit, address by);
+    event CreditManagerChanged(address creditManager, address by);
     event FirstLossCoverChanged(
         uint8 index,
         address firstLossCover,
@@ -431,11 +433,27 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     }
 
     /// @custom:access Only the pool owner and the Huma owner can call this function.
+    function setCreditDueManager(address creditDueManager_) external {
+        _onlyPoolOwnerOrHumaOwner();
+        if (creditDueManager_ == address(0)) revert Errors.ZeroAddressProvided();
+        creditDueManager = creditDueManager_;
+        emit CreditDueManagerChanged(creditDueManager_, msg.sender);
+    }
+
+    /// @custom:access Only the pool owner and the Huma owner can call this function.
     function setCredit(address _credit) external {
         _onlyPoolOwnerOrHumaOwner();
         if (_credit == address(0)) revert Errors.ZeroAddressProvided();
         credit = _credit;
         emit CreditChanged(_credit, msg.sender);
+    }
+
+    /// @custom:access Only the pool owner and the Huma owner can call this function.
+    function setCreditManager(address creditManager_) external {
+        _onlyPoolOwnerOrHumaOwner();
+        if (creditManager_ == address(0)) revert Errors.ZeroAddressProvided();
+        creditManager = creditManager_;
+        emit CreditManagerChanged(creditManager_, msg.sender);
     }
 
     /// @custom:access Only the pool owner and the Huma owner can call this function.
