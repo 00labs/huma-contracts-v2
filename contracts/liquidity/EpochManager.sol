@@ -128,6 +128,10 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         return _currentEpoch.id;
     }
 
+    function currentEpoch() external view returns (CurrentEpoch memory) {
+        return _currentEpoch;
+    }
+
     /**
      * @notice Syndicates the address of dependent contracts from pool config.
      */
