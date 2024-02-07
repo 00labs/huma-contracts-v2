@@ -46,7 +46,6 @@ import {
     evmRevert,
     evmSnapshot,
     getFirstLossCoverInfo,
-    isCloseTo,
     overrideFirstLossCoverConfig,
     overrideLPConfig,
     setNextBlockTimestamp,
@@ -232,6 +231,7 @@ describe("CreditLine Integration Test", function () {
             "CreditLine",
             "CreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [juniorLender, seniorLender, borrower],
@@ -286,16 +286,9 @@ describe("CreditLine Integration Test", function () {
         await adminFirstLossCoverContract
             .connect(poolOwnerTreasury)
             .depositCover(firstLossCoverMaxLiquidity.div(2));
-        // await adminFirstLossCoverContract
-        //     .connect(evaluationAgent)
-        //     .depositCover(firstLossCoverMaxLiquidity.div(2));
 
-        await juniorTrancheVaultContract
-            .connect(juniorLender)
-            .deposit(toToken(500_000), juniorLender.getAddress());
-        await seniorTrancheVaultContract
-            .connect(seniorLender)
-            .deposit(toToken(1_500_000), seniorLender.getAddress());
+        await juniorTrancheVaultContract.connect(juniorLender).deposit(toToken(500_000));
+        await seniorTrancheVaultContract.connect(seniorLender).deposit(toToken(1_500_000));
 
         creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
@@ -1590,7 +1583,7 @@ describe("CreditLine Integration Test", function () {
         await expect(
             juniorTrancheVaultContract
                 .connect(juniorLender)
-                .deposit(poolSettings.minDepositAmount, juniorLender.getAddress()),
+                .deposit(poolSettings.minDepositAmount),
         ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "TrancheLiquidityCapExceeded");
         // So do first loss covers.
         await expect(
@@ -2117,8 +2110,6 @@ describe("CreditLine Integration Test", function () {
                 creditLimit,
                 committedAmount,
                 newCommittedAmount,
-                oldCR.yieldDue,
-                newCommittedYield.sub(oldDD.paid),
                 await eaServiceAccount.getAddress(),
             );
 
@@ -2131,22 +2122,9 @@ describe("CreditLine Integration Test", function () {
         };
         checkCreditConfigsMatch(actualCC, expectedCC);
         const actualCR = await creditContract.getCreditRecord(creditHash);
-        const expectedCR = {
-            ...oldCR,
-            ...{
-                nextDue: oldCR.nextDue.sub(oldDD.accrued).add(newCommittedYield),
-                yieldDue: newCommittedYield.sub(oldDD.paid),
-            },
-        };
-        checkCreditRecordsMatch(actualCR, expectedCR);
+        checkCreditRecordsMatch(actualCR, oldCR);
         const actualDD = await creditContract.getDueDetail(creditHash);
-        const expectedDD = {
-            ...oldDD,
-            ...{
-                committed: newCommittedYield,
-            },
-        };
-        checkDueDetailsMatch(actualDD, expectedDD);
+        checkDueDetailsMatch(actualDD, oldDD);
     });
 
     it("11/2: Full payment within late payment grace period and 11th bill", async function () {
@@ -2258,15 +2236,7 @@ describe("CreditLine Integration Test", function () {
                 .updateYield(borrower.getAddress(), newYieldInBps),
         )
             .to.emit(creditManagerContract, "YieldUpdated")
-            .withArgs(
-                creditHash,
-                yieldInBps,
-                newYieldInBps,
-                oldCR.yieldDue,
-                (actualAccruedYieldDue: BN) =>
-                    isCloseTo(actualAccruedYieldDue, accruedYieldDue, BN.from(1)),
-                await eaServiceAccount.getAddress(),
-            );
+            .withArgs(creditHash, yieldInBps, newYieldInBps, await eaServiceAccount.getAddress());
 
         const actualCC = await creditManagerContract.getCreditConfig(creditHash);
         const expectedCC = {
@@ -2278,24 +2248,10 @@ describe("CreditLine Integration Test", function () {
         checkCreditConfigsMatch(actualCC, expectedCC);
 
         const actualCR = await creditContract.getCreditRecord(creditHash);
-        const expectedCR = {
-            ...oldCR,
-            ...{
-                nextDue: accruedYieldDue.add(oldCR.nextDue).sub(oldCR.yieldDue),
-                yieldDue: accruedYieldDue,
-            },
-        };
-        checkCreditRecordsMatch(actualCR, expectedCR, BN.from(1));
+        checkCreditRecordsMatch(actualCR, oldCR);
 
         const actualDD = await creditContract.getDueDetail(creditHash);
-        const expectedDD = {
-            ...oldDD,
-            ...{
-                accrued: accruedYieldDue,
-                committed: committedYieldDue,
-            },
-        };
-        checkDueDetailsMatch(actualDD, expectedDD, BN.from(1));
+        checkDueDetailsMatch(actualDD, oldDD, BN.from(1));
     });
 
     it("11/12: Additional drawdown", async function () {
@@ -2314,6 +2270,7 @@ describe("CreditLine Integration Test", function () {
         const oldCR = await creditContract.getCreditRecord(creditHash);
         const oldDD = await creditContract.getDueDetail(creditHash);
         const daysUntilNextDue = 19;
+        // New drawdown within the same cycle should incur additional yield using the new APY value.
         const additionalAccruedYieldDue = calcYield(borrowAmount, newYieldInBps, daysUntilNextDue);
         const additionalPrincipalDue = calcPrincipalDueForPartialPeriod(
             borrowAmount,

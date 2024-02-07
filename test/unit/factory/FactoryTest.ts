@@ -152,11 +152,13 @@ describe("Factory Test", function () {
     beforeEach(async function () {
         await loadFixture(prepare);
     });
-    it("Set zero address to receivable implementation", async function () {
+
+    it("Cannot set zero address to receivable implementation", async function () {
         await expect(
             poolFactoryContract.setReceivableImplAddress(ethers.constants.AddressZero),
         ).to.be.revertedWithCustomError(poolFactoryContract, "ZeroAddressProvided");
     });
+
     it("Deployer role test", async function () {
         await poolFactoryContract.addDeployer(poolOperator.getAddress());
         await expect(
@@ -173,19 +175,21 @@ describe("Factory Test", function () {
             ),
         ).to.equal(false);
     });
+
     it("Non Factory Admin cannot add or remove deployer", async function () {
         await expect(
             poolFactoryContract.connect(poolOperator).addDeployer(poolOperator.getAddress()),
-        ).to.be.revertedWithCustomError(poolFactoryContract, "AdminRequired");
+        ).to.be.revertedWithCustomError(poolFactoryContract, "HumaOwnerRequired");
         await expect(
             poolFactoryContract.connect(poolOperator).removeDeployer(defaultDeployer.getAddress()),
-        ).to.be.revertedWithCustomError(poolFactoryContract, "AdminRequired");
+        ).to.be.revertedWithCustomError(poolFactoryContract, "HumaOwnerRequired");
     });
+
     it("Deploy a pool using factory", async function () {
         const poolRecord = await deployPoolWithFactory(
             poolFactoryContract,
             mockTokenContract,
-            receivableContract,
+            await ethers.getContractAt("Receivable", ethers.constants.AddressZero),
             defaultDeployer,
             poolOwner,
             "creditline",
@@ -330,6 +334,8 @@ describe("Factory Test", function () {
             toToken(10000),
             toToken(5000),
             15000,
+            "Borrower First Loss Cover",
+            "BFLC",
         );
     });
     it("Non deployer cannot set first loss cover", async function () {
@@ -353,6 +359,8 @@ describe("Factory Test", function () {
                     toToken(10000),
                     toToken(5000),
                     15000,
+                    "Borrower First Loss Cover",
+                    "BFLC",
                 ),
         ).to.be.revertedWithCustomError(poolFactoryContract, "DeployerRequired");
     });
@@ -368,7 +376,14 @@ describe("Factory Test", function () {
         await poolFactoryContract.updatePoolStatus(poolId, 2);
         await expect((await poolFactoryContract.checkPool(poolId)).poolStatus).to.equal(2);
     });
-    it("Test invalid poolId", async function () {
+    it("Check invalid poolId", async function () {
+        await poolFactoryContract.deployPool(
+            "test pool",
+            mockTokenContract.address,
+            receivableContract.address,
+            "adjusted",
+            "receivablefactoring",
+        );
         const poolId = await poolFactoryContract.poolId();
         await expect(poolFactoryContract.checkPool(poolId.add(1))).to.be.revertedWithCustomError(
             poolFactoryContract,
@@ -378,5 +393,44 @@ describe("Factory Test", function () {
             poolFactoryContract,
             "InvalidPoolId",
         );
+    });
+
+    it("Update a poolStatus - invalid poolId", async function () {
+        await poolFactoryContract.deployPool(
+            "test pool",
+            mockTokenContract.address,
+            receivableContract.address,
+            "adjusted",
+            "receivablefactoring",
+        );
+        const poolId = await poolFactoryContract.poolId();
+        await expect(
+            poolFactoryContract.updatePoolStatus(poolId.add(1), 1),
+        ).to.be.revertedWithCustomError(poolFactoryContract, "InvalidPoolId");
+        await expect(poolFactoryContract.updatePoolStatus(0, 1)).to.be.revertedWithCustomError(
+            poolFactoryContract,
+            "InvalidPoolId",
+        );
+    });
+
+    it("Update a poolStatus - non deployer", async function () {
+        await poolFactoryContract.deployPool(
+            "test pool",
+            mockTokenContract.address,
+            receivableContract.address,
+            "adjusted",
+            "receivablefactoring",
+        );
+        const poolId = await poolFactoryContract.poolId();
+        await expect(
+            poolFactoryContract.connect(poolOperator).updatePoolStatus(poolId, 1),
+        ).to.be.revertedWithCustomError(poolFactoryContract, "DeployerRequired");
+    });
+
+    it("PoolFactory cannot be initialized twice", async function () {
+        let addresses = new Array(13);
+        await expect(
+            poolFactoryContract.initialize(humaConfigContract.address),
+        ).to.be.revertedWith("Initializable: contract is already initialized");
     });
 });

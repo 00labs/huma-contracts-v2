@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {IPool} from "./interfaces/IPool.sol";
 import {PoolConfig, PoolSettings, LPConfig} from "../common/PoolConfig.sol";
@@ -12,6 +12,7 @@ import {Errors} from "../common/Errors.sol";
 import {ICalendar} from "../common/interfaces/ICalendar.sol";
 import {IERC20Metadata, IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import "hardhat/console.sol";
 
 /**
  * @title EpochManager
@@ -86,16 +87,16 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     function startNewEpoch() external {
         poolConfig.onlyPool(msg.sender);
 
-        EpochRedemptionSummary memory seniorSummary = seniorTranche.currentRedemptionSummary();
+        CurrentEpoch memory ce = _currentEpoch;
+        EpochRedemptionSummary memory seniorSummary = seniorTranche.epochRedemptionSummary(ce.id);
         if (seniorSummary.totalSharesRequested > 0) {
             seniorTranche.executeRedemptionSummary(seniorSummary);
         }
-        EpochRedemptionSummary memory juniorSummary = juniorTranche.currentRedemptionSummary();
+        EpochRedemptionSummary memory juniorSummary = juniorTranche.epochRedemptionSummary(ce.id);
         if (juniorSummary.totalSharesRequested > 0) {
             juniorTranche.executeRedemptionSummary(juniorSummary);
         }
 
-        CurrentEpoch memory ce = _currentEpoch;
         ce.endTime = 0;
         _createNextEpoch(ce);
     }
@@ -107,7 +108,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         CurrentEpoch memory ce = _currentEpoch;
         if (block.timestamp <= ce.endTime) revert Errors.EpochClosedTooEarly();
 
-        _processRedemptionRequests();
+        _processRedemptionRequests(ce.id);
         emit EpochClosed(ce.id);
 
         _createNextEpoch(ce);
@@ -117,8 +118,8 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     function processEpochAfterPoolClosure() external {
         if (!pool.isPoolClosed()) revert Errors.PoolIsNotClosed();
 
-        _processRedemptionRequests();
         uint256 currentEpochId_ = _currentEpoch.id;
+        _processRedemptionRequests(currentEpochId_);
         emit EpochProcessedAfterPoolClosure(currentEpochId_);
     }
 
@@ -175,7 +176,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         emit NewEpochStarted(epoch.id, epoch.endTime);
     }
 
-    function _processRedemptionRequests() internal {
+    function _processRedemptionRequests(uint256 epochId) internal {
         if (
             poolSafe.unprocessedTrancheProfit(address(seniorTranche)) != 0 ||
             poolSafe.unprocessedTrancheProfit(address(juniorTranche)) != 0
@@ -188,8 +189,12 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
         // Get unprocessed redemption requests.
-        EpochRedemptionSummary memory seniorSummary = seniorTranche.currentRedemptionSummary();
-        EpochRedemptionSummary memory juniorSummary = juniorTranche.currentRedemptionSummary();
+        EpochRedemptionSummary memory seniorSummary = seniorTranche.epochRedemptionSummary(
+            epochId
+        );
+        EpochRedemptionSummary memory juniorSummary = juniorTranche.epochRedemptionSummary(
+            epochId
+        );
 
         if (seniorSummary.totalSharesRequested == 0 && juniorSummary.totalSharesRequested == 0) {
             // Early return if there is no redemption request.
@@ -259,7 +264,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
                 availableAmount
             );
 
-            if (availableAmount == 0) {
+            if (availableAmount <= minPoolBalanceForRedemption) {
                 return;
             }
         }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
 import {CreditConfig, CreditRecord, CreditState, DueDetail, PayPeriodDuration} from "./CreditStructs.sol";
@@ -8,6 +8,7 @@ import {ICalendar} from "../common/interfaces/ICalendar.sol";
 import {DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../common/SharedDefs.sol";
 import {Errors} from "../common/Errors.sol";
 import {PoolConfigCache} from "../common/PoolConfigCache.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     ICalendar public calendar;
@@ -20,7 +21,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         platformFees = calcFrontLoadingFee(borrowAmount);
         if (borrowAmount < platformFees) revert Errors.BorrowAmountLessThanPlatformFees();
         amtToBorrower = borrowAmount - platformFees;
-        return (amtToBorrower, platformFees);
     }
 
     /// @inheritdoc ICreditDueManager
@@ -30,7 +30,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         DueDetail memory dd,
         uint256 timestamp
     ) external view virtual override returns (CreditRecord memory newCR, DueDetail memory newDD) {
-        // Do not update due info for credits that are under certain states, such as closed, defaulted or paused.
+        // Do not update due info for credits that are under certain states, such as closed and defaulted.
         if (
             cr.state != CreditState.Approved &&
             cr.state != CreditState.GoodStanding &&
@@ -240,8 +240,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 }
             }
         }
-
-        return (newCR, newDD);
     }
 
     function getPayoffAmount(
@@ -273,61 +271,14 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         return (additionalYieldAccrued, additionalPrincipalDue);
     }
 
-    /// @inheritdoc ICreditDueManager
-    function recomputeYieldDue(
-        uint256 nextDueDate,
-        uint256 oldYieldDue,
-        uint256 oldYieldInBps,
-        uint256 newYieldInBps,
-        uint256 principal
-    ) external view returns (uint256 updatedYield) {
-        uint256 daysRemaining = calendar.getDaysRemainingInPeriod(nextDueDate);
-        // Note that we do not divide by `(HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR)` here since division rounds down.
-        // We will do summation before division at the end for better precision.
-        uint256 newYieldDueForDaysRemaining = principal * newYieldInBps * (daysRemaining - 1);
-        uint256 oldYieldDueForDaysRemaining = principal * oldYieldInBps * (daysRemaining - 1);
-        return
-            (oldYieldDue *
-                HUNDRED_PERCENT_IN_BPS *
-                DAYS_IN_A_YEAR +
-                newYieldDueForDaysRemaining -
-                oldYieldDueForDaysRemaining) / (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR);
-    }
-
-    /// @inheritdoc ICreditDueManager
-    function recomputeCommittedYieldDueAfterCommitmentChange(
-        uint256 nextDueDate,
-        uint256 oldCommittedYieldDue,
-        uint256 oldCommittedAmount,
-        uint256 newCommittedAmount,
-        uint256 yieldInBps
-    ) external view returns (uint256 updatedYield) {
-        uint256 daysRemaining = calendar.getDaysRemainingInPeriod(nextDueDate);
-        uint256 newYieldDueForDaysRemaining = newCommittedAmount *
-            yieldInBps *
-            (daysRemaining - 1);
-        uint256 oldYieldDueForDaysRemaining = oldCommittedAmount *
-            yieldInBps *
-            (daysRemaining - 1);
-        return
-            (oldCommittedYieldDue *
-                HUNDRED_PERCENT_IN_BPS *
-                DAYS_IN_A_YEAR +
-                newYieldDueForDaysRemaining -
-                oldYieldDueForDaysRemaining) / (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR);
-    }
-
     function getNextBillRefreshDate(
         CreditRecord memory cr
     ) public view returns (uint256 refreshDate) {
-        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
-        uint256 latePaymentDeadline = cr.nextDueDate +
-            poolSettings.latePaymentGracePeriodInDays *
-            SECONDS_IN_A_DAY;
         if (cr.state == CreditState.GoodStanding && cr.nextDue != 0) {
             // If this is the first time ever that the bill has surpassed the due date and the bill has unpaid amounts,
             // then we don't want to refresh the bill since we want the user to focus on paying off the current due.
-            return latePaymentDeadline;
+            PoolSettings memory poolSettings = poolConfig.getPoolSettings();
+            return cr.nextDueDate + poolSettings.latePaymentGracePeriodInDays * SECONDS_IN_A_DAY;
         }
         return cr.nextDueDate;
     }
@@ -340,7 +291,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         (fees, frontLoadingFeeBps) = poolConfig.getFrontLoadingFees();
         if (frontLoadingFeeBps > 0)
             fees += (_amount * frontLoadingFeeBps) / HUNDRED_PERCENT_IN_BPS;
-        return fees;
     }
 
     function refreshLateFee(
@@ -387,7 +337,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                     calendar.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate)) /
                 (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR)
         );
-        return (lateFeeUpdatedDate, lateFee);
     }
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
@@ -424,9 +373,8 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         uint256 committedAmount,
         uint256 daysPassed
     ) internal pure returns (uint256 maxYieldDue) {
-        uint256 accrued = _computeYieldDue(principal, yieldInBps, daysPassed);
-        uint256 committed = _computeYieldDue(committedAmount, yieldInBps, daysPassed);
-        return accrued > committed ? accrued : committed;
+        uint256 yieldBasis = Math.max(principal, committedAmount);
+        return _computeYieldDue(yieldBasis, yieldInBps, daysPassed);
     }
 
     function _computeAccruedAndCommittedYieldDue(
@@ -437,7 +385,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     ) internal pure returns (uint96 accrued, uint96 committed) {
         accrued = _computeYieldDue(principal, yieldInBps, daysPassed);
         committed = _computeYieldDue(committedAmount, yieldInBps, daysPassed);
-        return (accrued, committed);
     }
 
     function _computeYieldDue(
@@ -460,7 +407,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         newCR.missedPeriods = cr.missedPeriods;
         newCR.remainingPeriods = cr.remainingPeriods;
         newCR.state = cr.state;
-        return newCR;
     }
 
     function _deepCopyDueDetail(
@@ -473,6 +419,5 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         newDD.committed = dd.committed;
         newDD.accrued = dd.accrued;
         newDD.paid = dd.paid;
-        return newDD;
     }
 }

@@ -131,7 +131,6 @@ export enum PayPeriodDuration {
 
 export enum CreditState {
     Deleted,
-    Paused,
     Approved,
     GoodStanding,
     Delayed,
@@ -147,13 +146,6 @@ export enum ReceivableState {
     Rejected,
     Delayed,
     Defaulted,
-}
-
-export enum CreditClosureReason {
-    Paidoff,
-    CreditLimitChangedToBeZero,
-    OverwrittenByNewLine,
-    AdminClosure,
 }
 
 export enum PoolStatus {
@@ -632,6 +624,7 @@ export async function setupPoolContracts(
     receivableContract: Receivable,
     poolOwner: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
+    humaTreasury: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     poolOperator: SignerWithAddress,
     accounts: SignerWithAddress[],
@@ -651,6 +644,10 @@ export async function setupPoolContracts(
         .connect(poolOwner)
         .setPoolOwnerTreasury(poolOwnerTreasury.getAddress());
 
+    const role = await poolConfigContract.POOL_OPERATOR_ROLE();
+    await poolConfigContract.connect(poolOwner).grantRole(role, poolOwner.getAddress());
+    await poolConfigContract.connect(poolOwner).grantRole(role, poolOperator.getAddress());
+
     // Deposit enough liquidity for the pool owner and EA in the junior tranche.
     const adminRnR = await poolConfigContract.getAdminRnR();
     await mockTokenContract
@@ -660,6 +657,12 @@ export async function setupPoolContracts(
     const poolOwnerLiquidity = BN.from(adminRnR.liquidityRateInBpsByPoolOwner)
         .mul(poolLiquidityCap)
         .div(CONSTANTS.BP_FACTOR);
+    await juniorTrancheVaultContract
+        .connect(poolOperator)
+        .addApprovedLender(poolOwnerTreasury.getAddress(), true);
+    await seniorTrancheVaultContract
+        .connect(poolOperator)
+        .addApprovedLender(poolOwnerTreasury.getAddress(), true);
     await juniorTrancheVaultContract
         .connect(poolOwnerTreasury)
         .makeInitialDeposit(poolOwnerLiquidity);
@@ -685,6 +688,9 @@ export async function setupPoolContracts(
             .mul(poolLiquidityCap)
             .div(CONSTANTS.BP_FACTOR);
         await juniorTrancheVaultContract
+            .connect(poolOperator)
+            .addApprovedLender(evaluationAgent.getAddress(), true);
+        await juniorTrancheVaultContract
             .connect(evaluationAgent)
             .makeInitialDeposit(evaluationAgentLiquidity);
         expectedInitialLiquidity = expectedInitialLiquidity.add(evaluationAgentLiquidity);
@@ -698,21 +704,13 @@ export async function setupPoolContracts(
         .approve(adminFirstLossCoverContract.address, ethers.constants.MaxUint256);
     await adminFirstLossCoverContract
         .connect(poolOwner)
+        .addCoverProvider(humaTreasury.getAddress());
+    await adminFirstLossCoverContract
+        .connect(poolOwner)
         .addCoverProvider(poolOwnerTreasury.getAddress());
     await adminFirstLossCoverContract
         .connect(poolOwner)
         .addCoverProvider(evaluationAgent.getAddress());
-
-    const role = await poolConfigContract.POOL_OPERATOR_ROLE();
-    await poolConfigContract.connect(poolOwner).grantRole(role, poolOwner.getAddress());
-    await poolConfigContract.connect(poolOwner).grantRole(role, poolOperator.getAddress());
-
-    await juniorTrancheVaultContract
-        .connect(poolOperator)
-        .setReinvestYield(poolOwnerTreasury.address, true);
-    await juniorTrancheVaultContract
-        .connect(poolOperator)
-        .setReinvestYield(evaluationAgent.address, true);
 
     await adminFirstLossCoverContract.connect(poolOwnerTreasury).depositCover(toToken(10_000));
     await adminFirstLossCoverContract.connect(evaluationAgent).depositCover(toToken(10_000));
@@ -755,6 +753,7 @@ export async function deployAndSetupPoolContracts(
     creditContractName: CreditContractName,
     creditManagerContractName: CreditManagerContractName,
     evaluationAgent: SignerWithAddress,
+    humaTreasury: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     poolOperator: SignerWithAddress,
     accounts: SignerWithAddress[],
@@ -800,6 +799,7 @@ export async function deployAndSetupPoolContracts(
         receivableContract,
         poolOwner,
         evaluationAgent,
+        humaTreasury,
         poolOwnerTreasury,
         poolOperator,
         accounts,
@@ -827,36 +827,48 @@ export async function deployAndSetupPoolContracts(
 
 export type SeniorYieldTracker = { totalAssets: BN; unpaidYield: BN; lastUpdatedDate: BN };
 
-function calcLatestSeniorTracker(
+async function calcLatestSeniorTracker(
+    calendarContract: Calendar,
     currentTS: number,
     yieldInBps: number,
     seniorYieldTracker: SeniorYieldTracker,
-): SeniorYieldTracker {
-    let newSeniorTracker = { ...seniorYieldTracker };
-    if (currentTS > newSeniorTracker.lastUpdatedDate.toNumber()) {
+): Promise<SeniorYieldTracker> {
+    const newSeniorTracker = { ...seniorYieldTracker };
+    const startOfNextDay = await calendarContract.getStartOfNextDay(currentTS);
+    const daysDiff = await calendarContract.getDaysDiff(
+        newSeniorTracker.lastUpdatedDate,
+        startOfNextDay,
+    );
+    if (daysDiff.gt(0)) {
         newSeniorTracker.unpaidYield = newSeniorTracker.unpaidYield.add(
             newSeniorTracker.totalAssets
-                .mul(BN.from(currentTS).sub(newSeniorTracker.lastUpdatedDate))
+                .mul(daysDiff)
                 .mul(BN.from(yieldInBps))
-                .div(BN.from(CONSTANTS.SECONDS_IN_A_YEAR).mul(CONSTANTS.BP_FACTOR)),
+                .div(BN.from(CONSTANTS.DAYS_IN_A_YEAR).mul(CONSTANTS.BP_FACTOR)),
         );
-        newSeniorTracker.lastUpdatedDate = BN.from(currentTS);
+        newSeniorTracker.lastUpdatedDate = BN.from(startOfNextDay);
     }
     return newSeniorTracker;
 }
 
-function calcProfitForFixedSeniorYieldPolicy(
+async function calcProfitForFixedSeniorYieldPolicy(
+    calendarContract: Calendar,
     profit: BN,
     assets: BN[],
     currentTS: number,
     yieldInBps: number,
     seniorYieldTracker: SeniorYieldTracker,
-): [SeniorYieldTracker, BN[]] {
-    let newSeniorTracker = calcLatestSeniorTracker(currentTS, yieldInBps, seniorYieldTracker);
-    let seniorProfit = newSeniorTracker.unpaidYield.gt(profit)
+): Promise<[SeniorYieldTracker, BN[]]> {
+    const newSeniorTracker = await calcLatestSeniorTracker(
+        calendarContract,
+        currentTS,
+        yieldInBps,
+        seniorYieldTracker,
+    );
+    const seniorProfit = newSeniorTracker.unpaidYield.gt(profit)
         ? profit
         : newSeniorTracker.unpaidYield;
-    let juniorProfit = profit.sub(seniorProfit);
+    const juniorProfit = profit.sub(seniorProfit);
     newSeniorTracker.unpaidYield = newSeniorTracker.unpaidYield.sub(seniorProfit);
     newSeniorTracker.totalAssets = assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit);
 
@@ -937,10 +949,8 @@ async function calcLoss(
         }
         lossesCoveredByFirstLossCovers.push(coveredAmount);
     }
-    const juniorLoss = loss.gt(assets[CONSTANTS.JUNIOR_TRANCHE])
-        ? assets[CONSTANTS.JUNIOR_TRANCHE]
-        : loss;
-    const seniorLoss = loss.sub(juniorLoss);
+    const juniorLoss = minBigNumber(loss, assets[CONSTANTS.JUNIOR_TRANCHE]);
+    const seniorLoss = minBigNumber(loss.sub(juniorLoss), assets[CONSTANTS.SENIOR_TRANCHE]);
 
     return [
         [
@@ -1110,6 +1120,7 @@ export class FeeCalculator {
 export class ProfitAndLossCalculator {
     poolConfigContract: PoolConfig;
     poolContract: Pool;
+    calendarContract: Calendar;
     firstLossCoverContracts: (FirstLossCover | null)[];
 
     tranchesAssets: BN[] = [];
@@ -1118,10 +1129,12 @@ export class ProfitAndLossCalculator {
     constructor(
         poolConfigContract: PoolConfig,
         poolContract: Pool,
+        calendarContract: Calendar,
         firstLossCoverContracts: (FirstLossCover | null)[],
     ) {
         this.poolConfigContract = poolConfigContract;
         this.poolContract = poolContract;
+        this.calendarContract = calendarContract;
         this.firstLossCoverContracts = firstLossCoverContracts;
     }
 
@@ -1237,6 +1250,7 @@ export class ProfitAndLossCalculator {
         let lpConfig = await this.poolConfigContract.getLPConfig();
         let block = await getLatestBlock();
         let [newTracker, assets] = await calcProfitForFixedSeniorYieldPolicy(
+            this.calendarContract,
             profit,
             this.tranchesAssets,
             block.timestamp,
