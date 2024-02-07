@@ -7,7 +7,6 @@ describe("HumaConfig Tests", function () {
     let configContract: HumaConfig, mockTokenContract: MockToken;
     let origOwner: SignerWithAddress,
         pauser: SignerWithAddress,
-        poolAdmin: SignerWithAddress,
         treasury: SignerWithAddress,
         newOwner: SignerWithAddress,
         newTreasury: SignerWithAddress,
@@ -15,16 +14,8 @@ describe("HumaConfig Tests", function () {
         randomUser: SignerWithAddress;
 
     before(async function () {
-        [
-            origOwner,
-            pauser,
-            poolAdmin,
-            treasury,
-            newOwner,
-            newTreasury,
-            sentinelServiceAccount,
-            randomUser,
-        ] = await ethers.getSigners();
+        [origOwner, pauser, treasury, newOwner, newTreasury, sentinelServiceAccount, randomUser] =
+            await ethers.getSigners();
 
         const HumaConfig = await ethers.getContractFactory("HumaConfig");
         configContract = await HumaConfig.deploy();
@@ -209,78 +200,6 @@ describe("HumaConfig Tests", function () {
                 .withArgs(origOwner.address);
 
             expect(await configContract.paused()).to.equal(false);
-        });
-    });
-
-    describe("Add and Remove Pool Admins", function () {
-        it("Should disallow non-owner to add pool admins", async function () {
-            await expect(
-                configContract.connect(randomUser).addPoolAdmin(poolAdmin.address),
-            ).to.be.revertedWith("Ownable: caller is not the owner");
-        });
-
-        it("Should reject 0 address pool admin", async function () {
-            await expect(
-                configContract.connect(origOwner).addPoolAdmin(ethers.constants.AddressZero),
-            ).to.be.revertedWithCustomError(configContract, "ZeroAddressProvided");
-        });
-
-        it("Should allow pool admin to be added", async function () {
-            expect(await configContract.connect(origOwner).addPoolAdmin(poolAdmin.address))
-                .to.emit(configContract, "PoolAdminAdded")
-                .withArgs(poolAdmin.address, origOwner.address);
-
-            expect(
-                await configContract.connect(origOwner).isPoolAdmin(poolAdmin.address),
-            ).to.equal(true);
-        });
-
-        it("Should reject add-pool-admin request if it is already a pool admin", async function () {
-            await expect(
-                configContract.connect(origOwner).addPoolAdmin(poolAdmin.address),
-            ).to.be.revertedWithCustomError(configContract, "AlreadyPoolAdmin");
-        });
-
-        it("Should disallow non-owner to remove a pool admin", async function () {
-            await expect(
-                configContract.connect(randomUser).removePoolAdmin(poolAdmin.address),
-            ).to.be.revertedWith("Ownable: caller is not the owner");
-
-            await expect(
-                configContract.connect(poolAdmin).removePoolAdmin(poolAdmin.address),
-            ).to.be.revertedWith("Ownable: caller is not the owner");
-        });
-
-        it("Should disallow removal of pool admin using zero address", async function () {
-            await expect(
-                configContract.connect(origOwner).removePoolAdmin(ethers.constants.AddressZero),
-            ).to.be.revertedWithCustomError(configContract, "ZeroAddressProvided");
-        });
-
-        it("Should reject attempt to remove a pool admin who is not a pool admin", async function () {
-            await expect(
-                configContract.connect(origOwner).removePoolAdmin(treasury.address),
-            ).to.be.revertedWithCustomError(configContract, "PoolOwnerRequired");
-        });
-
-        it("Should remove a pool admin successfully", async function () {
-            await expect(configContract.connect(origOwner).removePoolAdmin(poolAdmin.address))
-                .to.emit(configContract, "PoolAdminRemoved")
-                .withArgs(poolAdmin.address, origOwner.address);
-
-            expect(
-                await configContract.connect(origOwner).isPoolAdmin(poolAdmin.address),
-            ).to.equal(false);
-        });
-
-        it("Should allow removed pool admin to be added back", async function () {
-            expect(await configContract.connect(origOwner).addPoolAdmin(poolAdmin.address))
-                .to.emit(configContract, "PoolAdminAdded")
-                .withArgs(poolAdmin.address, origOwner.address);
-
-            expect(
-                await configContract.connect(origOwner).isPoolAdmin(poolAdmin.address),
-            ).to.equal(true);
         });
     });
 

@@ -163,6 +163,7 @@ async function deployPool(
         creditContractName,
         creditManagerContractName,
         evaluationAgent,
+        treasury,
         poolOwnerTreasury,
         poolOperator,
         [juniorLender, seniorLender, lenderRedemptionActive, borrowerActive],
@@ -195,12 +196,8 @@ async function deployPool(
     );
 
     // Depositing junior and senior liquidity into the tranches
-    await juniorTrancheVaultContract
-        .connect(juniorLender)
-        .deposit(toToken(150_000), juniorLender.address);
-    await seniorTrancheVaultContract
-        .connect(seniorLender)
-        .deposit(toToken(200_000), seniorLender.address);
+    await juniorTrancheVaultContract.connect(juniorLender).deposit(toToken(150_000));
+    await seniorTrancheVaultContract.connect(seniorLender).deposit(toToken(200_000));
 
     const frontLoadingFeeFlat = toToken(100);
     const frontLoadingFeeBps = BN.from(100);

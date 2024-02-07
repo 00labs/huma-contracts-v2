@@ -107,6 +107,7 @@ describe("FirstLossCover Tests", function () {
             "MockPoolCredit",
             "CreditLineManager",
             evaluationAgent,
+            protocolTreasury,
             poolOwnerTreasury,
             poolOperator,
             [lender],
@@ -568,6 +569,7 @@ describe("FirstLossCover Tests", function () {
             await poolConfigContract
                 .connect(poolOwner)
                 .setPoolFeeManager(defaultDeployer.getAddress());
+            await adminFirstLossCoverContract.connect(poolOwner).updatePoolConfigData();
         });
 
         it("Should allow the pool fee manager to deposit on behalf of a cover provider", async function () {
@@ -616,10 +618,10 @@ describe("FirstLossCover Tests", function () {
             ).to.be.revertedWithCustomError(adminFirstLossCoverContract, "ZeroAmountProvided");
         });
 
-        it("Should disallow zero address as the receiver", async function () {
+        it("Should disallow non-cover-providers as the receiver", async function () {
             await expect(
-                adminFirstLossCoverContract.depositCoverFor(assets, ethers.constants.AddressZero),
-            ).to.be.revertedWithCustomError(adminFirstLossCoverContract, "ZeroAddressProvided");
+                adminFirstLossCoverContract.depositCoverFor(assets, defaultDeployer.getAddress()),
+            ).to.be.revertedWithCustomError(adminFirstLossCoverContract, "CoverProviderRequired");
         });
 
         it("Should disallow non-pool owners to make deposit on behalf of the cover provider", async function () {
@@ -631,16 +633,6 @@ describe("FirstLossCover Tests", function () {
                 adminFirstLossCoverContract,
                 "AuthorizedContractCallerRequired",
             );
-        });
-
-        it("Should disallow deposits with amounts lower than the min requirement", async function () {
-            const poolSettings = await poolConfigContract.getPoolSettings();
-            await expect(
-                adminFirstLossCoverContract.depositCoverFor(
-                    poolSettings.minDepositAmount.sub(toToken(1)),
-                    evaluationAgent.getAddress(),
-                ),
-            ).to.be.revertedWithCustomError(adminFirstLossCoverContract, "DepositAmountTooLow");
         });
     });
 
@@ -1440,6 +1432,22 @@ describe("FirstLossCover Tests", function () {
             );
             expect(newPoolOwnerBalance).to.equal(oldPoolOwnerBalance);
             expect(newEABalance).to.equal(oldEABalance.add(yieldAmount));
+        });
+
+        it("Should not allow yield payout when the protocol is paused or pool is not on", async function () {
+            await humaConfigContract.connect(protocolOwner).pause();
+            await expect(adminFirstLossCoverContract.payoutYield()).to.be.revertedWithCustomError(
+                poolConfigContract,
+                "ProtocolIsPaused",
+            );
+            await humaConfigContract.connect(protocolOwner).unpause();
+
+            await poolContract.connect(poolOwner).disablePool();
+            await expect(adminFirstLossCoverContract.payoutYield()).to.be.revertedWithCustomError(
+                poolConfigContract,
+                "PoolIsNotOn",
+            );
+            await poolContract.connect(poolOwner).enablePool();
         });
     });
 });

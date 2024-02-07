@@ -95,6 +95,7 @@ describe("PoolSafe Tests", function () {
             "MockPoolCredit",
             "CreditLineManager",
             evaluationAgent,
+            protocolTreasury,
             poolOwnerTreasury,
             poolOperator,
             [lender],
@@ -126,6 +127,8 @@ describe("PoolSafe Tests", function () {
             await poolConfigContract
                 .connect(poolOwner)
                 .setTranches(defaultDeployer.address, defaultDeployer.address);
+            await poolSafeContract.connect(poolOwner).updatePoolConfigData();
+
             await testDeposit();
         });
 
@@ -144,11 +147,15 @@ describe("PoolSafe Tests", function () {
 
         it("Should allow the credit contract to make deposit into the safe", async function () {
             await poolConfigContract.connect(poolOwner).setCredit(defaultDeployer.address);
+            await poolSafeContract.connect(poolOwner).updatePoolConfigData();
+
             await testDeposit();
         });
 
         it("Should allow the pool fee manager contract to make deposit into the safe", async function () {
             await poolConfigContract.connect(poolOwner).setPoolFeeManager(defaultDeployer.address);
+            await poolSafeContract.connect(poolOwner).updatePoolConfigData();
+
             await testDeposit();
         });
 
@@ -179,6 +186,8 @@ describe("PoolSafe Tests", function () {
             await poolConfigContract
                 .connect(poolOwner)
                 .setTranches(defaultDeployer.address, defaultDeployer.address);
+            await poolSafeContract.connect(poolOwner).updatePoolConfigData();
+
             await testWithdrawal();
         });
 
@@ -197,11 +206,15 @@ describe("PoolSafe Tests", function () {
 
         it("Should allow the credit contract to withdraw from the safe", async function () {
             await poolConfigContract.connect(poolOwner).setCredit(defaultDeployer.address);
+            await poolSafeContract.connect(poolOwner).updatePoolConfigData();
+
             await testWithdrawal();
         });
 
         it("Should allow the pool fee manager contract to make deposit into the safe", async function () {
             await poolConfigContract.connect(poolOwner).setPoolFeeManager(defaultDeployer.address);
+            await poolSafeContract.connect(poolOwner).updatePoolConfigData();
+
             await testWithdrawal();
         });
 
@@ -338,8 +351,10 @@ describe("PoolSafe Tests", function () {
             await poolConfigContract
                 .connect(poolOwner)
                 .setPoolFeeManager(defaultDeployer.getAddress());
+            await poolSafeContract.connect(poolOwner).updatePoolConfigData();
             const totalBalance = await poolSafeContract.totalBalance();
             await poolSafeContract.withdraw(defaultDeployer.getAddress(), totalBalance);
+
             expect(await poolSafeContract.getAvailableBalanceForFees()).to.equal(
                 ethers.constants.Zero,
             );
