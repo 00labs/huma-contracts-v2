@@ -39,8 +39,6 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
                 profitsForFirstLossCover
             ) = _calcProfitForFirstLossCovers(remainingProfit, assets[JUNIOR_TRANCHE]);
         }
-
-        return (profitsForTrancheVault, profitsForFirstLossCover);
     }
 
     /// @inheritdoc ITranchesPolicy
@@ -123,6 +121,5 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
             // it is guaranteed that juniorProfit will not be negative.
             juniorProfit -= profitsForFirstLossCovers[i];
         }
-        return (juniorProfit, profitsForFirstLossCovers);
     }
 }

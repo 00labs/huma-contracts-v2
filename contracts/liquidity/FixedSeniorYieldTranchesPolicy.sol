@@ -72,8 +72,6 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
             tracker.unpaidYield,
             tracker.lastUpdatedDate
         );
-
-        return (seniorProfit, remainingProfit);
     }
 
     /**

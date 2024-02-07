@@ -443,8 +443,6 @@ contract Pool is PoolConfigCache, IPool {
             losses.seniorLoss,
             losses.juniorLoss
         );
-
-        return remainingLossRecovery;
     }
 
     /**
