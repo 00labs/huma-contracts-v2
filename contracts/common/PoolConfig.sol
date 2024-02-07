@@ -5,6 +5,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IPoolFeeManager} from "../liquidity/interfaces/IPoolFeeManager.sol";
 import {IPool} from "../liquidity/interfaces/IPool.sol";
 import {IFirstLossCover} from "../liquidity/interfaces/IFirstLossCover.sol";
@@ -463,6 +464,9 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         FirstLossCoverConfig memory config
     ) external {
         _onlyPoolOwnerOrHumaOwner();
+        if (config.coverRatePerLossInBps > HUNDRED_PERCENT_IN_BPS)
+            revert Errors.InvalidBasisPointHigherThan10000();
+
         _firstLossCovers[index] = firstLossCover;
         _firstLossCoverConfigs[firstLossCover] = config;
 
@@ -503,7 +507,13 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         ) {
             revert Errors.MinDepositAmountTooLow();
         }
-        if (settings.advanceRateInBps > 10000) {
+        if (
+            settings.latePaymentGracePeriodInDays >=
+            ICalendar(calendar).getTotalDaysInFullPeriod(settings.payPeriodDuration)
+        ) {
+            revert Errors.LatePaymentGracePeriodTooLong();
+        }
+        if (settings.advanceRateInBps > HUNDRED_PERCENT_IN_BPS) {
             revert Errors.InvalidBasisPointHigherThan10000();
         }
         _poolSettings = settings;
@@ -522,6 +532,10 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     /// @custom:access Only the pool owner and the Huma owner can call this function.
     function setLPConfig(LPConfig memory lpConfig) external {
         _onlyPoolOwnerOrHumaOwner();
+        if (
+            lpConfig.fixedSeniorYieldInBps > HUNDRED_PERCENT_IN_BPS ||
+            lpConfig.tranchesRiskAdjustmentInBps > HUNDRED_PERCENT_IN_BPS
+        ) revert Errors.InvalidBasisPointHigherThan10000();
         if (lpConfig.fixedSeniorYieldInBps != _lpConfig.fixedSeniorYieldInBps) {
             ITranchesPolicy(tranchesPolicy).refreshYieldTracker(
                 IPool(pool).currentTranchesAssets()
@@ -541,6 +555,9 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     /// @custom:access Only the pool owner and the Huma owner can call this function.
     function setFrontLoadingFees(FrontLoadingFeesStructure memory frontFees) external {
         _onlyPoolOwnerOrHumaOwner();
+        if (frontFees.frontLoadingFeeBps > HUNDRED_PERCENT_IN_BPS)
+            revert Errors.InvalidBasisPointHigherThan10000();
+
         _frontFees = frontFees;
         emit FrontLoadingFeesChanged(
             frontFees.frontLoadingFeeFlat,
@@ -552,6 +569,11 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     /// @custom:access Only the pool owner and the Huma owner can call this function.
     function setFeeStructure(FeeStructure memory feeStructure) external {
         _onlyPoolOwnerOrHumaOwner();
+        if (
+            feeStructure.minPrincipalRateInBps > HUNDRED_PERCENT_IN_BPS ||
+            feeStructure.lateFeeBps > HUNDRED_PERCENT_IN_BPS
+        ) revert Errors.InvalidBasisPointHigherThan10000();
+
         _feeStructure = feeStructure;
         emit FeeStructureChanged(
             feeStructure.yieldInBps,

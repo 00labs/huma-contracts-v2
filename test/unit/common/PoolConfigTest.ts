@@ -1744,6 +1744,26 @@ describe("PoolConfig Tests", function () {
                     "PoolOwnerOrHumaOwnerRequired",
                 );
             });
+
+            it("Should not the cover rate to exceed 100%", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setFirstLossCover(
+                            CONSTANTS.ADMIN_LOSS_COVER_INDEX,
+                            adminFirstLossCoverContract.address,
+                            {
+                                ...config,
+                                ...{
+                                    coverRatePerLossInBps: CONSTANTS.BP_FACTOR.add(1),
+                                },
+                            },
+                        ),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "InvalidBasisPointHigherThan10000",
+                );
+            });
         });
 
         describe("setCalendar", function () {
@@ -1931,6 +1951,21 @@ describe("PoolConfig Tests", function () {
                 ).to.be.revertedWithCustomError(poolConfigContract, "MinDepositAmountTooLow");
             });
 
+            it("Should disallow late payment grace periods that are longer than or equal to the number of days in a full pay period", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setPoolSettings({
+                        ...newSettings,
+                        ...{
+                            payPeriodDuration: PayPeriodDuration.Monthly,
+                            latePaymentGracePeriodInDays: 30,
+                        },
+                    }),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "LatePaymentGracePeriodTooLong",
+                );
+            });
+
             it("Should disallow advance rates that exceed 10000", async function () {
                 await expect(
                     poolConfigContract.connect(poolOwner).setPoolSettings({
@@ -2013,6 +2048,34 @@ describe("PoolConfig Tests", function () {
                     "PoolOwnerOrHumaOwnerRequired",
                 );
             });
+
+            it("Should not allow fixSeniorYieldInBps to exceed 10000", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setLPConfig({
+                        ...newLPConfig,
+                        ...{
+                            fixedSeniorYieldInBps: CONSTANTS.BP_FACTOR.add(1),
+                        },
+                    }),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "InvalidBasisPointHigherThan10000",
+                );
+            });
+
+            it("Should not allow tranchesRiskAdjustmentInBps to exceed 10000", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setLPConfig({
+                        ...newLPConfig,
+                        ...{
+                            tranchesRiskAdjustmentInBps: CONSTANTS.BP_FACTOR.add(1),
+                        },
+                    }),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "InvalidBasisPointHigherThan10000",
+                );
+            });
         });
 
         describe("setFrontLoadingFees", function () {
@@ -2077,6 +2140,20 @@ describe("PoolConfig Tests", function () {
                     "PoolOwnerOrHumaOwnerRequired",
                 );
             });
+
+            it("Should not allow frontLoadingFeeBps to exceed 10000", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setFrontLoadingFees({
+                        ...newFrontLoadingFeeStructure,
+                        ...{
+                            frontLoadingFeeBps: CONSTANTS.BP_FACTOR.add(1),
+                        },
+                    }),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "InvalidBasisPointHigherThan10000",
+                );
+            });
         });
 
         describe("setFeeStructure", function () {
@@ -2131,6 +2208,34 @@ describe("PoolConfig Tests", function () {
                 ).to.be.revertedWithCustomError(
                     poolConfigContract,
                     "PoolOwnerOrHumaOwnerRequired",
+                );
+            });
+
+            it("Should not allow minPrincipalRateInBps to exceed 10000", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setFeeStructure({
+                        ...newFeeStructure,
+                        ...{
+                            minPrincipalRateInBps: CONSTANTS.BP_FACTOR.add(1),
+                        },
+                    }),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "InvalidBasisPointHigherThan10000",
+                );
+            });
+
+            it("Should not allow lateFeeBps to exceed 10000", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setFeeStructure({
+                        ...newFeeStructure,
+                        ...{
+                            lateFeeBps: CONSTANTS.BP_FACTOR.add(1),
+                        },
+                    }),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "InvalidBasisPointHigherThan10000",
                 );
             });
         });
