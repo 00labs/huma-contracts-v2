@@ -145,6 +145,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         uint256 liquidityRate,
         address indexed by
     );
+    event EvaluationAgentChanged(address oldEA, address newEA, address by);
     event EvaluationAgentFeesWithdrawalFailed(address oldEA, uint256 fees, string reason);
     event PoolFeeManagerChanged(address poolFeeManager, address by);
     event HumaConfigChanged(address humaConfig, address by);
