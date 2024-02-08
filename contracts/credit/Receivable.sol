@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
@@ -99,9 +99,7 @@ contract Receivable is
         _tokenIdCounter.increment();
     }
 
-    /**
-     * @inheritdoc IReceivable
-     */
+    /// @inheritdoc IReceivable
     function declarePayment(uint256 tokenId, uint96 paymentAmount) external {
         if (paymentAmount == 0) revert Errors.ZeroAmountProvided();
         ReceivableInfo memory receivableInfo = receivableInfoMap[tokenId];

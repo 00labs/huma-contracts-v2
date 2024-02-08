@@ -22,7 +22,6 @@ import {
     TrancheVault,
 } from "../../../typechain-types";
 import {
-    CreditClosureReason,
     CreditState,
     PayPeriodDuration,
     calcYield,
@@ -37,7 +36,6 @@ import {
 import {
     getLatestBlock,
     getStartOfNextMonth,
-    isCloseTo,
     receivableLevelCreditHash,
     setNextBlockTimestamp,
     toToken,
@@ -74,7 +72,7 @@ let poolConfigContract: PoolConfig,
     creditManagerContract: ReceivableFactoringCreditManager,
     nftContract: MockNFT;
 
-describe("ReceivableFactoringCreditManager.sol Test", function () {
+describe("ReceivableFactoringCreditManager Test", function () {
     before(async function () {
         [
             defaultDeployer,
@@ -126,6 +124,7 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
             "ReceivableFactoringCredit",
             "ReceivableFactoringCreditManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender, borrower, payer],
@@ -271,6 +270,21 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
             ).to.be.revertedWithCustomError(creditManagerContract, "InsufficientReceivableAmount");
         });
 
+        it("Should not approve if the receivable ID is 0", async function () {
+            await expect(
+                creditManagerContract.connect(eaServiceAccount).approveReceivable(
+                    borrower.address,
+                    {
+                        receivableAmount: creditLimit,
+                        receivableId: 0,
+                    },
+                    creditLimit,
+                    numOfPeriods,
+                    yieldInBps,
+                ),
+            ).to.be.revertedWithCustomError(creditManagerContract, "ZeroReceivableIdProvided");
+        });
+
         it("Should approve a borrower correctly", async function () {
             const poolSettings = await poolConfigContract.getPoolSettings();
 
@@ -367,9 +381,7 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
                     numOfPeriods,
                     yieldInBps,
                 );
-            await creditContract
-                .connect(borrower)
-                .drawdownWithReceivable(borrower.getAddress(), tokenId, borrowAmount);
+            await creditContract.connect(borrower).drawdownWithReceivable(tokenId, borrowAmount);
         }
 
         beforeEach(async function () {
@@ -486,9 +498,7 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
 
         async function testTriggerDefault(drawdownDate: number) {
             await setNextBlockTimestamp(drawdownDate);
-            await creditContract
-                .connect(borrower)
-                .drawdownWithReceivable(borrower.getAddress(), tokenId, borrowAmount);
+            await creditContract.connect(borrower).drawdownWithReceivable(tokenId, borrowAmount);
 
             const oldCR = await creditContract["getCreditRecord(uint256)"](tokenId);
             const cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -656,12 +666,8 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
                         .connect(borrower)
                         .closeCredit(borrower.getAddress(), tokenId),
                 )
-                    .to.emit(creditManagerContract, "CreditClosed")
-                    .withArgs(
-                        creditHash,
-                        CreditClosureReason.AdminClosure,
-                        await borrower.getAddress(),
-                    );
+                    .to.emit(creditManagerContract, "CreditClosedByAdmin")
+                    .withArgs(creditHash, await borrower.getAddress());
 
                 // Make sure relevant fields have been reset.
                 const cr = await creditContract["getCreditRecord(uint256)"](tokenId);
@@ -715,21 +721,14 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
                 );
             drawdownDate = await getStartOfNextMonth();
             await setNextBlockTimestamp(drawdownDate);
-            await creditContract
-                .connect(borrower)
-                .drawdownWithReceivable(borrower.getAddress(), tokenId, borrowAmount);
+            await creditContract.connect(borrower).drawdownWithReceivable(tokenId, borrowAmount);
         }
 
         beforeEach(async function () {
             await loadFixture(prepareForUpdateYield);
         });
 
-        async function testUpdate(
-            oldYieldDue: BN,
-            newYieldDue: BN,
-            expectedNextDue: BN,
-            expectedYieldDue: BN,
-        ) {
+        async function testUpdate() {
             const updateDate: number = drawdownDate + CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(updateDate);
             const oldCR = await creditContract["getCreditRecord(uint256)"](tokenId);
@@ -744,48 +743,19 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
                     creditHash,
                     yieldInBps,
                     newYieldInBps,
-                    oldYieldDue,
-                    (actualNewYieldDue: BN) =>
-                        isCloseTo(actualNewYieldDue, newYieldDue, BN.from(1)),
                     await eaServiceAccount.getAddress(),
                 );
 
             const cc = await creditManagerContract.getCreditConfig(creditHash);
             expect(cc.yieldInBps).to.equal(newYieldInBps);
             const actualCR = await creditContract["getCreditRecord(uint256)"](tokenId);
-            const expectedCR = {
-                ...oldCR,
-                ...{
-                    nextDue: expectedNextDue,
-                    yieldDue: expectedYieldDue,
-                },
-            };
-            checkCreditRecordsMatch(actualCR, expectedCR, BN.from(1));
+            checkCreditRecordsMatch(actualCR, oldCR);
             const actualDD = await creditContract.getDueDetail(creditHash);
-            const expectedAccruedYield = calcYield(borrowAmount, yieldInBps, 2).add(
-                calcYield(borrowAmount, newYieldInBps, CONSTANTS.DAYS_IN_A_MONTH - 2),
-            );
-            const expectedDD = {
-                ...oldDD,
-                ...{
-                    accrued: expectedAccruedYield,
-                },
-            };
-            checkDueDetailsMatch(actualDD, expectedDD, BN.from(1));
+            checkDueDetailsMatch(actualDD, oldDD);
         }
 
         it("Should update the yield due", async function () {
-            const oldCR = await creditContract["getCreditRecord(uint256)"](tokenId);
-            const oldDD = await creditContract.getDueDetail(creditHash);
-            const expectedAccruedYield = calcYield(borrowAmount, yieldInBps, 2).add(
-                calcYield(borrowAmount, newYieldInBps, CONSTANTS.DAYS_IN_A_MONTH - 2),
-            );
-            await testUpdate(
-                oldDD.accrued,
-                expectedAccruedYield,
-                oldCR.nextDue.sub(oldCR.yieldDue).add(expectedAccruedYield),
-                expectedAccruedYield,
-            );
+            await testUpdate();
         });
 
         it("Should not allow update when the protocol is paused or pool is not on", async function () {
@@ -846,9 +816,7 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
                     numOfPeriods,
                     yieldInBps,
                 );
-            await creditContract
-                .connect(borrower)
-                .drawdownWithReceivable(borrower.getAddress(), tokenId, borrowAmount);
+            await creditContract.connect(borrower).drawdownWithReceivable(tokenId, borrowAmount);
         }
 
         beforeEach(async function () {
@@ -946,9 +914,7 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
 
             const drawdownDate = await getStartOfNextMonth();
             await setNextBlockTimestamp(drawdownDate);
-            await creditContract
-                .connect(borrower)
-                .drawdownWithReceivable(borrower.getAddress(), tokenId, borrowAmount);
+            await creditContract.connect(borrower).drawdownWithReceivable(tokenId, borrowAmount);
 
             const cc = await creditManagerContract.getCreditConfig(creditHash);
             const refreshDate =
