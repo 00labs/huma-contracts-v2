@@ -250,12 +250,12 @@ contract Receivable is
         // 1. The creation of a receivable does not automatically lead to its use in approval and drawdown processes.
         //    In instances where a receivable remains unused for these purposes, the `availableCredit`
         //    remains unaffected.
-        // 2. In the scenario where a receivable, is approved but subsequently burned by the borrower,
+        // 2. In the scenario where a receivable is approved but subsequently burned by the borrower,
         //    it's true that a technical adjustment to `availableCredit` might be warranted. However, this situation
         //    is mitigated by the fact that the borrower must resort to a new receivable for any future borrowing.
-        //    Since the borrowing limit is constrained by the value of the new receivable, any credits
-        //    previously approved under the burned receivable become redundant and non-beneficial,
-        //    thus disincentivizing the borrower from such actions.
+        //    Since the borrowing limit is constrained by the value of the new receivable, credits
+        //    previously approved under the burned receivable become largely redundant and non-beneficial,
+        //    esp. if the advance ratio is close to 100%, thus disincentivizing the borrower from such actions.
         // 3. Implementing the update feature introduces non-trivial complexity. The current design features
         //    a unidirectional relationship where the `Credit` contract is aware of the `Receivable` contract.
         //    To accommodate the update to `availableCredit`, a bidirectional relationship between these two
