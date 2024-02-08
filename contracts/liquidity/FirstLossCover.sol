@@ -252,21 +252,11 @@ contract FirstLossCover is
             // from receiving yield if they are subject to sanctions, and consequently the `transfer` call
             // would fail for the lender. We bypass the yield of this provider so that other
             // providers can still get their yield paid out as normal.
-            // Notes on the implementation:
-            // 1. We need to use the regular `transfer` function instead of `safeTransfer` since
-            //    `safeTransfer` reverts on failure, but we can't use `try/catch` to catch the reversion since
-            //    `safeTransfer` is an internal function.
-            // 2. We need to use try/catch as well as checking on the status code returned by `transfer` since
-            //    `transfer` may either revert or return `false` on failure.
-            bool success = false;
-            try underlyingToken.transfer(provider, payout) returns (bool result) {
-                success = result;
-            } catch {
-                // `success` is already false. No need to explicitly assign it to false again.
-            }
-            if (success) {
+            // Note that we are calling the special-purpose `safeTransfer()` defined below with `this` so that
+            // it's an external function call and can be wrapped by `try/catch`.
+            try this.safeTransfer(provider, payout) {
                 emit YieldPaidOut(provider, payout);
-            } else {
+            } catch {
                 emit YieldPayoutFailed(provider, payout);
             }
         }
@@ -274,6 +264,17 @@ contract FirstLossCover is
         // We expect all yield to be paid out in one go. It's technically impossible for remainingShares
         // to be non-zero, but adding an assertion here just to be safe.
         assert(remainingShares == 0);
+    }
+
+    /**
+     * @notice This function exists purely for the purpose of being able to wrap `underlyingToken.safeTransfer`,
+     * which is an internal function from the `SafeERC20` library, in `try/catch`, which can wrap around external
+     * function calls only.
+     * @custom:access Only this contract can call given its special purpose.
+     */
+    function safeTransfer(address to, uint256 amount) external {
+        assert(msg.sender == address(this));
+        underlyingToken.safeTransfer(to, amount);
     }
 
     function isSufficient() external view returns (bool sufficient) {
