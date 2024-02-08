@@ -10,6 +10,7 @@ import {
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
+    MockPoolCreditManager,
     MockToken,
     Pool,
     PoolConfig,
@@ -18,7 +19,11 @@ import {
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../../../typechain-types";
-import { deployAndSetupPoolContracts, deployProtocolContracts } from "../../BaseTest";
+import {
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
+    mockDistributePnL,
+} from "../../BaseTest";
 import { toToken } from "../../TestUtils";
 import { CONSTANTS } from "../../constants";
 
@@ -46,6 +51,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
+    creditManagerContract: MockPoolCreditManager,
     creditDueManagerContract: CreditDueManager;
 
 describe("PoolSafe Tests", function () {
@@ -86,6 +92,7 @@ describe("PoolSafe Tests", function () {
             juniorTrancheVaultContract,
             creditContract as unknown,
             creditDueManagerContract,
+            creditManagerContract as unknown,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
@@ -93,7 +100,7 @@ describe("PoolSafe Tests", function () {
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
-            "CreditLineManager",
+            "MockPoolCreditManager",
             evaluationAgent,
             protocolTreasury,
             poolOwnerTreasury,
@@ -346,7 +353,13 @@ describe("PoolSafe Tests", function () {
     describe("getAvailableBalanceForFees", function () {
         it("Should return 0 if the reserve exceeds the amount of assets", async function () {
             const profit = toToken(1_000_000);
-            await creditContract.mockDistributePnL(profit, toToken(0), toToken(0));
+            await mockDistributePnL(
+                creditContract,
+                creditManagerContract,
+                profit,
+                toToken(0),
+                toToken(0),
+            );
             // Withdraw assets away from pool safe so that the liquidity falls below the amount of reserve.
             await poolConfigContract
                 .connect(poolOwner)

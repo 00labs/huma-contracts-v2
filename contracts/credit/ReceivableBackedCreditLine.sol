@@ -76,26 +76,24 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
      * @notice Allows the borrower to drawdown using a receivable.
      */
     function drawdownWithReceivable(
-        address borrower,
         uint256 receivableId,
         uint256 amount
     ) public virtual returns (uint256 netAmountToBorrower) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != borrower) revert Errors.BorrowerRequired();
 
-        bytes32 creditHash = getCreditHash(borrower);
-        creditManager.onlyCreditBorrower(creditHash, borrower);
+        bytes32 creditHash = getCreditHash(msg.sender);
+        creditManager.onlyCreditBorrower(creditHash, msg.sender);
 
         _prepareForDrawdown(
-            borrower,
+            msg.sender,
             creditHash,
             poolConfig.receivableAsset(),
             receivableId,
             amount
         );
-        netAmountToBorrower = _drawdown(borrower, creditHash, amount);
+        netAmountToBorrower = _drawdown(msg.sender, creditHash, amount);
 
-        emit DrawdownMadeWithReceivable(borrower, receivableId, amount, msg.sender);
+        emit DrawdownMadeWithReceivable(msg.sender, receivableId, amount, msg.sender);
     }
 
     /**
@@ -123,21 +121,19 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
      * @notice Allows the borrower to payback the principal and label it with a receivable
      */
     function makePrincipalPaymentWithReceivable(
-        address borrower,
         uint256 receivableId,
         uint256 amount
     ) public virtual returns (uint256 amountPaid, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != borrower) revert Errors.BorrowerRequired();
 
-        bytes32 creditHash = getCreditHash(borrower);
-        creditManager.onlyCreditBorrower(creditHash, borrower);
+        bytes32 creditHash = getCreditHash(msg.sender);
+        creditManager.onlyCreditBorrower(creditHash, msg.sender);
 
-        _prepareForPayment(borrower, poolConfig.receivableAsset(), receivableId);
+        _prepareForPayment(msg.sender, poolConfig.receivableAsset(), receivableId);
 
-        (amountPaid, paidoff) = _makePrincipalPayment(borrower, creditHash, amount);
+        (amountPaid, paidoff) = _makePrincipalPayment(msg.sender, creditHash, amount);
 
-        emit PrincipalPaymentMadeWithReceivable(borrower, receivableId, amount, msg.sender);
+        emit PrincipalPaymentMadeWithReceivable(msg.sender, receivableId, amount, msg.sender);
     }
 
     /**
@@ -145,17 +141,15 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
      * another receivable
      */
     function makePrincipalPaymentAndDrawdownWithReceivable(
-        address borrower,
         uint256 paymentReceivableId,
         uint256 paymentAmount,
         uint256 drawdownReceivableId,
         uint256 drawdownAmount
     ) public virtual returns (uint256 amountPaid, uint256 netAmountToBorrower, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != borrower) revert Errors.BorrowerRequired();
 
-        bytes32 creditHash = getCreditHash(borrower);
-        creditManager.onlyCreditBorrower(creditHash, borrower);
+        bytes32 creditHash = getCreditHash(msg.sender);
+        creditManager.onlyCreditBorrower(creditHash, msg.sender);
         CreditRecord memory cr = getCreditRecord(creditHash);
         if (cr.state != CreditState.GoodStanding)
             revert Errors.CreditNotInStateForMakingPrincipalPayment();
@@ -169,9 +163,9 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         }
 
         address receivableAsset = poolConfig.receivableAsset();
-        _prepareForPayment(borrower, receivableAsset, paymentReceivableId);
+        _prepareForPayment(msg.sender, receivableAsset, paymentReceivableId);
         _prepareForDrawdown(
-            borrower,
+            msg.sender,
             creditHash,
             receivableAsset,
             drawdownReceivableId,
@@ -184,29 +178,29 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
             // desired. Instead, we deposit and then withdraw from the `poolSafe` to show that the pool has
             // received payment and then disbursed the same amount back to the borrower.
             poolSafe.deposit(msg.sender, paymentAmount);
-            poolSafe.withdraw(borrower, paymentAmount);
+            poolSafe.withdraw(msg.sender, paymentAmount);
         } else if (paymentAmount > drawdownAmount) {
             uint256 amount = paymentAmount - drawdownAmount;
-            (amountPaid, paidoff) = _makePrincipalPayment(borrower, creditHash, amount);
+            (amountPaid, paidoff) = _makePrincipalPayment(msg.sender, creditHash, amount);
             poolSafe.deposit(msg.sender, drawdownAmount);
-            poolSafe.withdraw(borrower, drawdownAmount);
+            poolSafe.withdraw(msg.sender, drawdownAmount);
         } else {
             // paymentAmount < drawdownAmount
             uint256 amount = drawdownAmount - paymentAmount;
-            netAmountToBorrower = _drawdown(borrower, creditHash, amount);
+            netAmountToBorrower = _drawdown(msg.sender, creditHash, amount);
             poolSafe.deposit(msg.sender, paymentAmount);
-            poolSafe.withdraw(borrower, paymentAmount);
+            poolSafe.withdraw(msg.sender, paymentAmount);
         }
 
         emit PrincipalPaymentMadeWithReceivable(
-            borrower,
+            msg.sender,
             paymentReceivableId,
             paymentAmount,
             msg.sender
         );
 
         emit DrawdownMadeWithReceivable(
-            borrower,
+            msg.sender,
             drawdownReceivableId,
             drawdownAmount,
             msg.sender

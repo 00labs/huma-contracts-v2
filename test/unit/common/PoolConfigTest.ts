@@ -1035,6 +1035,84 @@ describe("PoolConfig Tests", function () {
                 );
             });
 
+            it("Should allow the evaluation agent to be replaced even if fee withdrawal to the old EA fails", async function () {
+                const adminRnR = await poolConfigContract.getAdminRnR();
+                const lpConfig = await poolConfigContract.getLPConfig();
+                const evaluationAgentLiquidity = BN.from(adminRnR.liquidityRateInBpsByEA)
+                    .mul(lpConfig.liquidityCap)
+                    .div(CONSTANTS.BP_FACTOR);
+                await juniorTrancheVaultContract
+                    .connect(poolOwner)
+                    .addApprovedLender(evaluationAgent.getAddress(), true);
+                await juniorTrancheVaultContract
+                    .connect(evaluationAgent)
+                    .deposit(evaluationAgentLiquidity);
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setEvaluationAgent(evaluationAgent.address),
+                )
+                    .to.emit(poolConfigContract, "EvaluationAgentChanged")
+                    .withArgs(
+                        ethers.constants.AddressZero,
+                        evaluationAgent.address,
+                        poolOwner.address,
+                    );
+                expect(await poolConfigContract.evaluationAgent()).to.equal(
+                    evaluationAgent.address,
+                );
+
+                // Distribute PnL so that the old EA earns fees.
+                await overrideFirstLossCoverConfig(
+                    adminFirstLossCoverContract,
+                    CONSTANTS.ADMIN_LOSS_COVER_INDEX,
+                    poolConfigContract,
+                    poolOwner,
+                    {
+                        maxLiquidity: 0,
+                        minLiquidity: 0,
+                    },
+                );
+                await poolConfigContract
+                    .connect(poolOwner)
+                    .setEARewardsAndLiquidity(adminRnR.rewardRateInBpsForEA, 0);
+                await creditContract.mockDistributePnL(toToken(100_000), 0, 0);
+                const [, , eaFees] = await poolFeeManagerContract.getWithdrawables();
+                expect(eaFees).to.be.gt(0);
+
+                // Transfer to the old EA fails due to blocklisting.
+                await mockTokenContract.addToSoftFailBlocklist(evaluationAgent.getAddress());
+
+                const oldEABalance = await mockTokenContract.balanceOf(
+                    evaluationAgent.getAddress(),
+                );
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setEvaluationAgent(evaluationAgent2.address),
+                )
+                    .to.emit(poolConfigContract, "EvaluationAgentFeesWithdrawalFailed")
+                    .withArgs(
+                        await evaluationAgent.getAddress(),
+                        eaFees,
+                        "SafeERC20: ERC20 operation did not succeed",
+                    )
+                    .to.emit(poolConfigContract, "EvaluationAgentChanged")
+                    .withArgs(
+                        evaluationAgent.address,
+                        evaluationAgent2.address,
+                        poolOwner.address,
+                    );
+                expect(await poolConfigContract.evaluationAgent()).to.equal(
+                    evaluationAgent2.address,
+                );
+                expect(await mockTokenContract.balanceOf(evaluationAgent.getAddress())).to.equal(
+                    oldEABalance,
+                );
+
+                await mockTokenContract.removeFromSoftFailBlocklist(evaluationAgent.getAddress());
+            });
+
             it("Should reject zero address EA", async function () {
                 await expect(
                     poolConfigContract

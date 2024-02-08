@@ -6,11 +6,11 @@ import { ethers } from "hardhat";
 import {
     Calendar,
     CreditDueManager,
-    CreditLineManager,
     EpochManager,
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
+    MockPoolCreditManager,
     MockToken,
     Pool,
     PoolConfig,
@@ -23,6 +23,7 @@ import {
     deployAndSetupPoolContracts,
     deployProtocolContracts,
     deployProxyContract,
+    mockDistributePnL,
 } from "../../BaseTest";
 import { overrideFirstLossCoverConfig, toToken } from "../../TestUtils";
 import { CONSTANTS } from "../../constants";
@@ -51,7 +52,7 @@ let poolConfigContract: PoolConfig,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
     creditDueManagerContract: CreditDueManager,
-    creditManagerContract: CreditLineManager;
+    creditManagerContract: MockPoolCreditManager;
 
 let profit: BN;
 let expectedProtocolIncome: BN, expectedPoolOwnerIncome: BN, expectedEAIncome: BN, totalFees: BN;
@@ -101,7 +102,7 @@ describe("PoolFeeManager Tests", function () {
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
-            "CreditLineManager",
+            "MockPoolCreditManager",
             evaluationAgent,
             protocolTreasury,
             poolOwnerTreasury,
@@ -130,7 +131,13 @@ describe("PoolFeeManager Tests", function () {
         async function spendAllowance() {
             // Spend some of the allowance by investing fees into the first loss cover contract.
             const profit = toToken(500_000);
-            await creditContract.mockDistributePnL(profit, toToken(0), toToken(0));
+            await mockDistributePnL(
+                creditContract,
+                creditManagerContract,
+                profit,
+                toToken(0),
+                toToken(0),
+            );
 
             // Make sure the first loss cover has room for investment.
             await overrideFirstLossCoverConfig(

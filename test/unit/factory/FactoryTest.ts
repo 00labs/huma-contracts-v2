@@ -184,8 +184,6 @@ describe("Factory Test", function () {
             poolFactoryContract,
             mockTokenContract,
             await ethers.getContractAt("Receivable", ethers.constants.AddressZero),
-            defaultDeployer,
-            poolOwner,
             "creditline",
             "fixed",
             "test pool",
