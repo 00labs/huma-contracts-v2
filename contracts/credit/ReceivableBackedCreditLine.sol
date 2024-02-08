@@ -57,6 +57,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         uint256 /*tokenId*/,
         bytes calldata /*data*/
     ) external virtual returns (bytes4) {
+        poolConfig.onlyProtocolAndPoolOn();
         return this.onERC721Received.selector;
     }
 
