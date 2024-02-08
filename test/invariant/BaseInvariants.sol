@@ -5,7 +5,7 @@ import {BaseTest} from "./BaseTest.sol";
 import {EpochManager} from "contracts/liquidity/EpochManager.sol";
 import {PayPeriodDuration} from "contracts/common/SharedDefs.sol";
 import {PoolSettings, LPConfig, FrontLoadingFeesStructure, FeeStructure, FirstLossCoverConfig} from "contracts/common/PoolConfig.sol";
-import {BORROWER_LOSS_COVER_INDEX, ADMIN_LOSS_COVER_INDEX, SENIOR_TRANCHE, JUNIOR_TRANCHE} from "contracts/common/SharedDefs.sol";
+import {BORROWER_LOSS_COVER_INDEX, ADMIN_LOSS_COVER_INDEX, SENIOR_TRANCHE, JUNIOR_TRANCHE, HUNDRED_PERCENT_IN_BPS} from "contracts/common/SharedDefs.sol";
 import {CreditRecord, CreditConfig, CreditState, DueDetail} from "contracts/credit/CreditStructs.sol";
 
 import "forge-std/console.sol";
@@ -395,6 +395,14 @@ contract BaseInvariants is BaseTest {
             poolSafe.unprocessedTrancheProfit(address(seniorTranche)) +
                 poolSafe.unprocessedTrancheProfit(address(juniorTranche)),
             "Tranche Invariant J"
+        );
+    }
+
+    function _assert_Tranche_K() internal {
+        assertGe(
+            juniorTranche.totalAssets() * poolConfig.getLPConfig().maxSeniorJuniorRatio,
+            seniorTranche.totalAssets(),
+            "Tranche Invariant K"
         );
     }
 

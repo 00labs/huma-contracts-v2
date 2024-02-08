@@ -100,6 +100,10 @@ contract LiquidityInvariants is BaseInvariants {
         _assert_Tranche_J();
     }
 
+    function invariant_Tranche_K() public {
+        _assert_Tranche_K();
+    }
+
     function invariant_EpochManager_A() public {
         _assert_EpochManager_A();
     }
@@ -147,6 +151,7 @@ contract LiquidityInvariants is BaseInvariants {
         _assert_Tranche_G();
         _assert_Tranche_H_I();
         _assert_Tranche_J();
+        _assert_Tranche_K();
     }
 
     function test_EpochManager_invariants() public {
