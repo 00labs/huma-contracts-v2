@@ -6,12 +6,12 @@ import { ethers } from "hardhat";
 import {
     Calendar,
     CreditDueManager,
-    CreditLineManager,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
+    MockPoolCreditManager,
     MockToken,
     Pool,
     PoolConfig,
@@ -34,6 +34,7 @@ import {
     deployAndSetupPoolContracts,
     deployProtocolContracts,
     deployProxyContract,
+    mockDistributePnL,
 } from "../../BaseTest";
 import {
     getMinFirstLossCoverRequirement,
@@ -72,7 +73,7 @@ let poolConfigContract: PoolConfig,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
     creditDueManagerContract: CreditDueManager,
-    creditManagerContract: CreditLineManager,
+    creditManagerContract: MockPoolCreditManager,
     receivableContract: Receivable;
 
 describe("PoolConfig Tests", function () {
@@ -146,10 +147,10 @@ describe("PoolConfig Tests", function () {
                 CreditDueManager,
             )) as CreditDueManager;
 
-            const CreditManager = await ethers.getContractFactory("CreditLineManager");
+            const CreditManager = await ethers.getContractFactory("MockPoolCreditManager");
             creditManagerContract = (await deployProxyContract(
                 CreditManager,
-            )) as CreditLineManager;
+            )) as MockPoolCreditManager;
 
             const Receivable = await ethers.getContractFactory("Receivable");
             receivableContract = (await deployProxyContract(Receivable)) as Receivable;
@@ -672,7 +673,7 @@ describe("PoolConfig Tests", function () {
             );
         });
 
-        it("Should not allow the ReceivableFactoringCreditManager.sol contract to be initialized twice", async function () {
+        it("Should not allow the ReceivableFactoringCreditManager contract to be initialized twice", async function () {
             const CreditManager = await ethers.getContractFactory(
                 "ReceivableFactoringCreditManager",
             );
@@ -800,6 +801,7 @@ describe("PoolConfig Tests", function () {
                 juniorTrancheVaultContract,
                 creditContract as unknown,
                 creditDueManagerContract,
+                creditManagerContract as unknown,
             ] = await deployAndSetupPoolContracts(
                 humaConfigContract,
                 mockTokenContract,
@@ -808,7 +810,7 @@ describe("PoolConfig Tests", function () {
                 defaultDeployer,
                 poolOwner,
                 "MockPoolCredit",
-                "CreditLineManager",
+                "MockPoolCreditManager",
                 evaluationAgent,
                 protocolTreasury,
                 poolOwnerTreasury,
@@ -1115,7 +1117,13 @@ describe("PoolConfig Tests", function () {
                 await poolConfigContract
                     .connect(poolOwner)
                     .setEARewardsAndLiquidity(adminRnR.rewardRateInBpsForEA, 0);
-                await creditContract.mockDistributePnL(toToken(100_000), 0, 0);
+                await mockDistributePnL(
+                    creditContract,
+                    creditManagerContract,
+                    toToken(100_000),
+                    0,
+                    0,
+                );
                 const [, , eaFees] = await poolFeeManagerContract.getWithdrawables();
                 expect(eaFees).to.be.gt(0);
 
