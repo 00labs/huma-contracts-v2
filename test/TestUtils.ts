@@ -1,5 +1,5 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { BigNumber as BN, BigNumber, BigNumberish, Contract } from "ethers";
+import { BigNumber as BN, BigNumberish, Contract } from "ethers";
 import { ethers, network } from "hardhat";
 import moment from "moment";
 import { FirstLossCover, PoolConfig } from "../typechain-types";
@@ -144,7 +144,7 @@ export async function overrideLPConfig(
 export async function getMinFirstLossCoverRequirement(
     firstLossCoverContract: FirstLossCover,
     poolConfigContract: PoolConfig,
-): Promise<BigNumber> {
+): Promise<BN> {
     const poolConfig = await poolConfigContract.getFirstLossCoverConfig(
         firstLossCoverContract.address,
     );
