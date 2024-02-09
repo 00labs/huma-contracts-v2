@@ -11,6 +11,7 @@ import {
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
+    MockPoolCreditManager,
     MockToken,
     Pool,
     PoolConfig,
@@ -28,6 +29,7 @@ import {
     deployPoolContracts,
     deployProtocolContracts,
     getAssetsAfterProfitAndLoss,
+    mockDistributePnL,
 } from "../../BaseTest";
 import {
     getFirstLossCoverInfo,
@@ -69,6 +71,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
+    creditManagerContract: MockPoolCreditManager,
     creditDueManagerContract: CreditDueManager;
 
 let epochChecker: EpochChecker, feeCalculator: FeeCalculator;
@@ -117,6 +120,7 @@ describe("Pool Test", function () {
                 juniorTrancheVaultContract,
                 creditContract as unknown,
                 creditDueManagerContract,
+                creditManagerContract as unknown,
             ] = await deployPoolContracts(
                 humaConfigContract,
                 mockTokenContract,
@@ -124,7 +128,7 @@ describe("Pool Test", function () {
                 defaultDeployer,
                 poolOwner,
                 "MockPoolCredit",
-                "CreditLineManager",
+                "MockPoolCreditManager",
             );
 
             // Set up first loss cover requirements.
@@ -284,6 +288,7 @@ describe("Pool Test", function () {
                 juniorTrancheVaultContract,
                 creditContract as unknown,
                 creditDueManagerContract,
+                creditManagerContract as unknown,
             ] = await deployAndSetupPoolContracts(
                 humaConfigContract,
                 mockTokenContract,
@@ -292,7 +297,7 @@ describe("Pool Test", function () {
                 defaultDeployer,
                 poolOwner,
                 "MockPoolCredit",
-                "CreditLineManager",
+                "MockPoolCreditManager",
                 evaluationAgent,
                 treasury,
                 poolOwnerTreasury,
@@ -395,7 +400,13 @@ describe("Pool Test", function () {
                     .add(juniorSharesRequested.sub(juniorSharesRedeemable).mul(juniorTokenPrice))
                     .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
 
-                await creditContract.mockDistributePnL(profit, loss, lossRecovery);
+                await mockDistributePnL(
+                    creditContract,
+                    creditManagerContract,
+                    profit,
+                    loss,
+                    lossRecovery,
+                );
                 await seniorTrancheVaultContract.processYieldForLenders();
                 await juniorTrancheVaultContract.processYieldForLenders();
 
@@ -598,7 +609,13 @@ describe("Pool Test", function () {
             it("Should not close the pool if there is unprocessed profit in the senior tranche", async function () {
                 // Distribute profit and then process yield for the junior tranche so that there are unprocessed profits
                 // in the senior tranche only.
-                await creditContract.mockDistributePnL(toToken(10_000), 0, 0);
+                await mockDistributePnL(
+                    creditContract,
+                    creditManagerContract,
+                    toToken(10_000),
+                    0,
+                    0,
+                );
                 await juniorTrancheVaultContract.processYieldForLenders();
                 expect(
                     await poolSafeContract.unprocessedTrancheProfit(
@@ -622,7 +639,13 @@ describe("Pool Test", function () {
             it("Should not close the pool if there is unprocessed profit in the junior tranche", async function () {
                 // Distribute profit and then process yield for the senior tranche so that there are unprocessed profits
                 // in the junior tranche only.
-                await creditContract.mockDistributePnL(toToken(10_000), 0, 0);
+                await mockDistributePnL(
+                    creditContract,
+                    creditManagerContract,
+                    toToken(10_000),
+                    0,
+                    0,
+                );
                 await seniorTrancheVaultContract.processYieldForLenders();
                 expect(
                     await poolSafeContract.unprocessedTrancheProfit(
@@ -737,9 +760,7 @@ describe("Pool Test", function () {
                             firstLossCoverInfos,
                         );
 
-                        await expect(
-                            creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0)),
-                        )
+                        await expect(creditContract.mockDistributeProfit(profit))
                             .to.emit(poolContract, "ProfitDistributed")
                             .withArgs(
                                 profit,
@@ -802,9 +823,7 @@ describe("Pool Test", function () {
                                 .add(losses[CONSTANTS.JUNIOR_TRANCHE])
                                 .gt(0)
                         ) {
-                            await expect(
-                                creditContract.mockDistributePnL(BN.from(0), loss, BN.from(0)),
-                            )
+                            await expect(creditManagerContract.mockDistributeLoss(loss))
                                 .to.emit(poolContract, "LossDistributed")
                                 .withArgs(
                                     loss.sub(sumBNArray([...lossesCoveredByFirstLossCovers])),
@@ -814,7 +833,7 @@ describe("Pool Test", function () {
                                     losses[CONSTANTS.JUNIOR_TRANCHE],
                                 );
                         } else {
-                            await creditContract.mockDistributePnL(BN.from(0), loss, BN.from(0));
+                            await creditManagerContract.mockDistributeLoss(loss);
                         }
 
                         seniorAssets = await poolContract.trancheTotalAssets(
@@ -857,9 +876,7 @@ describe("Pool Test", function () {
                             lossesCoveredByFirstLossCovers,
                         );
 
-                        await expect(
-                            creditContract.mockDistributePnL(BN.from(0), BN.from(0), recovery),
-                        )
+                        await expect(creditContract.mockDistributeLossRecovery(recovery))
                             .to.emit(poolContract, "LossRecoveryDistributed")
                             .withArgs(
                                 losses[CONSTANTS.SENIOR_TRANCHE]
@@ -1112,7 +1129,7 @@ describe("Pool Test", function () {
                     );
                 });
 
-                it("Should not allow non-credit or non-credit manager to distribute loss", async function () {
+                it("Should not allow non-credit manager to distribute loss", async function () {
                     await expect(
                         poolContract.connect(lender).distributeLoss(toToken(1)),
                     ).to.be.revertedWithCustomError(
@@ -1184,7 +1201,13 @@ describe("Pool Test", function () {
                         lossesCoveredBuFirstLossCovers,
                     );
 
-                    await creditContract.mockDistributePnL(profit, loss, recovery);
+                    await mockDistributePnL(
+                        creditContract,
+                        creditManagerContract,
+                        profit,
+                        loss,
+                        recovery,
+                    );
                     const totalAssets = await poolContract.totalAssets();
                     expect(totalAssets).to.equal(
                         assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE].add(
@@ -1384,7 +1407,13 @@ describe("Pool Test", function () {
                         liquidityCap: seniorAssets.add(toToken(1)),
                     });
                     // Mark all junior assets as loss.
-                    await creditContract.mockDistributePnL(BN.from(0), juniorAssets, BN.from(0));
+                    await mockDistributePnL(
+                        creditContract,
+                        creditManagerContract,
+                        0,
+                        juniorAssets,
+                        0,
+                    );
                     const [newSeniorAssets, newJuniorAssets] =
                         await poolContract.currentTranchesAssets();
                     expect(newJuniorAssets).to.equal(0);

@@ -12,7 +12,6 @@ import {Errors} from "../common/Errors.sol";
 import {ICalendar} from "../common/interfaces/ICalendar.sol";
 import {IERC20Metadata, IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import "hardhat/console.sol";
 
 /**
  * @title EpochManager

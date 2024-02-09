@@ -6,14 +6,12 @@ import {CreditRecord, DueDetail} from "../CreditStructs.sol";
 interface IReceivableFactoringCredit {
     /**
      * @notice Allows the borrower to drawdown using a receivable.
-     * @param borrower The address of the borrower.
      * @param receivableId The ID of the receivable.
      * @param amount The amount to borrow.
      * @return netAmountToBorrower The net amount disbursed to the borrower.
      * @custom:access Only the owner of the credit line can drawdown.
      */
     function drawdownWithReceivable(
-        address borrower,
         uint256 receivableId,
         uint256 amount
     ) external returns (uint256 netAmountToBorrower);
@@ -23,7 +21,6 @@ interface IReceivableFactoringCredit {
      * If this is the final payment, it automatically triggers the payoff process.
      * @notice Warning: payments should be made by calling this function. No token should be transferred directly
      * to the contract.
-     * @param borrower The address of the borrower.
      * @param receivableId The ID of the receivable.
      * @param amount The payment amount.
      * @return amountPaid The actual amount paid to the contract. When the tendered
@@ -32,7 +29,6 @@ interface IReceivableFactoringCredit {
      * @custom:access Only the borrower can call this function.
      */
     function makePaymentWithReceivable(
-        address borrower,
         uint256 receivableId,
         uint256 amount
     ) external returns (uint256 amountPaid, bool paidoff);

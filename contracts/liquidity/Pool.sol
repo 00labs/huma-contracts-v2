@@ -186,9 +186,9 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     /// @inheritdoc IPool
-    /// @custom:access Only Credit or CreditManager contract can call this function.
+    /// @custom:access Only the CreditManager contract can call this function.
     function distributeLoss(uint256 loss) external {
-        _onlyCreditOrCreditManager(msg.sender);
+        if (msg.sender != address(creditManager)) revert Errors.AuthorizedContractCallerRequired();
         _distributeLoss(loss);
     }
 

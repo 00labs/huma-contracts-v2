@@ -11,6 +11,7 @@ import {
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
+    MockPoolCreditManager,
     MockToken,
     Pool,
     PoolConfig,
@@ -25,6 +26,7 @@ import {
     deployAndSetupPoolContracts,
     deployProtocolContracts,
     getAssetsAfterProfitAndLoss,
+    mockDistributePnL,
 } from "../../BaseTest";
 import {
     ceilDiv,
@@ -64,6 +66,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
+    creditManagerContract: MockPoolCreditManager,
     creditDueManagerContract: CreditDueManager;
 
 let epochChecker: EpochChecker, feeCalculator: FeeCalculator;
@@ -121,6 +124,7 @@ describe("EpochManager Test", function () {
             juniorTrancheVaultContract,
             creditContract as unknown,
             creditDueManagerContract,
+            creditManagerContract as unknown,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
@@ -129,7 +133,7 @@ describe("EpochManager Test", function () {
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
-            "CreditLineManager",
+            "MockPoolCreditManager",
             evaluationAgent,
             treasury,
             poolOwnerTreasury,
@@ -289,7 +293,13 @@ describe("EpochManager Test", function () {
                 .add(juniorSharesRequested.sub(juniorSharesRedeemable).mul(juniorTokenPrice))
                 .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
 
-            await creditContract.mockDistributePnL(profit, loss, lossRecovery);
+            await mockDistributePnL(
+                creditContract,
+                creditManagerContract,
+                profit,
+                loss,
+                lossRecovery,
+            );
             await juniorTrancheVaultContract.processYieldForLenders();
             await seniorTrancheVaultContract.processYieldForLenders();
             await expect(epochManagerContract.closeEpoch())
@@ -1092,7 +1102,7 @@ describe("EpochManager Test", function () {
             it("Should close an epoch successfully after processing one senior redemption request partially due to available amount lower than requested amount", async function () {
                 // Distribute PnL so that the share price is not exactly $1 and consequently division is not exact.
                 const profit = toToken(2_153);
-                await creditContract.mockDistributePnL(profit, 0, 0);
+                await mockDistributePnL(creditContract, creditManagerContract, profit, 0, 0);
 
                 // Move some assets out of the pool so that the redemption request can only be processed partially.
                 const totalAssets = await poolSafeContract.getAvailableBalanceForPool();
@@ -1308,7 +1318,7 @@ describe("EpochManager Test", function () {
             it("Should close an epoch successfully after processing one junior redemption request partially due to available amount lower than requested amount", async function () {
                 // Distribute PnL so that the share price is not exactly $1 and consequently division is not exact.
                 const profit = toToken(2_153);
-                await creditContract.mockDistributePnL(profit, 0, 0);
+                await mockDistributePnL(creditContract, creditManagerContract, profit, 0, 0);
 
                 // Move some assets out of the pool so that the redemption request can only be processed partially.
                 const totalAssets = await poolSafeContract.getAvailableBalanceForPool();
@@ -1371,7 +1381,13 @@ describe("EpochManager Test", function () {
                 const coverTotalAssets = sumBNArray(
                     await Promise.all(firstLossCovers.map((cover) => cover.totalAssets())),
                 );
-                await creditContract.mockDistributePnL(0, juniorAssets.add(coverTotalAssets), 0);
+                await mockDistributePnL(
+                    creditContract,
+                    creditManagerContract,
+                    0,
+                    juniorAssets.add(coverTotalAssets),
+                    0,
+                );
 
                 const sharesToRedeem = toToken(1);
                 await juniorTrancheVaultContract
