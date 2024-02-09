@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {Errors} from "../common/Errors.sol";
 import {HumaConfig} from "../common/HumaConfig.sol";
@@ -41,31 +41,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
      * @param amountDue The amount due on the bill.
      */
     event BillRefreshed(bytes32 indexed creditHash, uint256 newDueDate, uint256 amountDue);
-
-    /**
-     * @notice Credit line created
-     * @param borrower the address of the borrower
-     * @param creditLimit the credit limit of the credit line
-     * @param aprInBps interest rate (APR) expressed in basis points, 1% is 100, 100% is 10000
-     * @param periodDuration The pay period duration
-     * @param remainingPeriods how many cycles are there before the credit line expires
-     * @param approved flag that shows if the credit line has been approved or not
-     */
-    event CreditInitiated(
-        address indexed borrower,
-        uint256 creditLimit,
-        uint256 aprInBps,
-        PayPeriodDuration periodDuration,
-        uint256 remainingPeriods,
-        bool approved
-    );
-
-    /// Credit limit for an existing credit line has been changed
-    event CreditLineChanged(
-        address indexed borrower,
-        uint256 oldCreditLimit,
-        uint256 newCreditLimit
-    );
 
     /**
      * @notice A borrowing event has happened to the credit.
@@ -268,7 +243,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
 
         uint256 platformProfit = 0;
         (netAmountToBorrower, platformProfit) = dueManager.distBorrowingAmount(borrowAmount);
-        IPool(poolConfig.pool()).distributeProfit(platformProfit);
+        pool.distributeProfit(platformProfit);
 
         // Transfer funds to the borrower
         poolSafe.withdraw(borrower, netAmountToBorrower);
@@ -325,8 +300,8 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
                     if (cr.state == CreditState.Delayed) cr.state = CreditState.GoodStanding;
                 } else {
                     // If the payment is not enough to cover the total amount past due, then
-                    // apply the payment to the yield past due, followed by principal past due,
-                    // then lastly late fees.
+                    // apply the payment to the yield past due, followed by late fees, and lastly
+                    // principal past due.
                     if (amount > dd.yieldPastDue) {
                         amount -= dd.yieldPastDue;
                         paymentRecord.yieldPastDuePaid = dd.yieldPastDue;
@@ -427,13 +402,13 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             address payer = _getPaymentOriginator(borrower);
             poolSafe.deposit(payer, amountToCollect);
             if (oldCRState == CreditState.Defaulted) {
-                IPool(poolConfig.pool()).distributeLossRecovery(amountToCollect);
+                pool.distributeLossRecovery(amountToCollect);
             } else {
                 uint256 profit = paymentRecord.yieldPastDuePaid +
                     paymentRecord.yieldDuePaid +
                     paymentRecord.lateFeePaid;
                 if (profit > 0) {
-                    IPool(poolConfig.pool()).distributeProfit(profit);
+                    pool.distributeProfit(profit);
                 }
             }
             emit PaymentMade(
@@ -498,7 +473,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         } else {
             principalDuePaid = principalDue;
             unbilledPrincipalPaid = amountToCollect - principalDuePaid;
-            cr.nextDue = uint96(cr.nextDue - principalDuePaid);
+            cr.nextDue = cr.yieldDue;
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - unbilledPrincipalPaid);
         }
 
@@ -539,6 +514,10 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         assert(addr != address(0));
         dueManager = ICreditDueManager(addr);
 
+        addr = _poolConfig.pool();
+        assert(addr != address(0));
+        pool = IPool(addr);
+
         addr = _poolConfig.poolSafe();
         assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
@@ -571,8 +550,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             // After the credit approval, if the credit has commitment and a designated start date, then the
             // credit will kick start on that whether the borrower has initiated the drawdown or not.
             // The date is set in `cr.nextDueDate` in `approveCredit()`.
-            if (cr.nextDueDate > 0 && block.timestamp < cr.nextDueDate)
-                revert Errors.FirstDrawdownTooEarly();
+            if (block.timestamp < cr.nextDueDate) revert Errors.FirstDrawdownTooEarly();
 
             if (borrowAmount > creditLimit) revert Errors.CreditLimitExceeded();
         } else if (cr.state != CreditState.GoodStanding) {

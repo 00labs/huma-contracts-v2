@@ -127,6 +127,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             "ReceivableBackedCreditLine",
             "ReceivableBackedCreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender, borrower],
@@ -142,9 +143,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             .connect(borrower)
             .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
 
-        await juniorTrancheVaultContract
-            .connect(lender)
-            .deposit(toToken(10_000_000), lender.address);
+        await juniorTrancheVaultContract.connect(lender).deposit(toToken(10_000_000));
     }
 
     describe("Arf case tests", function () {
@@ -173,6 +172,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             await poolConfigContract.connect(poolOwner).setPoolSettings({
                 ...settings,
                 ...{
+                    maxCreditLine: creditLimit.mul(100),
                     payPeriodDuration: PayPeriodDuration.Monthly,
                     latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
                     advanceRateInBps: CONSTANTS.BP_FACTOR,
@@ -201,7 +201,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             }
         });
 
-        it("approve borrower credit", async function () {
+        it("Approves the borrower", async function () {
             const poolSettings = await poolConfigContract.getPoolSettings();
 
             await creditManagerContract
@@ -281,7 +281,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     .approve(creditContract.address, receivableId);
                 await creditContract
                     .connect(borrower)
-                    .drawdownWithReceivable(borrower.address, receivableId, borrowAmount);
+                    .drawdownWithReceivable(receivableId, borrowAmount);
             }
         });
 
@@ -323,7 +323,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 await creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
                         receivableId.sub(5),
                         paymentAmount,
                         receivableId,
@@ -360,7 +359,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 await creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
                         receivableId.sub(5),
                         paymentAmount,
                         receivableId,
@@ -397,7 +395,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 await creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
                         receivableId.sub(5),
                         paymentAmount,
                         receivableId,
@@ -492,7 +489,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 await creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
                         receivableId.sub(5),
                         paymentAmount,
                         receivableId,
@@ -529,7 +525,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 await creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
                         receivableId.sub(5),
                         paymentAmount,
                         receivableId,
@@ -577,7 +572,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 await creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
                         receivableId.sub(5),
                         paymentAmount,
                         receivableId,
@@ -616,7 +610,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 await creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
                         receivableId.sub(5),
                         paymentAmount,
                         receivableId,
@@ -638,17 +631,27 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             );
             nextBlockTS = startOfPeriod.toNumber() + CONSTANTS.SECONDS_IN_A_DAY * 5 + 100;
             await setNextBlockTimestamp(nextBlockTS);
+
             const oldCR = await creditContract.getCreditRecord(creditHash);
             const oldDD = await creditContract.getDueDetail(creditHash);
             // Check whether the bill has the expected amount of yield due from last month prior to refresh.
             const principal = getPrincipal(oldCR, oldDD);
-            // The expected yield due consists of two parts:
-            // 1. For the first 14 days of the month, there was yield generated from the borrowed amount.
-            // 2. For the remaining 16 days of the month, there was yield generated from the committed amount since
-            //    it was higher than the borrowed amount initially.
-            const expectedYieldDue = calcYield(borrowAmount.mul(5).div(2), yieldInBps, 14).add(
-                calcYield(borrowAmount.mul(5), yieldInBps, 16),
+            // The expected yield due consists of several parts:
+            // 1. At the beginning of the month, a new bill was generated with a total principal amount of 5D,
+            //    and the yield for the entire month was calculated.
+            // 2. In the week starting with day 15 of the month, the borrower paid back amount D and then borrower 2D
+            //    every weekday, so they effectively borrowed an additional amount of D for 5 days and incurred
+            //    additional yield.
+            let expectedYieldDue = calcYield(
+                borrowAmount.mul(5).div(2),
+                yieldInBps,
+                CONSTANTS.DAYS_IN_A_MONTH,
             );
+            for (let i = 0; i < 5; ++i) {
+                expectedYieldDue = expectedYieldDue.add(
+                    calcYield(borrowAmount.div(2), yieldInBps, 16 - i),
+                );
+            }
             expect(oldCR.yieldDue).to.equal(expectedYieldDue);
 
             await creditManagerContract.refreshCredit(borrower.address);
@@ -701,7 +704,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
                         receivableId.sub(5),
                         paymentAmount,
                         receivableId,
@@ -763,7 +765,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             await creditContract
                 .connect(borrower)
                 .makePrincipalPaymentAndDrawdownWithReceivable(
-                    borrower.address,
                     receivableId.sub(5),
                     paymentAmount,
                     receivableId,

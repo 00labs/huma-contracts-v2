@@ -123,6 +123,7 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
             "ReceivableFactoringCredit",
             "ReceivableFactoringCreditManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender, borrower, payer],
@@ -144,9 +145,7 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
             .connect(borrower)
             .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
 
-        await juniorTrancheVaultContract
-            .connect(lender)
-            .deposit(toToken(10_000_000), lender.address);
+        await juniorTrancheVaultContract.connect(lender).deposit(toToken(10_000_000));
     }
 
     describe("Bulla case tests", function () {
@@ -216,16 +215,14 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
         it("Payee draws down with receivable", async function () {
             await nftContract.connect(borrower).approve(creditContract.address, tokenId);
 
-            await creditContract
-                .connect(borrower)
-                .drawdownWithReceivable(borrower.address, tokenId, borrowAmount);
+            await creditContract.connect(borrower).drawdownWithReceivable(tokenId, borrowAmount);
         });
 
         it("Payee pays for the yield due due", async function () {
             const oldCR = await creditContract["getCreditRecord(bytes32)"](creditHash);
             await creditContract
                 .connect(borrower)
-                .makePaymentWithReceivable(borrower.address, tokenId, oldCR.yieldDue);
+                .makePaymentWithReceivable(tokenId, oldCR.yieldDue);
 
             const actualCR = await creditContract["getCreditRecord(bytes32)"](creditHash);
             const expectedCR = {
