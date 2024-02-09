@@ -1146,6 +1146,19 @@ describe("FirstLossCover Tests", function () {
             });
         });
 
+        describe("safeTransfer", function () {
+            it("Should not allow non-First Loss Cover contract to call", async function () {
+                await expect(
+                    adminFirstLossCoverContract
+                        .connect(lender)
+                        .safeTransfer(lender.getAddress(), toToken(1)),
+                ).to.be.revertedWithCustomError(
+                    adminFirstLossCoverContract,
+                    "AuthorizedContractCallerRequired",
+                );
+            });
+        });
+
         describe("isSufficient", function () {
             async function depositCover(assets: BN) {
                 await mockTokenContract.mint(evaluationAgent.getAddress(), assets);

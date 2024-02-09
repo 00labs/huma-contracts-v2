@@ -273,7 +273,7 @@ contract FirstLossCover is
      * @custom:access Only this contract can call given its special purpose.
      */
     function safeTransfer(address to, uint256 amount) external {
-        assert(msg.sender == address(this));
+        if (msg.sender != address(this)) revert Errors.AuthorizedContractCallerRequired();
         underlyingToken.safeTransfer(to, amount);
     }
 
