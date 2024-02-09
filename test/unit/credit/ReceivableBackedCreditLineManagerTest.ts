@@ -595,7 +595,6 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
             await creditContract
                 .connect(borrower)
                 .drawdownWithReceivable(
-                    borrower.getAddress(),
                     receivableId,
                     receivableAmount.sub(toToken(1)),
                 );
