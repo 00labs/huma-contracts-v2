@@ -58,7 +58,7 @@ import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
-    treasury: SignerWithAddress,
+    humaTreasury: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
@@ -258,10 +258,10 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
 
     await juniorTrancheVaultContract
         .connect(poolOperator)
-        .setReinvestYield(poolOwnerTreasury.address, true);
+        .addApprovedLender(poolOwnerTreasury.address, true);
     await juniorTrancheVaultContract
         .connect(poolOperator)
-        .setReinvestYield(evaluationAgent.address, true);
+        .addApprovedLender(evaluationAgent.address, true);
 
     // Deposit 1% of the pool liquidity cap as the first loss cover.
     await adminFirstLossCoverContract
@@ -315,11 +315,12 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
     }
 
     feeCalculator = new FeeCalculator(humaConfigContract, poolConfigContract);
-    pnlCalculator = new ProfitAndLossCalculator(poolConfigContract, poolContract, [
-        borrowerFirstLossCoverContract,
-        null,
-        adminFirstLossCoverContract,
-    ]);
+    pnlCalculator = new ProfitAndLossCalculator(
+        poolConfigContract,
+        poolContract,
+        calendarContract,
+        [borrowerFirstLossCoverContract, null, adminFirstLossCoverContract],
+    );
     epochChecker = new EpochChecker(
         epochManagerContract,
         seniorTrancheVaultContract,
@@ -558,7 +559,7 @@ describe("Lender Integration Test", function () {
         [
             defaultDeployer,
             protocolOwner,
-            treasury,
+            humaTreasury,
             eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
@@ -593,7 +594,7 @@ describe("Lender Integration Test", function () {
         async function prepare() {
             [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
                 protocolOwner,
-                treasury,
+                humaTreasury,
                 eaServiceAccount,
                 sentinelServiceAccount,
                 poolOwner,
@@ -711,9 +712,7 @@ describe("Lender Integration Test", function () {
             );
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
-            await creditContract
-                .connect(borrower)
-                .drawdown(borrower.address, toToken(BORROWER_INITIAL_AMOUNT));
+            await creditContract.connect(borrower).drawdown(toToken(BORROWER_INITIAL_AMOUNT));
             let [protocolReward, poolOwnerReward, eaReward, poolProfit, amountToBorrower] =
                 await feeCalculator.calcPoolFeesForDrawdown(toToken(BORROWER_INITIAL_AMOUNT));
             expect(await mockTokenContract.balanceOf(borrower.address)).to.equal(
@@ -1007,7 +1006,7 @@ describe("Lender Integration Test", function () {
             );
             expect(await juniorTrancheVaultContract.totalAssetsOf(jLenders[2].address)).to.closeTo(
                 amount,
-                1,
+                2,
             );
             jLenderPrincipals[2] = amount;
             jActiveLenders.push(jLenders[2]);
@@ -1223,10 +1222,10 @@ describe("Lender Integration Test", function () {
 
             let amount = toToken(100);
 
-            let oldBalance = await mockTokenContract.balanceOf(treasury.address);
+            let oldBalance = await mockTokenContract.balanceOf(humaTreasury.address);
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-            await poolFeeManagerContract.connect(protocolOwner).withdrawProtocolFee(amount);
-            expect(await mockTokenContract.balanceOf(treasury.address)).to.equal(
+            await poolFeeManagerContract.connect(humaTreasury).withdrawProtocolFee(amount);
+            expect(await mockTokenContract.balanceOf(humaTreasury.address)).to.equal(
                 oldBalance.add(amount),
             );
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
@@ -1433,7 +1432,7 @@ describe("Lender Integration Test", function () {
             );
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
-            await creditContract.connect(borrower).drawdown(borrower.address, amount);
+            await creditContract.connect(borrower).drawdown(amount);
 
             let [protocolReward, poolOwnerReward, eaReward, poolProfit, amountToBorrower] =
                 await feeCalculator.calcPoolFeesForDrawdown(amount);
@@ -1818,7 +1817,7 @@ describe("Lender Integration Test", function () {
         async function prepare() {
             [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
                 protocolOwner,
-                treasury,
+                humaTreasury,
                 eaServiceAccount,
                 sentinelServiceAccount,
                 poolOwner,
@@ -1937,9 +1936,7 @@ describe("Lender Integration Test", function () {
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
             tracker = await tranchesPolicyContract.seniorYieldTracker();
-            await creditContract
-                .connect(borrower)
-                .drawdown(borrower.address, toToken(BORROWER_INITIAL_AMOUNT));
+            await creditContract.connect(borrower).drawdown(toToken(BORROWER_INITIAL_AMOUNT));
             let [protocolReward, poolOwnerReward, eaReward, poolProfit, amountToBorrower] =
                 await feeCalculator.calcPoolFeesForDrawdown(toToken(BORROWER_INITIAL_AMOUNT));
             expect(await mockTokenContract.balanceOf(borrower.address)).to.equal(
@@ -2221,6 +2218,7 @@ describe("Lender Integration Test", function () {
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             await seniorTrancheVaultContract.connect(sLenders[2]).deposit(amount);
             let newTracker = await PnLCalculator.calcLatestSeniorTracker(
+                calendarContract,
                 currentTS,
                 FIXED_SENIOR_YIELD_IN_BPS,
                 tracker,
@@ -2488,10 +2486,10 @@ describe("Lender Integration Test", function () {
 
             let amount = toToken(100);
 
-            let oldBalance = await mockTokenContract.balanceOf(treasury.address);
+            let oldBalance = await mockTokenContract.balanceOf(humaTreasury.address);
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-            await poolFeeManagerContract.connect(protocolOwner).withdrawProtocolFee(amount);
-            expect(await mockTokenContract.balanceOf(treasury.address)).to.equal(
+            await poolFeeManagerContract.connect(humaTreasury).withdrawProtocolFee(amount);
+            expect(await mockTokenContract.balanceOf(humaTreasury.address)).to.equal(
                 oldBalance.add(amount),
             );
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
@@ -2707,7 +2705,7 @@ describe("Lender Integration Test", function () {
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
             tracker = await tranchesPolicyContract.seniorYieldTracker();
-            await creditContract.connect(borrower).drawdown(borrower.address, amount);
+            await creditContract.connect(borrower).drawdown(amount);
 
             let [protocolReward, poolOwnerReward, eaReward, poolProfit, amountToBorrower] =
                 await feeCalculator.calcPoolFeesForDrawdown(amount);

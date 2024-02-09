@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {DAYS_IN_A_MONTH, DAYS_IN_A_QUARTER, DAYS_IN_A_HALF_YEAR} from "../common/SharedDefs.sol";
 import {ICalendar} from "../common/interfaces/ICalendar.sol";
@@ -199,6 +199,12 @@ contract Calendar is ICalendar {
         uint256 timestamp
     ) internal pure returns (uint256 startOfNextHalfYear) {
         (uint256 year, uint256 month, ) = DTL.timestampToDate(timestamp);
-        return DTL.timestampFromDate(year, month > 6 ? 1 : 7, 1);
+        if (month > 6) {
+            month = 1;
+            ++year;
+        } else {
+            month = 7;
+        }
+        return DTL.timestampFromDate(year, month, 1);
     }
 }
