@@ -10,19 +10,6 @@ contract MockPoolCredit is PoolConfigCache {
     IPoolSafe public poolSafe;
     IPool public pool;
 
-    uint256 public profit_;
-    uint256 public loss_;
-    uint256 public lossRecovery_;
-
-    function approveCredit(
-        address borrower,
-        uint96 creditLimit,
-        uint16 remainingPeriods,
-        uint16 yieldInBps,
-        uint96 committedAmount,
-        bool revolving
-    ) external {}
-
     function drawdown(bytes32 creditHash, uint256 borrowAmount) external {
         poolSafe.withdraw(address(this), borrowAmount);
     }
@@ -34,9 +21,11 @@ contract MockPoolCredit is PoolConfigCache {
         poolSafe.deposit(address(this), amount);
     }
 
-    function mockDistributePnL(uint256 profit, uint256 loss, uint256 lossRecovery) external {
+    function mockDistributeProfit(uint256 profit) external {
         pool.distributeProfit(profit);
-        pool.distributeLoss(loss);
+    }
+
+    function mockDistributeLossRecovery(uint256 lossRecovery) external {
         pool.distributeLossRecovery(lossRecovery);
     }
 

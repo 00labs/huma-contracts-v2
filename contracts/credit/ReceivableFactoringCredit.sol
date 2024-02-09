@@ -55,48 +55,43 @@ contract ReceivableFactoringCredit is
 
     /// @inheritdoc IReceivableFactoringCredit
     function drawdownWithReceivable(
-        address borrower,
         uint256 receivableId,
         uint256 amount
     ) external returns (uint256 netAmountToBorrower) {
         poolConfig.onlyProtocolAndPoolOn();
-
-        if (msg.sender != borrower) revert Errors.BorrowerRequired();
         if (receivableId == 0) revert Errors.ZeroReceivableIdProvided();
 
         IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
-        if (receivableAsset.ownerOf(receivableId) != borrower)
+        if (receivableAsset.ownerOf(receivableId) != msg.sender)
             revert Errors.ReceivableOwnerRequired();
 
         bytes32 creditHash = getCreditHash(receivableId);
-        creditManager.onlyCreditBorrower(creditHash, borrower);
+        creditManager.onlyCreditBorrower(creditHash, msg.sender);
 
-        receivableAsset.safeTransferFrom(borrower, address(this), receivableId);
+        receivableAsset.safeTransferFrom(msg.sender, address(this), receivableId);
 
-        netAmountToBorrower = _drawdown(borrower, creditHash, amount);
+        netAmountToBorrower = _drawdown(msg.sender, creditHash, amount);
 
-        emit DrawdownMadeWithReceivable(borrower, receivableId, amount, msg.sender);
+        emit DrawdownMadeWithReceivable(msg.sender, receivableId, amount, msg.sender);
     }
 
     /// @inheritdoc IReceivableFactoringCredit
     function makePaymentWithReceivable(
-        address borrower,
         uint256 receivableId,
         uint256 amount
     ) external virtual returns (uint256 amountPaid, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != borrower) revert Errors.BorrowerRequired();
         if (receivableId == 0) revert Errors.ZeroReceivableIdProvided();
 
         bytes32 creditHash = getCreditHash(receivableId);
-        creditManager.onlyCreditBorrower(creditHash, borrower);
+        creditManager.onlyCreditBorrower(creditHash, msg.sender);
 
         IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
         if (receivableAsset.ownerOf(receivableId) != address(this))
             revert Errors.ReceivableOwnerRequired();
 
-        (amountPaid, paidoff) = _makePaymentWithReceivable(borrower, creditHash, amount);
-        emit PaymentMadeWithReceivable(borrower, receivableId, amount, msg.sender);
+        (amountPaid, paidoff) = _makePaymentWithReceivable(msg.sender, creditHash, amount);
+        emit PaymentMadeWithReceivable(msg.sender, receivableId, amount, msg.sender);
     }
 
     function onERC721Received(
@@ -105,6 +100,7 @@ contract ReceivableFactoringCredit is
         uint256 /*tokenId*/,
         bytes calldata /*data*/
     ) external virtual returns (bytes4) {
+        poolConfig.onlyProtocolAndPoolOn();
         return this.onERC721Received.selector;
     }
 
