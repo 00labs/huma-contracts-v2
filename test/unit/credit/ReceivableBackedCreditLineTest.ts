@@ -157,6 +157,47 @@ describe("ReceivableBackedCreditLine Tests", function () {
         await loadFixture(prepare);
     });
 
+    describe("onERC721Received", function () {
+        let receivableId: BN;
+
+        async function prepareForTransfer() {
+            const currentTS = (await getLatestBlock()).timestamp;
+            const maturityDate =
+                currentTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+
+            await receivableContract
+                .connect(borrower)
+                .createReceivable(1, toToken(10_000), maturityDate, "", "");
+            receivableId = await receivableContract.tokenOfOwnerByIndex(borrower.getAddress(), 0);
+        }
+
+        beforeEach(async function () {
+            await loadFixture(prepareForTransfer);
+        });
+
+        it("Should disallow transfers when the protocol is paused or pool is not on", async function () {
+            await humaConfigContract.connect(protocolOwner).pause();
+            await expect(
+                receivableContract
+                    .connect(borrower)
+                    [
+                        "safeTransferFrom(address,address,uint256)"
+                    ](borrower.getAddress(), creditContract.address, receivableId),
+            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
+            await humaConfigContract.connect(protocolOwner).unpause();
+
+            await poolContract.connect(poolOwner).disablePool();
+            await expect(
+                receivableContract
+                    .connect(borrower)
+                    [
+                        "safeTransferFrom(address,address,uint256)"
+                    ](borrower.getAddress(), creditContract.address, receivableId),
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
+            await poolContract.connect(poolOwner).enablePool();
+        });
+    });
+
     describe("getNextBillRefreshDate and getDueInfo", function () {
         const yieldInBps = 1217,
             principalRate = 100,
