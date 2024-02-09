@@ -281,7 +281,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     .approve(creditContract.address, receivableId);
                 await creditContract
                     .connect(borrower)
-                    .drawdownWithReceivable(borrower.address, receivableId, borrowAmount);
+                    .drawdownWithReceivable(receivableId, borrowAmount);
             }
         });
 
@@ -323,7 +323,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 await creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
                         receivableId.sub(5),
                         paymentAmount,
                         receivableId,
@@ -360,7 +359,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 await creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
                         receivableId.sub(5),
                         paymentAmount,
                         receivableId,
@@ -397,7 +395,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 await creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
                         receivableId.sub(5),
                         paymentAmount,
                         receivableId,
@@ -492,7 +489,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 await creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
                         receivableId.sub(5),
                         paymentAmount,
                         receivableId,
@@ -529,7 +525,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 await creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
                         receivableId.sub(5),
                         paymentAmount,
                         receivableId,
@@ -577,7 +572,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 await creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
                         receivableId.sub(5),
                         paymentAmount,
                         receivableId,
@@ -616,7 +610,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 await creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
                         receivableId.sub(5),
                         paymentAmount,
                         receivableId,
@@ -711,7 +704,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
                         receivableId.sub(5),
                         paymentAmount,
                         receivableId,
@@ -773,7 +765,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             await creditContract
                 .connect(borrower)
                 .makePrincipalPaymentAndDrawdownWithReceivable(
-                    borrower.address,
                     receivableId.sub(5),
                     paymentAmount,
                     receivableId,

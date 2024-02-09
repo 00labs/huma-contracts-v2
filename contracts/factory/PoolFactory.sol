@@ -9,6 +9,8 @@ import {PoolConfig, FirstLossCoverConfig, PoolSettings} from "../common/PoolConf
 import {PoolSettings, LPConfig, FrontLoadingFeesStructure, FeeStructure} from "../common/PoolConfig.sol";
 import {Errors} from "../common/Errors.sol";
 import {PayPeriodDuration} from "../common/SharedDefs.sol";
+import {SENIOR_TRANCHE, JUNIOR_TRANCHE} from "../common/SharedDefs.sol";
+import {BORROWER_LOSS_COVER_INDEX, INSURANCE_LOSS_COVER_INDEX, ADMIN_LOSS_COVER_INDEX} from "../common/SharedDefs.sol";
 import {LibTimelockController} from "./library/LibTimelockController.sol";
 
 interface IPoolConfigCacheLike {
@@ -371,9 +373,40 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         // First Loss Cover indices [0, 1, 2] are reserved for borrower, insurance and admin.
         // All fields are set to 0 by default, and can be changed by pool owner later
         // or by the deployer if the pool owner provides the details.
-        _setFirstLossCover(poolConfig, 0, 0, 0, 0, 0, 0, "Borrower First Loss Cover", "BFLC");
-        _setFirstLossCover(poolConfig, 1, 0, 0, 0, 0, 0, "Insurance First Loss Cover", "IFLC");
-        _setFirstLossCover(poolConfig, 2, 0, 0, 0, 0, 0, "Admin First Loss Cover", "AFLC");
+        _setFirstLossCover(
+            poolConfig,
+            uint8(BORROWER_LOSS_COVER_INDEX),
+            0,
+            0,
+            0,
+            0,
+            0,
+            "Borrower First Loss Cover",
+            "BFLC"
+        );
+        _setFirstLossCover(
+            poolConfig,
+            uint8(INSURANCE_LOSS_COVER_INDEX),
+            0,
+            0,
+            0,
+            0,
+            0,
+            "Insurance First Loss Cover",
+            "IFLC"
+        );
+        _setFirstLossCover(
+            poolConfig,
+            uint8(ADMIN_LOSS_COVER_INDEX),
+            0,
+            0,
+            0,
+            0,
+            0,
+            "Admin First Loss Cover",
+            "AFLC"
+        );
+
         for (uint8 i = 3; i <= 12; i++) {
             // When the index is 8 or 9, it is the senior or junior tranche vault.
             // TrancheVault uses different initialize function.
@@ -382,14 +415,14 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
                     "Senior Tranche Vault",
                     "STV",
                     poolConfig,
-                    0
+                    uint8(SENIOR_TRANCHE)
                 );
             } else if (i == 9) {
                 IVaultLike(poolAddresses[i]).initialize(
                     "Junior Tranche Vault",
                     "JTV",
                     poolConfig,
-                    1
+                    uint8(JUNIOR_TRANCHE)
                 );
             } else {
                 IPoolConfigCacheLike(poolAddresses[i]).initialize(poolConfigAddress);
@@ -460,21 +493,16 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             frontLoadingFeeFlat: frontLoadingFeeFlat,
             frontLoadingFeeBps: frontLoadingFeeBps
         });
-        PoolConfig(pools[_poolId].poolConfigAddress).setFrontLoadingFees(frontLoadingFees);
+        PoolConfig poolConfig = PoolConfig(pools[_poolId].poolConfigAddress);
+        poolConfig.setFrontLoadingFees(frontLoadingFees);
         FeeStructure memory fees = FeeStructure({
             yieldInBps: yieldInBps,
             minPrincipalRateInBps: minPrincipalRateInBps,
             lateFeeBps: lateFeeBps
         });
-        PoolConfig(pools[_poolId].poolConfigAddress).setFeeStructure(fees);
-        PoolConfig(pools[_poolId].poolConfigAddress).setPoolOwnerRewardsAndLiquidity(
-            poolOwnerRewardRate,
-            poolOwnerLiquidityRate
-        );
-        PoolConfig(pools[_poolId].poolConfigAddress).setEARewardsAndLiquidity(
-            eaRewardRate,
-            eaLiquidityRate
-        );
+        poolConfig.setFeeStructure(fees);
+        poolConfig.setPoolOwnerRewardsAndLiquidity(poolOwnerRewardRate, poolOwnerLiquidityRate);
+        poolConfig.setEARewardsAndLiquidity(eaRewardRate, eaLiquidityRate);
     }
 
     /**
@@ -485,10 +513,8 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     function addPoolOperator(uint256 _poolId, address poolOperator) external {
         _onlyDeployer(msg.sender);
         _notZeroAddress(poolOperator);
-        PoolConfig(pools[_poolId].poolConfigAddress).grantRole(
-            PoolConfig(pools[_poolId].poolConfigAddress).POOL_OPERATOR_ROLE(),
-            poolOperator
-        );
+        PoolConfig poolConfig = PoolConfig(pools[_poolId].poolConfigAddress);
+        poolConfig.grantRole(poolConfig.POOL_OPERATOR_ROLE(), poolOperator);
     }
 
     /// Huma requires all pools to have a timelock controller. This function adds a timelock controller to the pool.
@@ -610,10 +636,14 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         string memory firstLossCoverSymbol
     ) private {
         _notZeroAddress(address(poolConfig));
-        address firstLossCover = _addFirstLossCover(
-            firstLossCoverName,
-            firstLossCoverSymbol,
-            poolConfig
+        address firstLossCover = _addProxy(
+            firstLossCoverImplAddress,
+            abi.encodeWithSignature(
+                "initialize(string,string,address)",
+                firstLossCoverName,
+                firstLossCoverSymbol,
+                poolConfig
+            )
         );
         FirstLossCoverConfig memory config = FirstLossCoverConfig(
             coverRatePerLossInBps,
@@ -630,91 +660,6 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _notZeroAddress(_implAddress);
         ERC1967Proxy proxy = new ERC1967Proxy(_implAddress, _calldata);
         return address(proxy);
-    }
-
-    /// Adds poolConfig proxy.
-    function _addPoolConfig(
-        string memory _poolName,
-        address[] memory _poolAddresses
-    ) private returns (address) {
-        address poolConfig = _addProxy(
-            poolConfigImplAddress,
-            abi.encodeWithSignature("initialize(string,address[])", _poolName, _poolAddresses)
-        );
-        return poolConfig;
-    }
-
-    /// Adds poolFeeManager proxy.
-    function _addPoolFeeManager() private returns (address) {
-        address poolFeeManager = _addProxy(poolFeeManagerImplAddress, "");
-        return poolFeeManager;
-    }
-
-    /// Adds pool proxy.
-    function _addPool() private returns (address) {
-        address pool = _addProxy(poolImplAddress, "");
-        return pool;
-    }
-
-    /// Adds pool safe proxy.
-    function _addPoolSafe() private returns (address) {
-        address poolSafe = _addProxy(poolSafeImplAddress, "");
-        return poolSafe;
-    }
-
-    /// Adds firstLossCover proxy.
-    function _addFirstLossCover(
-        string memory firstLossCoverName,
-        string memory firstLossCoverSymbol,
-        PoolConfig _poolConfig
-    ) private returns (address) {
-        _notZeroAddress(address(_poolConfig));
-        address firstLossCover = _addProxy(
-            firstLossCoverImplAddress,
-            abi.encodeWithSignature(
-                "initialize(string,string,address)",
-                firstLossCoverName,
-                firstLossCoverSymbol,
-                _poolConfig
-            )
-        );
-        return firstLossCover;
-    }
-
-    /// Adds tranchesPolicy proxies.
-    function _addTranchesPolicy(address tranchesPolicyImpl) private returns (address) {
-        address tranchesPolicy = _addProxy(tranchesPolicyImpl, "");
-        return tranchesPolicy;
-    }
-
-    /// Adds epochManager proxy.
-    function _addEpochManager() private returns (address) {
-        address epochManager = _addProxy(epochManagerImplAddress, "");
-        return epochManager;
-    }
-
-    /// Adds trancheVault proxy.
-    function _addTrancheVault() private returns (address) {
-        address trancheVault = _addProxy(trancheVaultImplAddress, "");
-        return trancheVault;
-    }
-
-    /// Adds credit proxy.
-    function _addCredit(address creditImplAddress) private returns (address) {
-        address credit = _addProxy(creditImplAddress, "");
-        return credit;
-    }
-
-    /// Adds creditDueManager proxy.
-    function _addCreditDueManager() private returns (address) {
-        address creditDueManager = _addProxy(creditDueManagerImplAddress, "");
-        return creditDueManager;
-    }
-
-    /// Adds creditManager proxy.
-    function _addCreditManager(address creditManagerImplAddress) private returns (address) {
-        address creditManager = _addProxy(creditManagerImplAddress, "");
-        return creditManager;
     }
 
     /**
@@ -737,36 +682,40 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         poolAddresses[0] = humaConfigAddress;
         poolAddresses[1] = assetTokenAddress;
         poolAddresses[2] = calendarAddress;
-        poolAddresses[3] = _addPool();
-        poolAddresses[4] = _addPoolSafe();
-        poolAddresses[5] = _addPoolFeeManager();
+        poolAddresses[3] = _addProxy(poolImplAddress, "");
+        poolAddresses[4] = _addProxy(poolSafeImplAddress, "");
+        poolAddresses[5] = _addProxy(poolFeeManagerImplAddress, "");
 
         if (keccak256(bytes(tranchesPolicyType)) == keccak256(bytes("fixed"))) {
-            poolAddresses[6] = _addTranchesPolicy(fixedSeniorYieldTranchesPolicyImplAddress);
+            poolAddresses[6] = _addProxy(fixedSeniorYieldTranchesPolicyImplAddress, "");
         } else if (keccak256(bytes(tranchesPolicyType)) == keccak256(bytes("adjusted"))) {
-            poolAddresses[6] = _addTranchesPolicy(riskAdjustedTranchesPolicyImplAddress);
+            poolAddresses[6] = _addProxy(riskAdjustedTranchesPolicyImplAddress, "");
         } else {
             revert Errors.InvalidTranchesPolicyType();
         }
 
-        poolAddresses[7] = _addEpochManager();
-        poolAddresses[8] = _addTrancheVault(); // senior tranche vault
-        poolAddresses[9] = _addTrancheVault(); // junior tranche vault
-        poolAddresses[11] = _addCreditDueManager();
+        poolAddresses[7] = _addProxy(epochManagerImplAddress, "");
+        poolAddresses[8] = _addProxy(trancheVaultImplAddress, ""); // senior tranche vault
+        poolAddresses[9] = _addProxy(trancheVaultImplAddress, ""); // junior tranche vault
+        poolAddresses[11] = _addProxy(creditDueManagerImplAddress, "");
 
         if (keccak256(bytes(creditType)) == keccak256(bytes("receivablebacked"))) {
-            poolAddresses[10] = _addCredit(receivableBackedCreditLineImplAddress);
-            poolAddresses[12] = _addCreditManager(receivableBackedCreditLineManagerImplAddress);
+            poolAddresses[10] = _addProxy(receivableBackedCreditLineImplAddress, "");
+            poolAddresses[12] = _addProxy(receivableBackedCreditLineManagerImplAddress, "");
         } else if (keccak256(bytes(creditType)) == keccak256(bytes("receivablefactoring"))) {
-            poolAddresses[10] = _addCredit(receivableFactoringCreditImplAddress);
-            poolAddresses[12] = _addCreditManager(receivableFactoringCreditManagerImplAddress);
+            poolAddresses[10] = _addProxy(receivableFactoringCreditImplAddress, "");
+            poolAddresses[12] = _addProxy(receivableFactoringCreditManagerImplAddress, "");
         } else if (keccak256(bytes(creditType)) == keccak256(bytes("creditline"))) {
-            poolAddresses[10] = _addCredit(creditLineImplAddress);
-            poolAddresses[12] = _addCreditManager(creditLineManagerImplAddress);
+            poolAddresses[10] = _addProxy(creditLineImplAddress, "");
+            poolAddresses[12] = _addProxy(creditLineManagerImplAddress, "");
         } else {
             revert Errors.InvalidCreditType();
         }
-        address poolConfigAddress = _addPoolConfig(_poolName, poolAddresses);
+        address poolConfigAddress = _addProxy(
+            poolConfigImplAddress,
+            abi.encodeWithSignature("initialize(string,address[])", _poolName, poolAddresses)
+        );
+
         emit PoolCreated(poolAddresses[3], _poolName);
         return (poolConfigAddress, poolAddresses);
     }

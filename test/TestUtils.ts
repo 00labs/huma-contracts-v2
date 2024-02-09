@@ -1,5 +1,5 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { BigNumber, BigNumber as BN, Contract } from "ethers";
+import { BigNumber as BN, BigNumberish, Contract } from "ethers";
 import { ethers, network } from "hardhat";
 import moment from "moment";
 import { FirstLossCover, PoolConfig } from "../typechain-types";
@@ -30,7 +30,7 @@ export function ceilDiv(x: BN, y: BN): BN {
     return x.eq(0) ? BN.from(0) : x.sub(1).div(y).add(1);
 }
 
-export function isCloseTo(actualValue: BN, expectedValue: BN, delta: BN): boolean {
+export function isCloseTo(actualValue: BN, expectedValue: BN, delta: BigNumberish): boolean {
     return actualValue.sub(expectedValue).abs().lte(delta);
 }
 
@@ -144,7 +144,7 @@ export async function overrideLPConfig(
 export async function getMinFirstLossCoverRequirement(
     firstLossCoverContract: FirstLossCover,
     poolConfigContract: PoolConfig,
-): Promise<BigNumber> {
+): Promise<BN> {
     const poolConfig = await poolConfigContract.getFirstLossCoverConfig(
         firstLossCoverContract.address,
     );

@@ -245,6 +245,9 @@ contract Receivable is
     function _burn(
         uint256 tokenId
     ) internal override(ERC721Upgradeable, ERC721URIStorageUpgradeable) {
+        // Technically, the `availableCredit` should be adjusted lower when an approved receivable is not used
+        // for drawdown and gets burned. We decided not to do so because of the limited impact and complexities
+        // involved. The EA can adjust the credit limit to address any issues if needed.
         super._burn(tokenId);
     }
 }
