@@ -296,13 +296,16 @@ describe("TrancheVault Test", function () {
             let nonReinvestingLendersLength =
                 await juniorTrancheVaultContract.getNonReinvestingLendersLength();
             role = await juniorTrancheVaultContract.LENDER_ROLE();
+
             await expect(
                 juniorTrancheVaultContract
                     .connect(defaultDeployer)
                     .addApprovedLender(defaultDeployer.address, false),
             )
                 .to.emit(juniorTrancheVaultContract, "RoleGranted")
-                .withArgs(role, defaultDeployer.address, defaultDeployer.address);
+                .withArgs(role, defaultDeployer.address, defaultDeployer.address)
+                .to.emit(juniorTrancheVaultContract, "LenderAdded")
+                .withArgs(await defaultDeployer.getAddress(), false);
 
             expect(
                 await juniorTrancheVaultContract.hasRole(role, defaultDeployer.address),
@@ -350,7 +353,9 @@ describe("TrancheVault Test", function () {
                     .removeApprovedLender(lender4.address),
             )
                 .to.emit(juniorTrancheVaultContract, "RoleRevoked")
-                .withArgs(lenderRole, lender4.address, defaultDeployer.address);
+                .withArgs(lenderRole, lender4.address, defaultDeployer.address)
+                .to.emit(juniorTrancheVaultContract, "LenderRemoved")
+                .withArgs(await lender4.getAddress());
             await juniorTrancheVaultContract
                 .connect(poolOperator)
                 .removeApprovedLender(lender4.address);
@@ -393,7 +398,9 @@ describe("TrancheVault Test", function () {
                     .removeApprovedLender(defaultDeployer.address),
             )
                 .to.emit(juniorTrancheVaultContract, "RoleRevoked")
-                .withArgs(lenderRole, defaultDeployer.address, defaultDeployer.address);
+                .withArgs(lenderRole, defaultDeployer.address, defaultDeployer.address)
+                .to.emit(juniorTrancheVaultContract, "LenderRemoved")
+                .withArgs(await defaultDeployer.getAddress());
             expect(await juniorTrancheVaultContract.hasRole(lenderRole, defaultDeployer.address))
                 .to.be.false;
             const newDepositRecord = await juniorTrancheVaultContract.depositRecords(
@@ -446,7 +453,9 @@ describe("TrancheVault Test", function () {
                     .removeApprovedLender(treasury.address),
             )
                 .to.emit(juniorTrancheVaultContract, "RoleRevoked")
-                .withArgs(lenderRole, treasury.address, defaultDeployer.address);
+                .withArgs(lenderRole, treasury.address, defaultDeployer.address)
+                .to.emit(juniorTrancheVaultContract, "LenderRemoved")
+                .withArgs(await treasury.getAddress());
             expect(await juniorTrancheVaultContract.hasRole(lenderRole, treasury.address)).to.be
                 .false;
             const newDepositRecord = await juniorTrancheVaultContract.depositRecords(

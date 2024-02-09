@@ -152,11 +152,14 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
     }
 
     /// @inheritdoc ICreditLineManager
-    function waiveLateFee(address borrower, uint256 amount) external {
+    function waiveLateFee(
+        address borrower,
+        uint256 amount
+    ) external returns (uint256 amountWaived) {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
-        _waiveLateFee(getCreditHash(borrower), amount);
+        return _waiveLateFee(getCreditHash(borrower), amount);
     }
 
     function getCreditHash(address borrower) public view virtual returns (bytes32 creditHash) {

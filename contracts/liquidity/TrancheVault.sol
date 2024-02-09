@@ -59,6 +59,19 @@ contract TrancheVault is
     );
 
     /**
+     * @notice A lender has been added.
+     * @param account The address of the lender.
+     * @param reinvestYield A flag indicating whether the lender is reinvesting or not.
+     */
+    event LenderAdded(address indexed account, bool reinvestYield);
+
+    /**
+     * @notice A lender has been removed.
+     * @param account The address of the lender.
+     */
+    event LenderRemoved(address indexed account);
+
+    /**
      * @notice A deposit has been made to the tranche.
      * @param sender The address that made the deposit.
      * @param assetAmount The amount measured in the underlying asset.
@@ -83,7 +96,7 @@ contract TrancheVault is
 
     /**
      * @notice A redemption request has been canceled.
-     * @param account The account whose request to be canceled.
+     * @param account The account whose request has been canceled.
      * @param shareAmount The number of shares to be included in the cancellation.
      * @param epochId The epoch ID.
      */
@@ -121,7 +134,7 @@ contract TrancheVault is
     /**
      * @notice The yield reinvestment setting has been updated.
      * @param account The account whose setting has been updated.
-     * @param reinvestYield A boolean indicating whether it is reinvesting or not.
+     * @param reinvestYield A flag indicating whether the lender is reinvesting or not.
      * @param by The address who has made the change.
      */
     event ReinvestYieldConfigSet(address indexed account, bool reinvestYield, address by);
@@ -177,6 +190,8 @@ contract TrancheVault is
                 revert Errors.NonReinvestYieldLenderCapacityReached();
             nonReinvestingLenders.push(lender);
         }
+
+        emit LenderAdded(lender, reinvestYield);
     }
 
     /**
@@ -198,6 +213,8 @@ contract TrancheVault is
         if (!_getDepositRecord(lender).reinvestYield) {
             _removeLenderFromNonReinvestingLenders(lender);
         }
+
+        emit LenderRemoved(lender);
     }
 
     /**

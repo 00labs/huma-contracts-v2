@@ -52,7 +52,7 @@ contract HumaConfig is Ownable, Pausable {
      * @notice The treasury address for Huma protocol has changed.
      * @param newTreasuryAddress The address of the new Huma treasury.
      */
-    event HumaTreasuryChanged(address indexed newTreasuryAddress);
+    event HumaTreasuryChanged(address indexed newTreasuryAddress, address by);
 
     /**
      * @notice New underlying asset supported by the protocol is added.
@@ -86,7 +86,7 @@ contract HumaConfig is Ownable, Pausable {
      * @notice Service account for the Sentinel Service has been changed.
      * @param sentinelService The address of the new Sentinel Service.
      */
-    event SentinelServiceAccountChanged(address sentinelService);
+    event SentinelServiceAccountChanged(address sentinelService, address by);
 
     /**
      * @notice The Huma protocol has been initialized.
@@ -99,7 +99,7 @@ contract HumaConfig is Ownable, Pausable {
      * @param oldFee The old treasury fee.
      * @param newFee The new treasury fee.
      */
-    event TreasuryFeeChanged(uint256 oldFee, uint256 newFee);
+    event TreasuryFeeChanged(uint256 oldFee, uint256 newFee, address by);
 
     /// Makes sure the msg.sender is one of the pausers.
     modifier onlyPausers() {
@@ -186,7 +186,7 @@ contract HumaConfig is Ownable, Pausable {
     function setHumaTreasury(address treasury) external onlyOwner {
         if (treasury == address(0)) revert Errors.ZeroAddressProvided();
         humaTreasury = treasury;
-        emit HumaTreasuryChanged(treasury);
+        emit HumaTreasuryChanged(treasury, msg.sender);
     }
 
     /**
@@ -215,7 +215,7 @@ contract HumaConfig is Ownable, Pausable {
     function setSentinelServiceAccount(address accountAddress) external onlyOwner {
         if (accountAddress == address(0)) revert Errors.ZeroAddressProvided();
         sentinelServiceAccount = accountAddress;
-        emit SentinelServiceAccountChanged(accountAddress);
+        emit SentinelServiceAccountChanged(accountAddress, msg.sender);
     }
 
     /**
@@ -227,7 +227,7 @@ contract HumaConfig is Ownable, Pausable {
         if (feeInBps > TREASURY_FEE_UPPER_BOUND) revert Errors.TreasuryFeeHighThanUpperLimit();
         uint256 oldFee = protocolFeeInBps;
         protocolFeeInBps = uint16(feeInBps);
-        emit TreasuryFeeChanged(oldFee, feeInBps);
+        emit TreasuryFeeChanged(oldFee, feeInBps, msg.sender);
     }
 
     /**

@@ -75,7 +75,10 @@ interface IReceivableFactoringCreditManager {
      * this value and the actual amount of late fee due.
      * @custom:access Only the EA can call this function.
      */
-    function waiveLateFee(uint256 receivableId, uint256 waivedAmount) external;
+    function waiveLateFee(
+        uint256 receivableId,
+        uint256 waivedAmount
+    ) external returns (uint256 amountWaived);
 
     /**
      * @notice Checks whether the given account is a permitted payer for the credit.
