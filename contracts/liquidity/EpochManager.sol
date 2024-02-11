@@ -191,8 +191,13 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         }
 
         // Calculate senior/junior LP token prices.
-        uint256 seniorPrice = (tranchesAssets[SENIOR_TRANCHE] * DEFAULT_DECIMALS_FACTOR) /
-            IERC20(address(seniorTranche)).totalSupply();
+        // In a uni-tranche pool, the senior tranche is disabled, so the senior supply will be 0.
+        // Set the senior token price to 0 if that's the case.
+        uint256 seniorSupply = IERC20(address(seniorTranche)).totalSupply();
+        uint256 seniorPrice = seniorSupply == 0
+            ? 0
+            : (tranchesAssets[SENIOR_TRANCHE] * DEFAULT_DECIMALS_FACTOR) / seniorSupply;
+        // The junior supply will never be zero due to the pool owner min deposit requirement.
         uint256 juniorPrice = (tranchesAssets[JUNIOR_TRANCHE] * DEFAULT_DECIMALS_FACTOR) /
             IERC20(address(juniorTranche)).totalSupply();
 
@@ -205,7 +210,10 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             ((juniorSummary.totalSharesRequested - juniorSummary.totalSharesProcessed) *
                 juniorPrice)) / DEFAULT_DECIMALS_FACTOR;
 
-        seniorTranche.executeRedemptionSummary(seniorSummary);
+        if (seniorSupply > 0) {
+            // Skip the senior tranche if it's disabled.
+            seniorTranche.executeRedemptionSummary(seniorSummary);
+        }
         juniorTranche.executeRedemptionSummary(juniorSummary);
 
         pool.updateTranchesAssets(tranchesAssets);
@@ -244,7 +252,8 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint256 availableAmount = poolSafe.getAvailableBalanceForPool();
         if (availableAmount <= minPoolBalanceForRedemption) return;
 
-        // Process senior tranche redemption requests.
+        // Process senior tranche redemption requests. In a uni-tranche pool, there will be no shares requested
+        // in the senior tranche, so redemption processing will be skipped.
         if (seniorSummary.totalSharesRequested > 0) {
             availableAmount = _processSeniorRedemptionRequests(
                 tranchesAssets,
