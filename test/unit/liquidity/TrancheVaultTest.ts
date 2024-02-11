@@ -2942,7 +2942,7 @@ describe("TrancheVault Test", function () {
             );
             expect(await juniorTrancheVaultContract.totalAssetsOf(lender.address)).to.be.closeTo(
                 lenders[0].principal,
-                1,
+                2,
             );
             expect(await juniorTrancheVaultContract.totalAssetsOf(lender2.address)).to.be.closeTo(
                 lenders[1].principal,

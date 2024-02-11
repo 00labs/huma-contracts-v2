@@ -375,13 +375,13 @@ async function checkAssetsForLoss(
     expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
         expectedTranchesAssets[CONSTANTS.JUNIOR_TRANCHE],
     );
-    expect(expectedFirstLossCoverLosses[CONSTANTS.BORROWER_LOSS_COVER_INDEX]).to.lessThan(0);
+    expect(expectedFirstLossCoverLosses[CONSTANTS.BORROWER_LOSS_COVER_INDEX]).to.be.lt(0);
     expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(
         borrowerFLCOldBalance.add(
             expectedFirstLossCoverLosses[CONSTANTS.BORROWER_LOSS_COVER_INDEX],
         ),
     );
-    expect(expectedFirstLossCoverLosses[CONSTANTS.ADMIN_LOSS_COVER_INDEX]).to.lessThan(0);
+    expect(expectedFirstLossCoverLosses[CONSTANTS.ADMIN_LOSS_COVER_INDEX]).to.be.lt(0);
     expect(await adminFirstLossCoverContract.totalAssets()).to.equal(
         adminFLCOldBalance.add(expectedFirstLossCoverLosses[CONSTANTS.ADMIN_LOSS_COVER_INDEX]),
     );
@@ -577,6 +577,11 @@ describe("Multi-tranche Test", function () {
             jLenders[2],
             borrower,
         ] = await ethers.getSigners();
+    });
+
+    after(async function () {
+        sLenders = [];
+        jLenders = [];
     });
 
     let sId: unknown;
@@ -3759,6 +3764,7 @@ describe("Uni-tranche Test", function () {
             jLenders[2],
             borrower,
         ] = await ethers.getSigners();
+
         sId = await evmSnapshot();
         await prepare();
     });
@@ -3773,6 +3779,7 @@ describe("Uni-tranche Test", function () {
         jLenderPrincipalRequests = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0));
         jLenderAmountsProcessed = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0));
         jLenderWithdrawals = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0));
+        jLenders = [];
         jActiveLenders = [];
     });
 
