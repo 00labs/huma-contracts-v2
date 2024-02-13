@@ -46,12 +46,12 @@ contract MockNFT is
 
     function mintNFT(
         address recipient,
-        string memory tokenURI
+        string memory tokenURI_
     ) external returns (uint256 newItemId) {
         _tokenIdCounter.increment();
         newItemId = _tokenIdCounter.current();
         _mint(recipient, newItemId);
-        _setTokenURI(newItemId, tokenURI);
+        _setTokenURI(newItemId, tokenURI_);
     }
 
     function getCurrentTokenId() external view returns (uint256) {
