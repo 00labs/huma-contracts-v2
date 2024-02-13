@@ -1306,9 +1306,9 @@ describe("TrancheVault Test", function () {
                         ...lpConfig,
                         ...{ withdrawalLockoutPeriodInDays: lockout },
                     });
-                    await mineNextBlockWithTimestamp(
-                        currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
-                    );
+                    await seniorTrancheVaultContract.processYieldForLenders();
+                    await juniorTrancheVaultContract.processYieldForLenders();
+                    await mineNextBlockWithTimestamp(currentEpoch.endTime.add(60 * 5).toNumber());
                     await epochManagerContract.closeEpoch();
                     currentEpochId = await epochManagerContract.currentEpochId();
 
@@ -1384,10 +1384,11 @@ describe("TrancheVault Test", function () {
                     );
 
                     // Close current epoch while processing nothing
+                    await seniorTrancheVaultContract.processYieldForLenders();
+                    await juniorTrancheVaultContract.processYieldForLenders();
+
                     currentEpoch = await epochManagerContract.currentEpoch();
-                    await mineNextBlockWithTimestamp(
-                        currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
-                    );
+                    await mineNextBlockWithTimestamp(currentEpoch.endTime.add(60 * 5).toNumber());
                     const availableAssets = await poolSafeContract.getAvailableBalanceForPool();
                     await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
                     await epochManagerContract.closeEpoch();
@@ -1580,10 +1581,11 @@ describe("TrancheVault Test", function () {
                     );
 
                     // Close current epoch
+                    await seniorTrancheVaultContract.processYieldForLenders();
+                    await juniorTrancheVaultContract.processYieldForLenders();
+
                     let currentEpoch = await epochManagerContract.currentEpoch();
-                    await mineNextBlockWithTimestamp(
-                        currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
-                    );
+                    await mineNextBlockWithTimestamp(currentEpoch.endTime.add(60 * 5).toNumber());
                     await epochManagerContract.closeEpoch();
                     currentEpochId = await epochManagerContract.currentEpochId();
 
@@ -1638,6 +1640,9 @@ describe("TrancheVault Test", function () {
                     );
 
                     // Close current epoch while processing nothing
+                    await seniorTrancheVaultContract.processYieldForLenders();
+                    await juniorTrancheVaultContract.processYieldForLenders();
+
                     currentEpoch = await epochManagerContract.currentEpoch();
                     await mineNextBlockWithTimestamp(
                         currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
@@ -1779,6 +1784,9 @@ describe("TrancheVault Test", function () {
                     await makePaymentAndMockDistributePnL(profit, BN.from(0), BN.from(0));
 
                     // Close current epoch while processing partially
+                    await seniorTrancheVaultContract.processYieldForLenders();
+                    await juniorTrancheVaultContract.processYieldForLenders();
+
                     let currentEpoch = await epochManagerContract.currentEpoch();
                     await mineNextBlockWithTimestamp(
                         currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
@@ -1895,10 +1903,11 @@ describe("TrancheVault Test", function () {
                     );
 
                     // Close current epoch while processing partially
+                    await seniorTrancheVaultContract.processYieldForLenders();
+                    await juniorTrancheVaultContract.processYieldForLenders();
+
                     let currentEpoch = await epochManagerContract.currentEpoch();
-                    await mineNextBlockWithTimestamp(
-                        currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
-                    );
+                    await mineNextBlockWithTimestamp(currentEpoch.endTime.add(60 * 5).toNumber());
                     let amountProcessed = toToken(6000);
                     let sharesProcessed =
                         await juniorTrancheVaultContract.convertToShares(amountProcessed);
@@ -2030,6 +2039,9 @@ describe("TrancheVault Test", function () {
                 await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
                 await seniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares);
 
+                await seniorTrancheVaultContract.processYieldForLenders();
+                await juniorTrancheVaultContract.processYieldForLenders();
+
                 let lastEpoch = await epochManagerContract.currentEpoch();
                 let ts = lastEpoch.endTime.toNumber() + 60 * 5;
                 await mineNextBlockWithTimestamp(ts);
@@ -2120,6 +2132,8 @@ describe("TrancheVault Test", function () {
                 );
 
                 // Finish 1st epoch and process epoch1 partially
+                await seniorTrancheVaultContract.processYieldForLenders();
+                await juniorTrancheVaultContract.processYieldForLenders();
 
                 let lastEpoch = await epochManagerContract.currentEpoch();
                 let ts = lastEpoch.endTime.toNumber() + 60 * 5;
@@ -2194,6 +2208,8 @@ describe("TrancheVault Test", function () {
                 await creditContract.makePayment(ethers.constants.HashZero, allAvailableAmount);
 
                 // Finish 2nd epoch and process epoch partially
+                await seniorTrancheVaultContract.processYieldForLenders();
+                await juniorTrancheVaultContract.processYieldForLenders();
 
                 lastEpoch = await epochManagerContract.currentEpoch();
                 let totalSharesRequested = (
@@ -2268,6 +2284,8 @@ describe("TrancheVault Test", function () {
                 );
 
                 // Finish 3rd epoch and process epoch fully
+                await seniorTrancheVaultContract.processYieldForLenders();
+                await juniorTrancheVaultContract.processYieldForLenders();
 
                 lastEpoch = await epochManagerContract.currentEpoch();
                 ts = lastEpoch.endTime.toNumber() + 60 * 5;
@@ -2356,6 +2374,9 @@ describe("TrancheVault Test", function () {
                     );
 
                     // Close current epoch while processing partially
+                    await seniorTrancheVaultContract.processYieldForLenders();
+                    await juniorTrancheVaultContract.processYieldForLenders();
+
                     let currentEpoch = await epochManagerContract.currentEpoch();
                     await mineNextBlockWithTimestamp(
                         currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
@@ -2436,10 +2457,11 @@ describe("TrancheVault Test", function () {
                     );
 
                     // Close current epoch while processing partially
+                    await seniorTrancheVaultContract.processYieldForLenders();
+                    await juniorTrancheVaultContract.processYieldForLenders();
+
                     let currentEpoch = await epochManagerContract.currentEpoch();
-                    await mineNextBlockWithTimestamp(
-                        currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
-                    );
+                    await mineNextBlockWithTimestamp(currentEpoch.endTime.add(60 * 5).toNumber());
                     let amountProcessed = toToken(5000);
                     let sharesProcessed =
                         await juniorTrancheVaultContract.convertToShares(amountProcessed);
