@@ -283,12 +283,13 @@ contract TrancheVault is
      * which will cause a permanent loss and we cannot help reverse transactions
      * or retrieve assets from the contracts.
      * @param assets The number of underlyingTokens to be deposited.
-     * @return shares The number of tranche token to be minted.
+     * @return shares The number of tranche tokens to be minted.
      * @custom:access Any approved lender can call to deposit.
      */
     function deposit(uint256 assets) external returns (uint256 shares) {
         poolConfig.onlyProtocolAndPoolOn();
         if (assets == 0) revert Errors.ZeroAmountProvided();
+        if (totalSupply() == 0) revert Errors.DepositNotAllowedWhenTrancheSupplyIsZero();
         _onlyLender(msg.sender);
 
         return _deposit(assets);

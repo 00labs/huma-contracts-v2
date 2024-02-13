@@ -322,6 +322,15 @@ describe("Pool Test", function () {
                     .withArgs(protocolOwner.address);
                 const isPoolOn = await poolContract.isPoolOn();
                 expect(isPoolOn).to.be.true;
+
+                // Nobody should be able to deposit into the senior tranche since the total supply is 0.
+                expect(await seniorTrancheVaultContract.totalSupply()).to.equal(0);
+                await expect(
+                    seniorTrancheVaultContract.connect(lender).deposit(toToken(1)),
+                ).to.be.revertedWithCustomError(
+                    seniorTrancheVaultContract,
+                    "DepositNotAllowedWhenTrancheSupplyIsZero",
+                );
             });
         });
     });
