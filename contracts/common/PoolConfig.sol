@@ -365,7 +365,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit EvaluationAgentChanged(oldEA, agent, eaId, msg.sender);
     }
 
-    /// @custom:access Only the pool owner and the Huma master admin can call this function.
+    /// @custom:access Only the pool owner and the Huma owner can call this function.
     function setPoolFeeManager(address poolFeeManager_) external {
         _onlyPoolOwnerOrHumaOwner();
         if (poolFeeManager_ == address(0)) revert Errors.ZeroAddressProvided();
@@ -373,15 +373,15 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit PoolFeeManagerChanged(poolFeeManager_, msg.sender);
     }
 
-    /// @custom:access Only the pool owner and the Huma master admin can call this function.
+    /// @custom:access Only the Huma owner can call this function.
     function setHumaConfig(address humaConfig_) external {
-        _onlyPoolOwnerOrHumaOwner();
+        onlyHumaOwner(msg.sender);
         if (humaConfig_ == address(0)) revert Errors.ZeroAddressProvided();
         humaConfig = HumaConfig(humaConfig_);
         emit HumaConfigChanged(humaConfig_, msg.sender);
     }
 
-    /// @custom:access Only the pool owner and the Huma master admin can call this function.
+    /// @custom:access Only the pool owner and the Huma owner can call this function.
     function setPool(address pool_) external {
         _onlyPoolOwnerOrHumaOwner();
         if (pool_ == address(0)) revert Errors.ZeroAddressProvided();
@@ -396,7 +396,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit PoolNameChanged(newName, msg.sender);
     }
 
-    /// @custom:access Only the pool owner and the Huma master admin can call this function.
+    /// @custom:access Only the pool owner and the Huma owner can call this function.
     function setPoolOwnerTreasury(address poolOwnerTreasury_) external {
         _onlyPoolOwnerOrHumaOwner();
         if (poolOwnerTreasury_ == address(0)) revert Errors.ZeroAddressProvided();
@@ -404,7 +404,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit PoolOwnerTreasuryChanged(poolOwnerTreasury_, msg.sender);
     }
 
-    /// @custom:access Only the pool owner and the Huma master admin can call this function.
+    /// @custom:access Only the pool owner and the Huma owner can call this function.
     function setTranches(address seniorTranche_, address juniorTranche_) external {
         _onlyPoolOwnerOrHumaOwner();
         if (seniorTranche_ == address(0) || juniorTranche_ == address(0))
@@ -414,7 +414,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit TranchesChanged(seniorTranche_, juniorTranche_, msg.sender);
     }
 
-    /// @custom:access Only the pool owner and the Huma master admin can call this function.
+    /// @custom:access Only the pool owner and the Huma owner can call this function.
     function setPoolSafe(address poolSafe_) external {
         _onlyPoolOwnerOrHumaOwner();
         if (poolSafe_ == address(0)) revert Errors.ZeroAddressProvided();
@@ -422,7 +422,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit PoolSafeChanged(poolSafe, msg.sender);
     }
 
-    /// @custom:access Only the pool owner and the Huma master admin can call this function.
+    /// @custom:access Only the pool owner and the Huma owner can call this function.
     function setTranchesPolicy(address tranchesPolicy_) external {
         _onlyPoolOwnerOrHumaOwner();
         if (tranchesPolicy_ == address(0)) revert Errors.ZeroAddressProvided();
@@ -430,7 +430,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit TranchesPolicyChanged(tranchesPolicy_, msg.sender);
     }
 
-    /// @custom:access Only the pool owner and the Huma master admin can call this function.
+    /// @custom:access Only the pool owner and the Huma owner can call this function.
     function setEpochManager(address epochManager_) external {
         _onlyPoolOwnerOrHumaOwner();
         if (epochManager_ == address(0)) revert Errors.ZeroAddressProvided();
@@ -438,7 +438,15 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit EpochManagerChanged(epochManager, msg.sender);
     }
 
-    /// @custom:access Only the pool owner and the Huma master admin can call this function.
+    /// @custom:access Only the pool owner and the Huma owner can call this function.
+    function setCreditDueManager(address creditDueManager_) external {
+        _onlyPoolOwnerOrHumaOwner();
+        if (creditDueManager_ == address(0)) revert Errors.ZeroAddressProvided();
+        creditDueManager = creditDueManager_;
+        emit CreditDueManagerChanged(creditDueManager_, msg.sender);
+    }
+
+    /// @custom:access Only the pool owner and the Huma owner can call this function.
     function setCredit(address credit_) external {
         _onlyPoolOwnerOrHumaOwner();
         if (credit_ == address(0)) revert Errors.ZeroAddressProvided();
@@ -479,7 +487,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         );
     }
 
-    /// @custom:access Only the pool owner and the Huma master admin can call this function.
+    /// @custom:access Only the pool owner and the Huma owner can call this function.
     function setCalendar(address calendar_) external {
         _onlyPoolOwnerOrHumaOwner();
         if (calendar_ == address(0)) revert Errors.ZeroAddressProvided();
@@ -487,7 +495,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit CalendarChanged(calendar_, msg.sender);
     }
 
-    /// @custom:access Only the pool owner and the Huma master admin can call this function.
+    /// @custom:access Only the pool owner and the Huma owner can call this function.
     function setReceivableAsset(address receivableAsset_) external {
         _onlyPoolOwnerOrHumaOwner();
         if (receivableAsset_ == address(0)) revert Errors.ZeroAddressProvided();
