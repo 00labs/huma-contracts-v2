@@ -42,36 +42,13 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
 
         bool shouldAdvanceToNextPeriod = false;
         bool isLate = false;
-
         {
             uint256 nextBillRefreshDate = getNextBillRefreshDate(cr);
             if (cr.state == CreditState.Approved || timestamp > nextBillRefreshDate) {
                 shouldAdvanceToNextPeriod = true;
             }
-            if (
-                cr.state == CreditState.Delayed ||
-                // The last due was not paid off
-                (cr.state == CreditState.GoodStanding &&
-                    cr.nextDue > 0 &&
-                    timestamp > nextBillRefreshDate) ||
-                // The last due was paid off, but next due wasn't refreshed
-                (cr.state == CreditState.GoodStanding &&
-                    cr.nextDue == 0 &&
-                    cr.unbilledPrincipal > 0 &&
-                    timestamp >
-                    calendar.getStartDateOfNextPeriod(cc.periodDuration, cr.nextDueDate)) ||
-                // Outstanding commitment
-                (cr.state == CreditState.GoodStanding &&
-                    cr.nextDue + cr.unbilledPrincipal == 0 &&
-                    cc.committedAmount > 0 &&
-                    cr.remainingPeriods > 0 &&
-                    timestamp >
-                    calendar.getStartDateOfNextPeriod(cc.periodDuration, cr.nextDueDate))
-            ) {
-                isLate = true;
-            }
+            isLate = _isLate(cc, cr, nextBillRefreshDate, timestamp);
         }
-
         if (!shouldAdvanceToNextPeriod && !isLate) return (cr, dd);
 
         newCR = _deepCopyCreditRecord(cr);
@@ -121,8 +98,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 // 2. Otherwise, since there was unpaid due, the period `cr` was in should be counted as a missed
                 //    period, hence the +1 in the `false` part of the ternary below.
                 newCR.missedPeriods += uint16(
-                    cr.nextDue + cr.totalPastDue == 0 &&
-                        (cr.unbilledPrincipal > 0 || cc.committedAmount > 0)
+                    cr.nextDue + cr.totalPastDue == 0
                         ? periodsPassed // last due was paid off
                         : periodsPassed + 1 // last due was not paid off
                 );
@@ -345,6 +321,49 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         address addr = poolConfig_.calendar();
         assert(addr != address(0));
         calendar = ICalendar(addr);
+    }
+
+    function _isLate(
+        CreditConfig memory cc,
+        CreditRecord memory cr,
+        uint256 nextBillRefreshDate,
+        uint256 timestamp
+    ) internal view returns (bool) {
+        assert(
+            cr.state == CreditState.Approved ||
+                cr.state == CreditState.Delayed ||
+                cr.state == CreditState.GoodStanding
+        );
+
+        // If the bill has just been approved, then it hasn't started yet, so it's not late.
+        if (cr.state == CreditState.Approved) return false;
+        // The bill is late if it's already delayed.
+        if (cr.state == CreditState.Delayed) return true;
+
+        // The bill is currently in GoodStanding.
+        if (timestamp <= nextBillRefreshDate) {
+            // The bill is not late if it's still within the current period.
+            return false;
+        }
+        // The bill has gone past the period ending on `nextDueDate`.
+        uint256 startDateOfNextPeriod = calendar.getStartDateOfNextPeriod(
+            cc.periodDuration,
+            cr.nextDueDate
+        );
+        if (timestamp <= startDateOfNextPeriod) {
+            if (cr.nextDue == 0) {
+                // If the bill is in the next period, but the due on the bill has been paid off,
+                // then the bill is not late.
+                return false;
+            }
+        }
+        // The bill has gone past the next period.
+        if (cr.nextDue == 0 && cr.unbilledPrincipal == 0 && cc.committedAmount == 0) {
+            // If the bill has been paid off and there is no commitment, then the bill is not late.
+            return false;
+        }
+        // In all other cases, the bill is late.
+        return true;
     }
 
     function _computePrincipalDueForFullPeriods(
