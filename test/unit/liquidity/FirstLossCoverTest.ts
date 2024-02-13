@@ -1196,7 +1196,7 @@ describe("FirstLossCover Tests", function () {
         });
     });
 
-    describe.only("payoutYield", function () {
+    describe("payoutYield", function () {
         it("Should pay out yield to all providers", async function () {
             const totalAssets = await adminFirstLossCoverContract.totalAssets();
             const yieldAmount = toToken(8273);
