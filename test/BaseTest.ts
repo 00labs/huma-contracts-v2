@@ -10,7 +10,6 @@ import {
     CreditLine,
     CreditLineManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     FixedSeniorYieldTranchePolicy,
     HumaConfig,
@@ -65,7 +64,7 @@ export type CreditManagerContractType =
     | CreditLineManager
     | ReceivableBackedCreditLineManager
     | ReceivableFactoringCreditManager;
-export type ProtocolContracts = [EvaluationAgentNFT, HumaConfig, MockToken];
+export type ProtocolContracts = [HumaConfig, MockToken];
 export type PoolContracts = [
     PoolConfig,
     PoolFeeManager,
@@ -183,23 +182,15 @@ export async function deployProxyContract(
 export async function deployProtocolContracts(
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress,
     poolOwner: SignerWithAddress,
 ): Promise<ProtocolContracts> {
-    // Deploy EvaluationAgentNFT
-    const EvaluationAgentNFT = await ethers.getContractFactory("EvaluationAgentNFT");
-    const eaNFTContract = await EvaluationAgentNFT.deploy();
-    await eaNFTContract.deployed();
-
     // Deploy HumaConfig
     const HumaConfig = await ethers.getContractFactory("HumaConfig");
     let humaConfigContract = await HumaConfig.deploy();
     await humaConfigContract.deployed();
 
     await humaConfigContract.setHumaTreasury(treasury.getAddress());
-    await humaConfigContract.setEANFTContractAddress(eaNFTContract.address);
-    await humaConfigContract.setEAServiceAccount(eaServiceAccount.getAddress());
     await humaConfigContract.setSentinelServiceAccount(sentinelServiceAccount.getAddress());
 
     await humaConfigContract.addPauser(protocolOwner.getAddress());
@@ -217,7 +208,7 @@ export async function deployProtocolContracts(
         .connect(protocolOwner)
         .setLiquidityAsset(mockTokenContract.address, true);
 
-    return [eaNFTContract, humaConfigContract, mockTokenContract];
+    return [humaConfigContract, mockTokenContract];
 }
 
 export async function deployPoolContracts(
@@ -614,7 +605,6 @@ export async function deployPoolWithFactory(
 
 export async function setupPoolContracts(
     poolConfigContract: PoolConfig,
-    eaNFTContract: EvaluationAgentNFT,
     mockTokenContract: MockToken | MockTokenNonStandardERC20,
     borrowerFirstLossCoverContract: FirstLossCover,
     adminFirstLossCoverContract: FirstLossCover,
@@ -685,17 +675,9 @@ export async function setupPoolContracts(
         .approve(poolSafeContract.address, ethers.constants.MaxUint256);
     await mockTokenContract.mint(evaluationAgent.getAddress(), toToken(1_000_000_000));
     if (shouldSetEA) {
-        let eaNFTTokenId;
-        const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
-        const receipt = await tx.wait();
-        for (const evt of receipt.events!) {
-            if (evt.event === "NFTGenerated") {
-                eaNFTTokenId = evt.args!.tokenId;
-            }
-        }
         await poolConfigContract
             .connect(poolOwner)
-            .setEvaluationAgent(eaNFTTokenId, evaluationAgent.getAddress());
+            .setEvaluationAgent(evaluationAgent.getAddress());
         const evaluationAgentLiquidity = BN.from(adminRnR.liquidityRateInBpsByEA)
             .mul(poolLiquidityCap)
             .div(CONSTANTS.BP_FACTOR);
@@ -762,7 +744,6 @@ export async function setupPoolContracts(
 export async function deployAndSetupPoolContracts(
     humaConfigContract: HumaConfig,
     mockTokenContract: MockToken | MockTokenNonStandardERC20,
-    eaNFTContract: EvaluationAgentNFT,
     tranchesPolicyContractName: TranchesPolicyContractName,
     deployer: SignerWithAddress,
     poolOwner: SignerWithAddress,
@@ -803,7 +784,6 @@ export async function deployAndSetupPoolContracts(
 
     await setupPoolContracts(
         poolConfigContract,
-        eaNFTContract,
         mockTokenContract,
         borrowerFirstLossCoverContract,
         adminFirstLossCoverContract,

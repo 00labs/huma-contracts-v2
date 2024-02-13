@@ -11,7 +11,6 @@ import {
     CreditLine,
     CreditLineManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     FixedSeniorYieldTranchePolicy,
     HumaConfig,
@@ -60,7 +59,6 @@ import { CONSTANTS } from "../../constants";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     humaTreasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -72,9 +70,7 @@ let sLenders: SignerWithAddress[] = [],
     jActiveLenders: SignerWithAddress[] = [],
     borrower: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -203,17 +199,7 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
         .connect(poolOwner)
         .setPoolOwnerTreasury(poolOwnerTreasury.getAddress());
 
-    let eaNFTTokenId;
-    const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
-    const receipt = await tx.wait();
-    for (const evt of receipt.events!) {
-        if (evt.event === "NFTGenerated") {
-            eaNFTTokenId = evt.args!.tokenId;
-        }
-    }
-    await poolConfigContract
-        .connect(poolOwner)
-        .setEvaluationAgent(eaNFTTokenId, evaluationAgent.getAddress());
+    await poolConfigContract.connect(poolOwner).setEvaluationAgent(evaluationAgent.getAddress());
 
     const adminRnR = await poolConfigContract.getAdminRnR();
     await mockTokenContract
@@ -566,7 +552,7 @@ describe("Multi-tranche Test", function () {
             defaultDeployer,
             protocolOwner,
             humaTreasury,
-            eaServiceAccount,
+            evaluationAgent,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -603,10 +589,9 @@ describe("Multi-tranche Test", function () {
         let tranchesPolicyContract: RiskAdjustedTranchesPolicy;
 
         async function prepare() {
-            [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+            [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
                 protocolOwner,
                 humaTreasury,
-                eaServiceAccount,
                 sentinelServiceAccount,
                 poolOwner,
             );
@@ -702,7 +687,7 @@ describe("Multi-tranche Test", function () {
             }
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.address,
                     toToken(BORROWER_INITIAL_AMOUNT),
@@ -1596,7 +1581,7 @@ describe("Multi-tranche Test", function () {
             );
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
-            await creditManagerContract.connect(eaServiceAccount).triggerDefault(borrower.address);
+            await creditManagerContract.connect(evaluationAgent).triggerDefault(borrower.address);
             cr = await creditContract.getCreditRecord(creditHash);
             let dd = await creditContract.getDueDetail(creditHash);
             let profit = cr.yieldDue.add(dd.yieldPastDue).add(dd.lateFee);
@@ -2133,10 +2118,9 @@ describe("Multi-tranche Test", function () {
         let tracker: SeniorYieldTracker;
 
         async function prepare() {
-            [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+            [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
                 protocolOwner,
                 humaTreasury,
-                eaServiceAccount,
                 sentinelServiceAccount,
                 poolOwner,
             );
@@ -2232,7 +2216,7 @@ describe("Multi-tranche Test", function () {
             }
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.address,
                     toToken(BORROWER_INITIAL_AMOUNT),
@@ -3174,7 +3158,7 @@ describe("Multi-tranche Test", function () {
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
             tracker = await tranchesPolicyContract.seniorYieldTracker();
-            await creditManagerContract.connect(eaServiceAccount).triggerDefault(borrower.address);
+            await creditManagerContract.connect(evaluationAgent).triggerDefault(borrower.address);
             cr = await creditContract.getCreditRecord(creditHash);
             let dd = await creditContract.getDueDetail(creditHash);
             let profit = cr.yieldDue.add(dd.yieldPastDue).add(dd.lateFee);
