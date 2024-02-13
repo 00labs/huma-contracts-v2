@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {ADMIN_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS} from "../common/SharedDefs.sol";
 import {PoolConfig, AdminRnR} from "../common/PoolConfig.sol";
@@ -105,23 +105,19 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
      * @custom:access Only the protocol owner can call to withdraw.
      */
     function withdrawProtocolFee(uint256 amount) external {
-        if (msg.sender != humaConfig.owner()) revert Errors.ProtocolOwnerRequired();
+        address humaTreasury = humaConfig.humaTreasury();
+        if (msg.sender != humaTreasury) revert Errors.HumaTreasuryRequired();
         // Invests available fees in FirstLossCover first
         AccruedIncomes memory incomes = _investFeesInFirstLossCover();
+        if (!firstLossCover.isSufficient()) revert Errors.InsufficientFirstLossCover();
+
         uint256 incomeWithdrawn = protocolIncomeWithdrawn;
         if (incomeWithdrawn + amount > incomes.protocolIncome)
             revert Errors.InsufficientAmountForRequest();
 
         protocolIncomeWithdrawn = incomeWithdrawn + amount;
-
-        address treasuryAddress = humaConfig.humaTreasury();
-        // It is possible that Huma protocolTreasury is missed in the setup. If that happens,
-        // the transaction is reverted. The protocol owner can still withdraw protocol fee
-        // after protocolTreasury is configured in HumaConfig.
-        assert(treasuryAddress != address(0));
-
-        poolSafe.withdraw(treasuryAddress, amount);
-        emit ProtocolRewardsWithdrawn(treasuryAddress, amount, msg.sender);
+        poolSafe.withdraw(humaTreasury, amount);
+        emit ProtocolRewardsWithdrawn(humaTreasury, amount, msg.sender);
     }
 
     /**
@@ -369,7 +365,6 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         incomes.eaIncome = uint96(income);
 
         remaining -= incomes.poolOwnerIncome + incomes.eaIncome;
-        return (incomes, remaining);
     }
 
     function _onlyPoolOwnerTreasury(address account) internal view returns (address) {

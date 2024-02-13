@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {Errors} from "../common/Errors.sol";
 import {PoolConfig, PoolSettings} from "../common/PoolConfig.sol";
@@ -96,6 +96,20 @@ contract TrancheVault is
      * @param shares The number of shares burned for this distribution.
      */
     event YieldPaidOut(address indexed account, uint256 yields, uint256 shares);
+
+    /**
+     * @notice Yield payout to the investor has failed.
+     * @param account The account who should have received the yield distribution.
+     * @param yields The amount of yield that should have been distributed.
+     * @param shares The number of shares that should have been burned for this distribution.
+     * @param reason The reason why the payout failed.
+     */
+    event YieldPayoutFailed(
+        address indexed account,
+        uint256 yields,
+        uint256 shares,
+        string reason
+    );
 
     /**
      * @notice Yield has been reinvested into the tranche.
@@ -282,7 +296,7 @@ contract TrancheVault is
         poolConfig.onlyProtocolAndPoolOn();
 
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
-        uint256 nextEpochStartTime = ICalendar(poolConfig.calendar()).getStartDateOfNextPeriod(
+        uint256 nextEpochStartTime = calendar.getStartDateOfNextPeriod(
             poolSettings.payPeriodDuration,
             block.timestamp
         );
@@ -330,11 +344,7 @@ contract TrancheVault is
         uint256 principalRequested = (depositRecord.principal * shares) / sharesBalance;
         lenderRedemptionRecord.principalRequested += uint96(principalRequested);
         _setLenderRedemptionRecord(msg.sender, lenderRedemptionRecord);
-        depositRecord.principal = uint96(
-            depositRecord.principal > principalRequested
-                ? depositRecord.principal - principalRequested
-                : 0
-        );
+        depositRecord.principal -= uint96(principalRequested);
         _setDepositRecord(msg.sender, depositRecord);
 
         ERC20Upgradeable._transfer(msg.sender, address(this), shares);
@@ -412,23 +422,32 @@ contract TrancheVault is
     function processYieldForLenders() external {
         poolConfig.onlyProtocolAndPoolOn();
 
+        uint256 priceWithDecimals = convertToAssets(DEFAULT_DECIMALS_FACTOR);
         uint256 len = nonReinvestingLenders.length;
-        uint256 price = convertToAssets(DEFAULT_DECIMALS_FACTOR);
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
         for (uint256 i = 0; i < len; i++) {
             address lender = nonReinvestingLenders[i];
             uint256 shares = ERC20Upgradeable.balanceOf(lender);
-            uint256 assets = (shares * price) / DEFAULT_DECIMALS_FACTOR;
+            uint256 assetsWithDecimals = shares * priceWithDecimals;
             DepositRecord memory depositRecord = _getDepositRecord(lender);
-            if (assets > depositRecord.principal) {
-                uint256 yield = assets - depositRecord.principal;
-                tranchesAssets[trancheIndex] -= uint96(yield);
+            uint256 principalWithDecimals = depositRecord.principal * DEFAULT_DECIMALS_FACTOR;
+            if (assetsWithDecimals > principalWithDecimals) {
+                uint256 yieldWithDecimals = assetsWithDecimals - principalWithDecimals;
+                uint256 yield = yieldWithDecimals / DEFAULT_DECIMALS_FACTOR;
                 // Round up the number of shares the lender has to burn in order to receive
                 // the given amount of yield. Round-up applies the favor-the-pool principle.
-                shares = Math.ceilDiv(yield * DEFAULT_DECIMALS_FACTOR, price);
-                ERC20Upgradeable._burn(lender, shares);
-                poolSafe.withdraw(lender, yield);
-                emit YieldPaidOut(lender, yield, shares);
+                shares = Math.ceilDiv(yieldWithDecimals, priceWithDecimals);
+                // The underlying asset of the pool may incorporate a blocklist feature that prevents the lender
+                // from receiving yield if they are subject to sanctions, and consequently the `transfer` call
+                // would fail for the lender. We bypass the yield of this lender so that other lenders can
+                // still get their yield paid out as normal.
+                try poolSafe.withdraw(lender, yield) {
+                    tranchesAssets[trancheIndex] -= uint96(yield);
+                    ERC20Upgradeable._burn(lender, shares);
+                    emit YieldPaidOut(lender, yield, shares);
+                } catch Error(string memory reason) {
+                    emit YieldPayoutFailed(lender, yield, shares, reason);
+                }
             }
         }
         poolSafe.resetUnprocessedProfit();
@@ -436,13 +455,10 @@ contract TrancheVault is
     }
 
     /// @inheritdoc IRedemptionHandler
-    function currentRedemptionSummary()
-        external
-        view
-        override
-        returns (EpochRedemptionSummary memory redemptionSummary)
-    {
-        redemptionSummary = _getEpochRedemptionSummary(epochManager.currentEpochId());
+    function epochRedemptionSummary(
+        uint256 epochId
+    ) external view override returns (EpochRedemptionSummary memory redemptionSummary) {
+        redemptionSummary = _getEpochRedemptionSummary(epochId);
     }
 
     /**
@@ -530,6 +546,10 @@ contract TrancheVault is
         addr = _poolConfig.epochManager();
         assert(addr != address(0));
         epochManager = IEpochManager(addr);
+
+        addr = _poolConfig.calendar();
+        assert(addr != address(0));
+        calendar = ICalendar(addr);
     }
 
     /**

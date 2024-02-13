@@ -105,6 +105,7 @@ describe("Receivable Test", function () {
             "MockPoolCredit",
             "CreditLineManager",
             evaluationAgent,
+            protocolTreasury,
             poolOwnerTreasury,
             poolOperator,
             [lender],
@@ -251,11 +252,9 @@ describe("Receivable Test", function () {
             const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
             await receivableContract
                 .connect(borrower)
-                ["safeTransferFrom(address,address,uint256)"](
-                    borrower.address,
-                    lender.address,
-                    tokenId,
-                );
+                [
+                    "safeTransferFrom(address,address,uint256)"
+                ](borrower.address, lender.address, tokenId);
             await expect(
                 receivableContract.connect(borrower).declarePayment(tokenId, 100),
             ).to.emit(receivableContract, "PaymentDeclared");
@@ -313,11 +312,9 @@ describe("Receivable Test", function () {
             const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
             await receivableContract
                 .connect(borrower)
-                ["safeTransferFrom(address,address,uint256)"](
-                    borrower.address,
-                    lender.address,
-                    tokenId,
-                );
+                [
+                    "safeTransferFrom(address,address,uint256)"
+                ](borrower.address, lender.address, tokenId);
 
             await receivableContract.connect(borrower).updateReceivableMetadata(tokenId, "uri2");
 

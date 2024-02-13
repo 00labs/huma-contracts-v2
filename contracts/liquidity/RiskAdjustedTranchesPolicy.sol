@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {BaseTranchesPolicy} from "./BaseTranchesPolicy.sol";
 import {LPConfig} from "../common/PoolConfig.sol";
@@ -28,7 +28,5 @@ contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
                 (HUNDRED_PERCENT_IN_BPS - lpConfig.tranchesRiskAdjustmentInBps)) /
             (HUNDRED_PERCENT_IN_BPS * (seniorAssets + juniorAssets));
         remainingProfit = profit - seniorProfit;
-
-        return (seniorProfit, remainingProfit);
     }
 }

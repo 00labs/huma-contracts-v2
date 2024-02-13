@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {HumaConfig} from "../common/HumaConfig.sol";
 import {CreditRecord, DueDetail} from "./CreditStructs.sol";
@@ -7,12 +7,14 @@ import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
 import {ICreditManager} from "./interfaces/ICreditManager.sol";
 import {IPoolSafe} from "../liquidity/interfaces/IPoolSafe.sol";
 import {IFirstLossCover} from "../liquidity/interfaces/IFirstLossCover.sol";
+import {IPool} from "../liquidity/interfaces/IPool.sol";
 
 contract CreditStorage {
     HumaConfig public humaConfig;
 
     // Reference to the due manager contract
     ICreditDueManager public dueManager;
+    IPool public pool;
     IPoolSafe public poolSafe;
     IFirstLossCover public firstLossCover;
     ICreditManager public creditManager;

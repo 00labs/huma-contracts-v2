@@ -11,6 +11,7 @@ import {
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
+    MockPoolCreditManager,
     MockToken,
     Pool,
     PoolConfig,
@@ -26,6 +27,7 @@ import {
     deployAndSetupPoolContracts,
     deployPoolContracts,
     deployProtocolContracts,
+    mockDistributePnL,
 } from "../../BaseTest";
 import {
     getFirstLossCoverInfo,
@@ -66,6 +68,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
+    creditManagerContract: MockPoolCreditManager,
     creditDueManagerContract: CreditDueManager;
 
 let feeCalculator: FeeCalculator;
@@ -113,6 +116,7 @@ describe("Pool Test", function () {
                 juniorTrancheVaultContract,
                 creditContract as unknown,
                 creditDueManagerContract,
+                creditManagerContract as unknown,
             ] = await deployPoolContracts(
                 humaConfigContract,
                 mockTokenContract,
@@ -120,7 +124,7 @@ describe("Pool Test", function () {
                 defaultDeployer,
                 poolOwner,
                 "MockPoolCredit",
-                "CreditLineManager",
+                "MockPoolCreditManager",
             );
 
             // Set up first loss cover requirements.
@@ -178,7 +182,7 @@ describe("Pool Test", function () {
         it("Should not allow non-poolOwner and non-protocolAdmin to enable a pool", async function () {
             await expect(poolContract.enablePool()).to.be.revertedWithCustomError(
                 poolConfigContract,
-                "AdminRequired",
+                "PoolOwnerOrHumaOwnerRequired",
             );
             const isPoolOn = await poolContract.isPoolOn();
             expect(isPoolOn).to.be.false;
@@ -280,6 +284,7 @@ describe("Pool Test", function () {
                 juniorTrancheVaultContract,
                 creditContract as unknown,
                 creditDueManagerContract,
+                creditManagerContract as unknown,
             ] = await deployAndSetupPoolContracts(
                 humaConfigContract,
                 mockTokenContract,
@@ -288,8 +293,9 @@ describe("Pool Test", function () {
                 defaultDeployer,
                 poolOwner,
                 "MockPoolCredit",
-                "CreditLineManager",
+                "MockPoolCreditManager",
                 evaluationAgent,
+                treasury,
                 poolOwnerTreasury,
                 poolOperator,
                 [lender],
@@ -435,9 +441,7 @@ describe("Pool Test", function () {
                             firstLossCoverInfos,
                         );
 
-                        await expect(
-                            creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0)),
-                        )
+                        await expect(creditContract.mockDistributeProfit(profit))
                             .to.emit(poolContract, "ProfitDistributed")
                             .withArgs(
                                 profit,
@@ -500,9 +504,7 @@ describe("Pool Test", function () {
                                 .add(losses[CONSTANTS.JUNIOR_TRANCHE])
                                 .gt(0)
                         ) {
-                            await expect(
-                                creditContract.mockDistributePnL(BN.from(0), loss, BN.from(0)),
-                            )
+                            await expect(creditManagerContract.mockDistributeLoss(loss))
                                 .to.emit(poolContract, "LossDistributed")
                                 .withArgs(
                                     loss.sub(sumBNArray([...lossesCoveredByFirstLossCovers])),
@@ -512,7 +514,7 @@ describe("Pool Test", function () {
                                     losses[CONSTANTS.JUNIOR_TRANCHE],
                                 );
                         } else {
-                            await creditContract.mockDistributePnL(BN.from(0), loss, BN.from(0));
+                            await creditManagerContract.mockDistributeLoss(loss);
                         }
 
                         seniorAssets = await poolContract.trancheTotalAssets(
@@ -555,9 +557,7 @@ describe("Pool Test", function () {
                             lossesCoveredByFirstLossCovers,
                         );
 
-                        await expect(
-                            creditContract.mockDistributePnL(BN.from(0), BN.from(0), recovery),
-                        )
+                        await expect(creditContract.mockDistributeLossRecovery(recovery))
                             .to.emit(poolContract, "LossRecoveryDistributed")
                             .withArgs(
                                 losses[CONSTANTS.SENIOR_TRANCHE]
@@ -659,6 +659,23 @@ describe("Pool Test", function () {
                     expect(await adminFirstLossCoverContract.totalAssets()).to.equal(0);
                     expect(await juniorTrancheVaultContract.totalAssets()).to.equal(0);
                     expect(await seniorTrancheVaultContract.totalAssets()).to.equal(toToken(1));
+                });
+
+                it("Should distribute loss correctly when the loss exceeds tranche total assets", async function () {
+                    const assets = await poolContract.currentTranchesAssets();
+                    const profit = toToken(0);
+                    const loss = coverTotalAssets
+                        .add(assets[CONSTANTS.JUNIOR_TRANCHE])
+                        .add(assets[CONSTANTS.SENIOR_TRANCHE])
+                        .add(toToken(1_000));
+                    const recovery = toToken(0);
+
+                    await testDistribution(profit, loss, recovery);
+
+                    expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(0);
+                    expect(await adminFirstLossCoverContract.totalAssets()).to.equal(0);
+                    expect(await juniorTrancheVaultContract.totalAssets()).to.equal(0);
+                    expect(await seniorTrancheVaultContract.totalAssets()).to.equal(0);
                 });
 
                 it("Should distribute loss recovery correctly when senior loss can be partially recovered", async function () {
@@ -793,7 +810,7 @@ describe("Pool Test", function () {
                     );
                 });
 
-                it("Should not allow non-credit or non-credit manager to distribute loss", async function () {
+                it("Should not allow non-credit manager to distribute loss", async function () {
                     await expect(
                         poolContract.connect(lender).distributeLoss(toToken(1)),
                     ).to.be.revertedWithCustomError(
@@ -865,7 +882,13 @@ describe("Pool Test", function () {
                         lossesCoveredBuFirstLossCovers,
                     );
 
-                    await creditContract.mockDistributePnL(profit, loss, recovery);
+                    await mockDistributePnL(
+                        creditContract,
+                        creditManagerContract,
+                        profit,
+                        loss,
+                        recovery,
+                    );
                     const totalAssets = await poolContract.totalAssets();
                     expect(totalAssets).to.equal(
                         assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE].add(
@@ -981,6 +1004,8 @@ describe("Pool Test", function () {
                 await poolConfigContract
                     .connect(poolOwner)
                     .setTranches(defaultDeployer.getAddress(), defaultDeployer.getAddress());
+                await poolContract.connect(poolOwner).updatePoolConfigData();
+
                 await poolContract.updateTranchesAssets(tranchesAssets);
 
                 expect(await poolContract.currentTranchesAssets()).to.eql(tranchesAssets);
@@ -990,6 +1015,8 @@ describe("Pool Test", function () {
                 await poolConfigContract
                     .connect(poolOwner)
                     .setEpochManager(defaultDeployer.getAddress());
+                await poolContract.connect(poolOwner).updatePoolConfigData();
+
                 await poolContract.updateTranchesAssets(tranchesAssets);
 
                 expect(await poolContract.currentTranchesAssets()).to.eql(tranchesAssets);
@@ -1047,6 +1074,35 @@ describe("Pool Test", function () {
                     expect(
                         await poolContract.getTrancheAvailableCap(CONSTANTS.SENIOR_TRANCHE),
                     ).to.equal(poolConfig.liquidityCap.sub(poolTotalAssets));
+                });
+
+                it("Should return 0 if the senior total assets is already higher than the 'junior total assets * max senior : junior ratio'", async function () {
+                    await seniorTrancheVaultContract.connect(lender).deposit(toToken(10_000));
+                    await juniorTrancheVaultContract.connect(lender).deposit(toToken(10_000));
+
+                    const [seniorAssets, juniorAssets] =
+                        await poolContract.currentTranchesAssets();
+                    // Make sure the liquidity cap is high enough so that the senior available cap is not constraint
+                    // by the liquidity cap.
+                    await overrideLPConfig(poolConfigContract, poolOwner, {
+                        liquidityCap: seniorAssets.add(toToken(1)),
+                    });
+                    // Mark all junior assets as loss.
+                    await mockDistributePnL(
+                        creditContract,
+                        creditManagerContract,
+                        0,
+                        juniorAssets,
+                        0,
+                    );
+                    const [newSeniorAssets, newJuniorAssets] =
+                        await poolContract.currentTranchesAssets();
+                    expect(newJuniorAssets).to.equal(0);
+                    expect(newSeniorAssets).to.equal(seniorAssets);
+
+                    expect(
+                        await poolContract.getTrancheAvailableCap(CONSTANTS.SENIOR_TRANCHE),
+                    ).to.equal(0);
                 });
             });
         });
