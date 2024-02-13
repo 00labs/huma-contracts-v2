@@ -1879,7 +1879,17 @@ describe("EpochManager Test", function () {
     });
 
     describe("processEpochAfterPoolClosure", function () {
+        it("Should not allow non-pool contracts to call the function", async function () {
+            await expect(
+                epochManagerContract.processEpochAfterPoolClosure(),
+            ).to.be.revertedWithCustomError(
+                poolConfigContract,
+                "AuthorizedContractCallerRequired",
+            );
+        });
+
         it("Should not process an epoch if the pool is not closed", async function () {
+            await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.getAddress());
             await expect(
                 epochManagerContract.processEpochAfterPoolClosure(),
             ).to.be.revertedWithCustomError(epochManagerContract, "PoolIsNotClosed");
