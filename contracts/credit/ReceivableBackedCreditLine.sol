@@ -113,7 +113,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
 
         _prepareForPayment(borrower, poolConfig.receivableAsset(), receivableId);
 
-        (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
+        (amountPaid, paidoff) = _makePayment(borrower, creditHash, amount);
 
         emit PaymentMadeWithReceivable(borrower, receivableId, amount, msg.sender);
     }

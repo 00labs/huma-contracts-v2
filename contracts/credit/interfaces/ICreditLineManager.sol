@@ -99,5 +99,8 @@ interface ICreditLineManager {
      * this value and the actual amount of late fee due.
      * @custom:access Only the EA can call this function.
      */
-    function waiveLateFee(address borrower, uint256 waivedAmount) external;
+    function waiveLateFee(
+        address borrower,
+        uint256 waivedAmount
+    ) external returns (uint256 amountWaived);
 }

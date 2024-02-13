@@ -364,7 +364,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                         await borrower.getAddress(),
                     )
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, nextDueDate, nextDue);
+                    .withArgs(creditHash, nextDueDate, nextDue, 0);
                 const borrowerNewBalance = await mockTokenContract.balanceOf(
                     borrower.getAddress(),
                 );

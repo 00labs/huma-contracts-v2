@@ -143,12 +143,8 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
     address public receivableAsset;
 
-    event EARewardsAndLiquidityChanged(
-        uint256 rewardRate,
-        uint256 liquidityRate,
-        address indexed by
-    );
     event EvaluationAgentChanged(address oldEA, address newEA, address by);
+    event EARewardsAndLiquidityChanged(uint256 rewardRate, uint256 liquidityRate, address by);
     event EvaluationAgentFeesWithdrawalFailed(address oldEA, uint256 fees, string reason);
     event PoolFeeManagerChanged(address poolFeeManager, address by);
     event HumaConfigChanged(address humaConfig, address by);
@@ -158,9 +154,9 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     event PoolOwnerRewardsAndLiquidityChanged(
         uint256 rewardRate,
         uint256 liquidityRate,
-        address indexed by
+        address by
     );
-    event PoolOwnerTreasuryChanged(address treasury, address indexed by);
+    event PoolOwnerTreasuryChanged(address treasury, address by);
     event PoolUnderlyingTokenChanged(address underlyingToken, address by);
     event TranchesChanged(address seniorTranche, address juniorTranche, address by);
     event PoolSafeChanged(address poolSafe, address by);

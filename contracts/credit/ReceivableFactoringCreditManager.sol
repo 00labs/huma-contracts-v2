@@ -157,12 +157,15 @@ contract ReceivableFactoringCreditManager is
     }
 
     /// @inheritdoc IReceivableFactoringCreditManager
-    function waiveLateFee(uint256 receivableId, uint256 waivedAmount) external virtual {
+    function waiveLateFee(
+        uint256 receivableId,
+        uint256 waivedAmount
+    ) external virtual returns (uint256 amountWaived) {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEvaluationAgent();
 
         bytes32 creditHash = getCreditHash(receivableId);
-        _waiveLateFee(creditHash, waivedAmount);
+        return _waiveLateFee(creditHash, waivedAmount);
     }
 
     /// @inheritdoc IReceivableFactoringCreditManager

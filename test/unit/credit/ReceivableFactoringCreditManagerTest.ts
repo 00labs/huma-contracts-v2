@@ -398,7 +398,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
 
             await expect(creditManagerContract.refreshCredit(tokenId))
                 .to.emit(creditContract, "BillRefreshed")
-                .withArgs(creditHash, nextDueDate, accruedYieldDue);
+                .withArgs(creditHash, nextDueDate, accruedYieldDue, totalPastDue);
 
             const actualCR = await creditContract["getCreditRecord(uint256)"](tokenId);
             const expectedCR = {
