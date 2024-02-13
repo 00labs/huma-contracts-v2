@@ -1467,7 +1467,6 @@ describe("FirstLossCover Tests", function () {
                 ] = await deployAndSetupPoolContracts(
                     humaConfigContract,
                     mockTokenNonStandardContract,
-                    eaNFTContract,
                     "RiskAdjustedTranchesPolicy",
                     defaultDeployer,
                     poolOwner,

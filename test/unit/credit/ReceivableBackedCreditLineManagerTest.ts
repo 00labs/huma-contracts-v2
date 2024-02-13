@@ -587,12 +587,9 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
         it("Should not decrease the available credit if the amount exceeds the credit limit", async function () {
             await creditContract
                 .connect(borrower)
-                .drawdownWithReceivable(
-                    receivableId,
-                    receivableAmount.sub(toToken(1)),
-                );
+                .drawdownWithReceivable(receivableId, receivableAmount.sub(toToken(1)));
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .updateLimitAndCommitment(borrower.getAddress(), 0, 0);
 
             await poolConfigContract.connect(poolOwner).setCredit(defaultDeployer.getAddress());

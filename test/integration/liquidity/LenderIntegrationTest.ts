@@ -3698,10 +3698,9 @@ describe("Uni-tranche Test", function () {
     let tracker: SeniorYieldTracker;
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             humaTreasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -3739,7 +3738,6 @@ describe("Uni-tranche Test", function () {
             defaultDeployer,
             protocolOwner,
             humaTreasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -3791,7 +3789,7 @@ describe("Uni-tranche Test", function () {
         }
 
         await creditManagerContract
-            .connect(eaServiceAccount)
+            .connect(evaluationAgent)
             .approveBorrower(
                 borrower.address,
                 toToken(BORROWER_INITIAL_AMOUNT),
@@ -4562,7 +4560,7 @@ describe("Uni-tranche Test", function () {
         const poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
         await pnlCalculator.beginProfitCalculation();
         tracker = await tranchesPolicyContract.seniorYieldTracker();
-        await creditManagerContract.connect(eaServiceAccount).triggerDefault(borrower.address);
+        await creditManagerContract.connect(evaluationAgent).triggerDefault(borrower.address);
         cr = await creditContract.getCreditRecord(creditHash);
         const dd = await creditContract.getDueDetail(creditHash);
         const profit = cr.yieldDue.add(dd.yieldPastDue).add(dd.lateFee);
