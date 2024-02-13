@@ -17,6 +17,7 @@ import {
     MockPoolCredit,
     MockPoolCreditManager,
     MockToken,
+    MockTokenNonStandardERC20,
     Pool,
     PoolConfig,
     PoolFactory,
@@ -221,7 +222,7 @@ export async function deployProtocolContracts(
 
 export async function deployPoolContracts(
     humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken,
+    mockTokenContract: MockToken | MockTokenNonStandardERC20,
     tranchesPolicyContractName: TranchesPolicyContractName,
     deployer: SignerWithAddress,
     poolOwner: SignerWithAddress,
@@ -594,7 +595,7 @@ export async function deployReceivableWithFactory(
 
 export async function deployPoolWithFactory(
     poolFactoryContract: PoolFactory,
-    mockTokenContract: MockToken,
+    mockTokenContract: MockToken | MockTokenNonStandardERC20,
     receivableContract: Receivable,
     creditType: CreditType,
     tranchesPolicyType: TranchesPolicyType,
@@ -614,7 +615,7 @@ export async function deployPoolWithFactory(
 export async function setupPoolContracts(
     poolConfigContract: PoolConfig,
     eaNFTContract: EvaluationAgentNFT,
-    mockTokenContract: MockToken,
+    mockTokenContract: MockToken | MockTokenNonStandardERC20,
     borrowerFirstLossCoverContract: FirstLossCover,
     adminFirstLossCoverContract: FirstLossCover,
     poolSafeContract: PoolSafe,
@@ -760,7 +761,7 @@ export async function setupPoolContracts(
 
 export async function deployAndSetupPoolContracts(
     humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken,
+    mockTokenContract: MockToken | MockTokenNonStandardERC20,
     eaNFTContract: EvaluationAgentNFT,
     tranchesPolicyContractName: TranchesPolicyContractName,
     deployer: SignerWithAddress,

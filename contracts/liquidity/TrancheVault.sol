@@ -475,11 +475,13 @@ contract TrancheVault is
                 // from receiving yield if they are subject to sanctions, and consequently the `transfer` call
                 // would fail for the lender. We bypass the yield of this lender so that other lenders can
                 // still get their yield paid out as normal.
+                tranchesAssets[trancheIndex] -= uint96(yield);
                 try poolSafe.withdraw(lender, yield) {
-                    tranchesAssets[trancheIndex] -= uint96(yield);
                     ERC20Upgradeable._burn(lender, shares);
                     emit YieldPaidOut(lender, yield, shares);
                 } catch Error(string memory reason) {
+                    // Revert the tranche assets update if the payout failed.
+                    tranchesAssets[trancheIndex] += uint96(yield);
                     emit YieldPayoutFailed(lender, yield, shares, reason);
                 }
             }
