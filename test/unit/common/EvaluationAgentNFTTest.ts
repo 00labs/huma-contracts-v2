@@ -36,22 +36,17 @@ describe("EvaluationAgentNFT Test", function () {
         await expect(
             nftContract
                 .connect(eaUser)
-                .functions["safeTransferFrom(address,address,uint256)"](
-                    eaUser.address,
-                    eaUser2.address,
-                    eaNFTTokenId,
-                ),
+                .functions[
+                    "safeTransferFrom(address,address,uint256)"
+                ](eaUser.address, eaUser2.address, eaNFTTokenId),
         ).to.be.revertedWithCustomError(nftContract, "UnsupportedFunction");
         expect(await nftContract.ownerOf(eaNFTTokenId)).to.equal(eaUser.address);
         await expect(
             nftContract
                 .connect(eaUser)
-                .functions["safeTransferFrom(address,address,uint256,bytes)"](
-                    eaUser.address,
-                    eaUser2.address,
-                    eaNFTTokenId,
-                    new Uint8Array(256),
-                ),
+                .functions[
+                    "safeTransferFrom(address,address,uint256,bytes)"
+                ](eaUser.address, eaUser2.address, eaNFTTokenId, new Uint8Array(256)),
         ).to.be.revertedWithCustomError(nftContract, "UnsupportedFunction");
         expect(await nftContract.ownerOf(eaNFTTokenId)).to.equal(eaUser.address);
     });

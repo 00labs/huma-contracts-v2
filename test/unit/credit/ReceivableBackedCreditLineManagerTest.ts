@@ -505,11 +505,11 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
         });
     });
 
-    describe("decreaseCreditLimit", function () {
+    describe("decreaseAvailableCredit", function () {
         let creditHash: string;
         let receivableAmount: BN, maturityDate: number, receivableId: BN;
 
-        async function prepareForDecreaseCreditLimit() {
+        async function prepareForDecreaseAvailableCredit() {
             receivableAmount = toToken(10_000);
             maturityDate = await getFutureBlockTime(10_000);
 
@@ -553,14 +553,14 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
         }
 
         beforeEach(async function () {
-            await loadFixture(prepareForDecreaseCreditLimit);
+            await loadFixture(prepareForDecreaseAvailableCredit);
         });
 
         it("Should allow the credit contract to decrease the available credit", async function () {
             await poolConfigContract.connect(poolOwner).setCredit(defaultDeployer.getAddress());
             await creditManagerContract.connect(poolOwner).updatePoolConfigData();
 
-            await creditManagerContract.decreaseCreditLimit(creditHash, receivableAmount);
+            await creditManagerContract.decreaseAvailableCredit(creditHash, receivableAmount);
             const availableCredit = await creditManagerContract.getAvailableCredit(creditHash);
             expect(availableCredit).to.equal(0);
         });
@@ -572,7 +572,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
             await expect(
                 creditManagerContract
                     .connect(borrower)
-                    .decreaseCreditLimit(creditHash, receivableAmount),
+                    .decreaseAvailableCredit(creditHash, receivableAmount),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
                 "AuthorizedContractCallerRequired",
@@ -584,7 +584,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
             await creditManagerContract.connect(poolOwner).updatePoolConfigData();
 
             await expect(
-                creditManagerContract.decreaseCreditLimit(
+                creditManagerContract.decreaseAvailableCredit(
                     creditHash,
                     receivableAmount.add(toToken(1)),
                 ),
@@ -606,7 +606,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
             await creditManagerContract.connect(poolOwner).updatePoolConfigData();
 
             await expect(
-                creditManagerContract.decreaseCreditLimit(creditHash, toToken(1)),
+                creditManagerContract.decreaseAvailableCredit(creditHash, toToken(1)),
             ).to.be.revertedWithCustomError(creditManagerContract, "CreditLimitExceeded");
         });
     });

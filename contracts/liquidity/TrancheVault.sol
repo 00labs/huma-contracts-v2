@@ -61,17 +61,17 @@ contract TrancheVault is
     /**
      * @notice A deposit has been made to the tranche.
      * @param sender The address that made the deposit.
-     * @param assetAmount The amount measured in the underlying asset.
-     * @param shareAmount The number of shares minted for this deposit.
+     * @param assets The amount measured in the underlying asset.
+     * @param shares The number of shares minted for this deposit.
      */
-    event LiquidityDeposited(address indexed sender, uint256 assetAmount, uint256 shareAmount);
+    event LiquidityDeposited(address indexed sender, uint256 assets, uint256 shares);
 
     /**
      * @notice A disbursement to the lender for a processed redemption.
      * @param account The account whose shares have been redeemed.
-     * @param withdrawnAmount The amount of the disbursement.
+     * @param amountDisbursed The amount of the disbursement.
      */
-    event LenderFundDisbursed(address indexed account, uint256 withdrawnAmount);
+    event LenderFundDisbursed(address indexed account, uint256 amountDisbursed);
 
     /**
      * @notice A lender has withdrawn all their assets after pool closure.
@@ -84,18 +84,18 @@ contract TrancheVault is
     /**
      * @notice A redemption request has been added.
      * @param account The account whose shares to be redeemed.
-     * @param shareAmount The number of shares to be redeemed.
+     * @param shares The number of shares to be redeemed.
      * @param epochId The epoch ID.
      */
-    event RedemptionRequestAdded(address indexed account, uint256 shareAmount, uint256 epochId);
+    event RedemptionRequestAdded(address indexed account, uint256 shares, uint256 epochId);
 
     /**
      * @notice A redemption request has been canceled.
      * @param account The account whose request to be canceled.
-     * @param shareAmount The number of shares to be included in the cancellation.
+     * @param shares The number of shares to be included in the cancellation.
      * @param epochId The epoch ID.
      */
-    event RedemptionRequestRemoved(address indexed account, uint256 shareAmount, uint256 epochId);
+    event RedemptionRequestRemoved(address indexed account, uint256 shares, uint256 epochId);
 
     /**
      * @notice Yield has been paid to the investor.
@@ -194,8 +194,8 @@ contract TrancheVault is
      * they will be converted to auto reinvesting.
      * @dev It is intentional not to delete depositRecord for the lender so that they do not
      * lose existing investment. They can request redemption post removal as a lender.
-     * @dev Because of lockup period and pool liquidity constraint, we cannot automatically
-     * redeem the investment by this lender.
+     * @dev Because of lockout period and pool liquidity constraints, we cannot automatically
+     * disburse the investment by this lender.
      * @param lender The lender address.
      * @custom:access Only pool operators can access to remove lenders.
      */
@@ -498,7 +498,7 @@ contract TrancheVault is
     }
 
     /**
-     * @notice Returns the withdrawable assets value of the given account.
+     * @notice Returns the amount of withdrawable value of the given account.
      * @param account The account whose withdrawable assets should be calculated.
      * @param assets The withdrawable amount.
      */
