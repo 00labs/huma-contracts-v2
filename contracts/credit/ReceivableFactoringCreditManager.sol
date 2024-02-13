@@ -50,9 +50,9 @@ contract ReceivableFactoringCreditManager is
      */
     event PayerRemoved(address indexed payer);
 
-    function initialize(PoolConfig _poolConfig) external virtual override initializer {
+    function initialize(PoolConfig poolConfig_) external virtual override initializer {
         __AccessControl_init();
-        _initialize(_poolConfig);
+        _initialize(poolConfig_);
         __UUPSUpgradeable_init();
     }
 

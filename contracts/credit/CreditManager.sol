@@ -135,24 +135,24 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     /**
      * @notice Pulls the addresses of dependent contracts from poolConfig and caches them.
      */
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = address(_poolConfig.humaConfig());
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
+        address addr = address(poolConfig_.humaConfig());
         assert(addr != address(0));
         humaConfig = HumaConfig(addr);
 
-        addr = _poolConfig.pool();
+        addr = poolConfig_.pool();
         assert(addr != address(0));
         pool = IPool(addr);
 
-        addr = _poolConfig.calendar();
+        addr = poolConfig_.calendar();
         assert(addr != address(0));
         calendar = ICalendar(addr);
 
-        addr = _poolConfig.credit();
+        addr = poolConfig_.credit();
         assert(addr != address(0));
         credit = ICredit(addr);
 
-        addr = _poolConfig.creditDueManager();
+        addr = poolConfig_.creditDueManager();
         assert(addr != address(0));
         dueManager = ICreditDueManager(addr);
     }
