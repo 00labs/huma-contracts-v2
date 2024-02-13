@@ -179,10 +179,10 @@ describe("Factory Test", function () {
     it("Non Factory Admin cannot add or remove deployer", async function () {
         await expect(
             poolFactoryContract.connect(poolOperator).addDeployer(poolOperator.getAddress()),
-        ).to.be.revertedWithCustomError(poolFactoryContract, "AdminRequired");
+        ).to.be.revertedWithCustomError(poolFactoryContract, "HumaOwnerRequired");
         await expect(
             poolFactoryContract.connect(poolOperator).removeDeployer(defaultDeployer.getAddress()),
-        ).to.be.revertedWithCustomError(poolFactoryContract, "AdminRequired");
+        ).to.be.revertedWithCustomError(poolFactoryContract, "HumaOwnerRequired");
     });
 
     it("Deploy a pool using factory", async function () {
@@ -190,8 +190,6 @@ describe("Factory Test", function () {
             poolFactoryContract,
             mockTokenContract,
             await ethers.getContractAt("Receivable", ethers.constants.AddressZero),
-            defaultDeployer,
-            poolOwner,
             "creditline",
             "fixed",
             "test pool",
