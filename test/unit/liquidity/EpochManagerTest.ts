@@ -1799,7 +1799,13 @@ describe("EpochManager Test", function () {
             it("Should not close an epoch if there is unprocessed profit in the senior tranche", async function () {
                 // Distribute profit and then process yield for the junior tranche so that there are unprocessed profits
                 // in the senior tranche only.
-                await creditContract.mockDistributePnL(toToken(10_000), 0, 0);
+                await mockDistributePnL(
+                    creditContract,
+                    creditManagerContract,
+                    toToken(10_000),
+                    0,
+                    0,
+                );
                 await juniorTrancheVaultContract.processYieldForLenders();
                 expect(
                     await poolSafeContract.unprocessedTrancheProfit(
@@ -1825,7 +1831,13 @@ describe("EpochManager Test", function () {
             it("Should not close an epoch if there is unprocessed profit in the junior tranche", async function () {
                 // Distribute profit and then process yield for the senior tranche so that there are unprocessed profits
                 // in the junior tranche only.
-                await creditContract.mockDistributePnL(toToken(10_000), 0, 0);
+                await mockDistributePnL(
+                    creditContract,
+                    creditManagerContract,
+                    toToken(10_000),
+                    0,
+                    0,
+                );
                 await seniorTrancheVaultContract.processYieldForLenders();
                 expect(
                     await poolSafeContract.unprocessedTrancheProfit(
