@@ -339,7 +339,7 @@ describe("Pool Test", function () {
             it("Should not allow non-pool-owner or non-Huma-owner to set the flag", async function () {
                 await expect(
                     poolContract.setReadyForFirstLossCoverWithdrawal(true),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(poolConfigContract, "PoolOwnerOrHumaOwnerRequired");
             });
         });
 
