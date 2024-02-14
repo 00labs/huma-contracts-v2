@@ -1,6 +1,6 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { BigNumber as BN, ContractFactory } from "ethers";
+import { BigNumber as BN, BigNumberish, ContractFactory } from "ethers";
 import { ethers } from "hardhat";
 import moment from "moment";
 import {
@@ -10,12 +10,13 @@ import {
     CreditLine,
     CreditLineManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     FixedSeniorYieldTranchePolicy,
     HumaConfig,
     MockPoolCredit,
+    MockPoolCreditManager,
     MockToken,
+    MockTokenNonStandardERC20,
     Pool,
     PoolConfig,
     PoolFactory,
@@ -41,7 +42,16 @@ import {
     CreditConfigStructOutput,
 } from "../typechain-types/contracts/credit/CreditManager";
 import { EpochRedemptionSummaryStruct } from "../typechain-types/contracts/liquidity/interfaces/IRedemptionHandler";
-import { getLatestBlock, maxBigNumber, minBigNumber, sumBNArray, toToken } from "./TestUtils";
+import {
+    getFirstLossCoverInfo,
+    getLatestBlock,
+    getMinLiquidityRequirementForPoolOwner,
+    maxBigNumber,
+    minBigNumber,
+    overrideLPConfig,
+    sumBNArray,
+    toToken,
+} from "./TestUtils";
 import { CONSTANTS } from "./constants";
 
 export type CreditContractType =
@@ -50,10 +60,11 @@ export type CreditContractType =
     | ReceivableBackedCreditLine
     | ReceivableFactoringCredit;
 export type CreditManagerContractType =
+    | MockPoolCreditManager
     | CreditLineManager
     | ReceivableBackedCreditLineManager
     | ReceivableFactoringCreditManager;
-export type ProtocolContracts = [EvaluationAgentNFT, HumaConfig, MockToken];
+export type ProtocolContracts = [HumaConfig, MockToken];
 export type PoolContracts = [
     PoolConfig,
     PoolFeeManager,
@@ -113,7 +124,8 @@ export type CreditContractName =
 export type CreditManagerContractName =
     | "CreditLineManager"
     | "ReceivableBackedCreditLineManager"
-    | "ReceivableFactoringCreditManager";
+    | "ReceivableFactoringCreditManager"
+    | "MockPoolCreditManager";
 
 export enum PayPeriodDuration {
     Monthly,
@@ -123,7 +135,6 @@ export enum PayPeriodDuration {
 
 export enum CreditState {
     Deleted,
-    Paused,
     Approved,
     GoodStanding,
     Delayed,
@@ -139,13 +150,6 @@ export enum ReceivableState {
     Rejected,
     Delayed,
     Defaulted,
-}
-
-export enum CreditClosureReason {
-    Paidoff,
-    CreditLimitChangedToBeZero,
-    OverwrittenByNewLine,
-    AdminClosure,
 }
 
 export enum PoolStatus {
@@ -178,23 +182,15 @@ export async function deployProxyContract(
 export async function deployProtocolContracts(
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress,
     poolOwner: SignerWithAddress,
 ): Promise<ProtocolContracts> {
-    // Deploy EvaluationAgentNFT
-    const EvaluationAgentNFT = await ethers.getContractFactory("EvaluationAgentNFT");
-    const eaNFTContract = await EvaluationAgentNFT.deploy();
-    await eaNFTContract.deployed();
-
     // Deploy HumaConfig
     const HumaConfig = await ethers.getContractFactory("HumaConfig");
     let humaConfigContract = await HumaConfig.deploy();
     await humaConfigContract.deployed();
 
     await humaConfigContract.setHumaTreasury(treasury.getAddress());
-    await humaConfigContract.setEANFTContractAddress(eaNFTContract.address);
-    await humaConfigContract.setEAServiceAccount(eaServiceAccount.getAddress());
     await humaConfigContract.setSentinelServiceAccount(sentinelServiceAccount.getAddress());
 
     await humaConfigContract.addPauser(protocolOwner.getAddress());
@@ -212,12 +208,12 @@ export async function deployProtocolContracts(
         .connect(protocolOwner)
         .setLiquidityAsset(mockTokenContract.address, true);
 
-    return [eaNFTContract, humaConfigContract, mockTokenContract];
+    return [humaConfigContract, mockTokenContract];
 }
 
 export async function deployPoolContracts(
     humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken,
+    mockTokenContract: MockToken | MockTokenNonStandardERC20,
     tranchesPolicyContractName: TranchesPolicyContractName,
     deployer: SignerWithAddress,
     poolOwner: SignerWithAddress,
@@ -263,15 +259,15 @@ export async function deployPoolContracts(
     const Credit = await getCreditContractFactory(creditContractName);
     const creditContract = (await deployProxyContract(Credit)) as CreditContractType;
 
-    const CreditDueManager = await ethers.getContractFactory("CreditDueManager");
-    const creditDueManagerContract = (await deployProxyContract(
-        CreditDueManager,
-    )) as CreditDueManager;
-
     const CreditManager = await getCreditManagerContractFactory(creditManagerContractName);
     const creditManagerContract = (await deployProxyContract(
         CreditManager,
     )) as CreditManagerContractType;
+
+    const CreditDueManager = await ethers.getContractFactory("CreditDueManager");
+    const creditDueManagerContract = (await deployProxyContract(
+        CreditDueManager,
+    )) as CreditDueManager;
 
     const Receivable = await ethers.getContractFactory("Receivable");
     const receivableContract = (await deployProxyContract(Receivable, "initialize")) as Receivable;
@@ -590,30 +586,26 @@ export async function deployReceivableWithFactory(
 
 export async function deployPoolWithFactory(
     poolFactoryContract: PoolFactory,
-    mockTokenContract: MockToken,
+    mockTokenContract: MockToken | MockTokenNonStandardERC20,
     receivableContract: Receivable,
-    deployer: SignerWithAddress,
-    poolOwner: SignerWithAddress,
     creditType: CreditType,
-    trachesPolicyType: TranchesPolicyType,
+    tranchesPolicyType: TranchesPolicyType,
     poolName: string,
 ): Promise<PoolRecord> {
     await poolFactoryContract.deployPool(
         poolName,
         mockTokenContract.address,
         receivableContract.address,
-        trachesPolicyType,
+        tranchesPolicyType,
         creditType,
     );
     const poolId = await poolFactoryContract.poolId();
-    const poolRecords = await poolFactoryContract.checkPool(poolId);
-    return poolRecords;
+    return await poolFactoryContract.checkPool(poolId);
 }
 
 export async function setupPoolContracts(
     poolConfigContract: PoolConfig,
-    eaNFTContract: EvaluationAgentNFT,
-    mockTokenContract: MockToken,
+    mockTokenContract: MockToken | MockTokenNonStandardERC20,
     borrowerFirstLossCoverContract: FirstLossCover,
     adminFirstLossCoverContract: FirstLossCover,
     poolSafeContract: PoolSafe,
@@ -624,6 +616,7 @@ export async function setupPoolContracts(
     receivableContract: Receivable,
     poolOwner: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
+    humaTreasury: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     poolOperator: SignerWithAddress,
     accounts: SignerWithAddress[],
@@ -643,39 +636,54 @@ export async function setupPoolContracts(
         .connect(poolOwner)
         .setPoolOwnerTreasury(poolOwnerTreasury.getAddress());
 
-    // Deposit enough liquidity for the pool owner and EA in the junior tranche.
+    const role = await poolConfigContract.POOL_OPERATOR_ROLE();
+    await poolConfigContract.connect(poolOwner).grantRole(role, poolOwner.getAddress());
+    await poolConfigContract.connect(poolOwner).grantRole(role, poolOperator.getAddress());
+
+    // Deposit enough liquidity for the pool owner in both tranches.
     const adminRnR = await poolConfigContract.getAdminRnR();
     await mockTokenContract
         .connect(poolOwnerTreasury)
         .approve(poolSafeContract.address, ethers.constants.MaxUint256);
     await mockTokenContract.mint(poolOwnerTreasury.getAddress(), toToken(1_000_000_000));
-    const poolOwnerLiquidity = BN.from(adminRnR.liquidityRateInBpsByPoolOwner)
-        .mul(poolLiquidityCap)
-        .div(CONSTANTS.BP_FACTOR);
+    const poolOwnerLiquidity = await getMinLiquidityRequirementForPoolOwner(poolConfigContract);
+    await juniorTrancheVaultContract
+        .connect(poolOperator)
+        .addApprovedLender(poolOwnerTreasury.getAddress(), true);
+    await seniorTrancheVaultContract
+        .connect(poolOperator)
+        .addApprovedLender(poolOwnerTreasury.getAddress(), true);
     await juniorTrancheVaultContract
         .connect(poolOwnerTreasury)
         .makeInitialDeposit(poolOwnerLiquidity);
-    let expectedInitialLiquidity = poolOwnerLiquidity;
+
+    const poolSettings = await poolConfigContract.getPoolSettings();
+    expect(await seniorTrancheVaultContract.totalSupply()).to.equal(0);
+    expect(
+        await seniorTrancheVaultContract.convertToShares(poolSettings.minDepositAmount),
+    ).to.equal(poolSettings.minDepositAmount);
+    expect(
+        await seniorTrancheVaultContract.convertToAssets(poolSettings.minDepositAmount),
+    ).to.equal(poolSettings.minDepositAmount);
+    await seniorTrancheVaultContract
+        .connect(poolOwnerTreasury)
+        .makeInitialDeposit(poolSettings.minDepositAmount);
+    let expectedInitialLiquidity = poolOwnerLiquidity.add(poolSettings.minDepositAmount);
 
     await mockTokenContract
         .connect(evaluationAgent)
         .approve(poolSafeContract.address, ethers.constants.MaxUint256);
     await mockTokenContract.mint(evaluationAgent.getAddress(), toToken(1_000_000_000));
     if (shouldSetEA) {
-        let eaNFTTokenId;
-        const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
-        const receipt = await tx.wait();
-        for (const evt of receipt.events!) {
-            if (evt.event === "NFTGenerated") {
-                eaNFTTokenId = evt.args!.tokenId;
-            }
-        }
         await poolConfigContract
             .connect(poolOwner)
-            .setEvaluationAgent(eaNFTTokenId, evaluationAgent.getAddress());
+            .setEvaluationAgent(evaluationAgent.getAddress());
         const evaluationAgentLiquidity = BN.from(adminRnR.liquidityRateInBpsByEA)
             .mul(poolLiquidityCap)
             .div(CONSTANTS.BP_FACTOR);
+        await juniorTrancheVaultContract
+            .connect(poolOperator)
+            .addApprovedLender(evaluationAgent.getAddress(), true);
         await juniorTrancheVaultContract
             .connect(evaluationAgent)
             .makeInitialDeposit(evaluationAgentLiquidity);
@@ -690,21 +698,13 @@ export async function setupPoolContracts(
         .approve(adminFirstLossCoverContract.address, ethers.constants.MaxUint256);
     await adminFirstLossCoverContract
         .connect(poolOwner)
+        .addCoverProvider(humaTreasury.getAddress());
+    await adminFirstLossCoverContract
+        .connect(poolOwner)
         .addCoverProvider(poolOwnerTreasury.getAddress());
     await adminFirstLossCoverContract
         .connect(poolOwner)
         .addCoverProvider(evaluationAgent.getAddress());
-
-    const role = await poolConfigContract.POOL_OPERATOR_ROLE();
-    await poolConfigContract.connect(poolOwner).grantRole(role, poolOwner.getAddress());
-    await poolConfigContract.connect(poolOwner).grantRole(role, poolOperator.getAddress());
-
-    await juniorTrancheVaultContract
-        .connect(poolOperator)
-        .setReinvestYield(poolOwnerTreasury.address, true);
-    await juniorTrancheVaultContract
-        .connect(poolOperator)
-        .setReinvestYield(evaluationAgent.address, true);
 
     await adminFirstLossCoverContract.connect(poolOwnerTreasury).depositCover(toToken(10_000));
     await adminFirstLossCoverContract.connect(evaluationAgent).depositCover(toToken(10_000));
@@ -712,10 +712,14 @@ export async function setupPoolContracts(
 
     await poolContract.connect(poolOwner).enablePool();
     expect(await poolContract.totalAssets()).to.equal(expectedInitialLiquidity);
-    expect(await juniorTrancheVaultContract.totalAssets()).to.equal(expectedInitialLiquidity);
-    expect(await juniorTrancheVaultContract.totalSupply()).to.equal(expectedInitialLiquidity);
-    expect(await seniorTrancheVaultContract.totalAssets()).to.equal(0);
-    expect(await seniorTrancheVaultContract.totalSupply()).to.equal(0);
+    expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
+        expectedInitialLiquidity.sub(poolSettings.minDepositAmount),
+    );
+    expect(await juniorTrancheVaultContract.totalSupply()).to.equal(
+        expectedInitialLiquidity.sub(poolSettings.minDepositAmount),
+    );
+    expect(await seniorTrancheVaultContract.totalAssets()).to.equal(poolSettings.minDepositAmount);
+    expect(await seniorTrancheVaultContract.totalSupply()).to.equal(poolSettings.minDepositAmount);
 
     for (let i = 0; i < accounts.length; i++) {
         await juniorTrancheVaultContract
@@ -739,14 +743,14 @@ export async function setupPoolContracts(
 
 export async function deployAndSetupPoolContracts(
     humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken,
-    eaNFTContract: EvaluationAgentNFT,
+    mockTokenContract: MockToken | MockTokenNonStandardERC20,
     tranchesPolicyContractName: TranchesPolicyContractName,
     deployer: SignerWithAddress,
     poolOwner: SignerWithAddress,
     creditContractName: CreditContractName,
     creditManagerContractName: CreditManagerContractName,
     evaluationAgent: SignerWithAddress,
+    humaTreasury: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     poolOperator: SignerWithAddress,
     accounts: SignerWithAddress[],
@@ -780,7 +784,6 @@ export async function deployAndSetupPoolContracts(
 
     await setupPoolContracts(
         poolConfigContract,
-        eaNFTContract,
         mockTokenContract,
         borrowerFirstLossCoverContract,
         adminFirstLossCoverContract,
@@ -792,6 +795,7 @@ export async function deployAndSetupPoolContracts(
         receivableContract,
         poolOwner,
         evaluationAgent,
+        humaTreasury,
         poolOwnerTreasury,
         poolOperator,
         accounts,
@@ -817,38 +821,62 @@ export async function deployAndSetupPoolContracts(
     ];
 }
 
+export async function mockDistributePnL(
+    creditContract: MockPoolCredit,
+    creditManagerContract: MockPoolCreditManager,
+    profit: BigNumberish,
+    loss: BigNumberish,
+    lossRecovery: BigNumberish,
+) {
+    await creditContract.mockDistributeProfit(profit);
+    await creditManagerContract.mockDistributeLoss(loss);
+    await creditContract.mockDistributeLossRecovery(lossRecovery);
+}
+
 export type SeniorYieldTracker = { totalAssets: BN; unpaidYield: BN; lastUpdatedDate: BN };
 
-function calcLatestSeniorTracker(
+async function calcLatestSeniorTracker(
+    calendarContract: Calendar,
     currentTS: number,
     yieldInBps: number,
     seniorYieldTracker: SeniorYieldTracker,
-): SeniorYieldTracker {
-    let newSeniorTracker = { ...seniorYieldTracker };
-    if (currentTS > newSeniorTracker.lastUpdatedDate.toNumber()) {
+): Promise<SeniorYieldTracker> {
+    const newSeniorTracker = { ...seniorYieldTracker };
+    const startOfNextDay = await calendarContract.getStartOfNextDay(currentTS);
+    const daysDiff = await calendarContract.getDaysDiff(
+        newSeniorTracker.lastUpdatedDate,
+        startOfNextDay,
+    );
+    if (daysDiff.gt(0)) {
         newSeniorTracker.unpaidYield = newSeniorTracker.unpaidYield.add(
             newSeniorTracker.totalAssets
-                .mul(BN.from(currentTS).sub(newSeniorTracker.lastUpdatedDate))
+                .mul(daysDiff)
                 .mul(BN.from(yieldInBps))
-                .div(BN.from(CONSTANTS.SECONDS_IN_A_YEAR).mul(CONSTANTS.BP_FACTOR)),
+                .div(BN.from(CONSTANTS.DAYS_IN_A_YEAR).mul(CONSTANTS.BP_FACTOR)),
         );
-        newSeniorTracker.lastUpdatedDate = BN.from(currentTS);
+        newSeniorTracker.lastUpdatedDate = BN.from(startOfNextDay);
     }
     return newSeniorTracker;
 }
 
-function calcProfitForFixedSeniorYieldPolicy(
+async function calcProfitForFixedSeniorYieldPolicy(
+    calendarContract: Calendar,
     profit: BN,
     assets: BN[],
     currentTS: number,
     yieldInBps: number,
     seniorYieldTracker: SeniorYieldTracker,
-): [SeniorYieldTracker, BN[]] {
-    let newSeniorTracker = calcLatestSeniorTracker(currentTS, yieldInBps, seniorYieldTracker);
-    let seniorProfit = newSeniorTracker.unpaidYield.gt(profit)
+): Promise<[SeniorYieldTracker, BN[]]> {
+    const newSeniorTracker = await calcLatestSeniorTracker(
+        calendarContract,
+        currentTS,
+        yieldInBps,
+        seniorYieldTracker,
+    );
+    const seniorProfit = newSeniorTracker.unpaidYield.gt(profit)
         ? profit
         : newSeniorTracker.unpaidYield;
-    let juniorProfit = profit.sub(seniorProfit);
+    const juniorProfit = profit.sub(seniorProfit);
     newSeniorTracker.unpaidYield = newSeniorTracker.unpaidYield.sub(seniorProfit);
     newSeniorTracker.totalAssets = assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit);
 
@@ -929,10 +957,8 @@ async function calcLoss(
         }
         lossesCoveredByFirstLossCovers.push(coveredAmount);
     }
-    const juniorLoss = loss.gt(assets[CONSTANTS.JUNIOR_TRANCHE])
-        ? assets[CONSTANTS.JUNIOR_TRANCHE]
-        : loss;
-    const seniorLoss = loss.sub(juniorLoss);
+    const juniorLoss = minBigNumber(loss, assets[CONSTANTS.JUNIOR_TRANCHE]);
+    const seniorLoss = minBigNumber(loss.sub(juniorLoss), assets[CONSTANTS.SENIOR_TRANCHE]);
 
     return [
         [
@@ -1102,6 +1128,7 @@ export class FeeCalculator {
 export class ProfitAndLossCalculator {
     poolConfigContract: PoolConfig;
     poolContract: Pool;
+    calendarContract: Calendar;
     firstLossCoverContracts: (FirstLossCover | null)[];
 
     tranchesAssets: BN[] = [];
@@ -1110,10 +1137,12 @@ export class ProfitAndLossCalculator {
     constructor(
         poolConfigContract: PoolConfig,
         poolContract: Pool,
+        calendarContract: Calendar,
         firstLossCoverContracts: (FirstLossCover | null)[],
     ) {
         this.poolConfigContract = poolConfigContract;
         this.poolContract = poolContract;
+        this.calendarContract = calendarContract;
         this.firstLossCoverContracts = firstLossCoverContracts;
     }
 
@@ -1229,6 +1258,7 @@ export class ProfitAndLossCalculator {
         let lpConfig = await this.poolConfigContract.getLPConfig();
         let block = await getLatestBlock();
         let [newTracker, assets] = await calcProfitForFixedSeniorYieldPolicy(
+            this.calendarContract,
             profit,
             this.tranchesAssets,
             block.timestamp,
@@ -1281,12 +1311,12 @@ export class EpochChecker {
         this.juniorTrancheVaultContract = juniorTrancheVaultContract;
     }
 
-    async checkSeniorCurrentEpochEmpty() {
-        return await this.checkCurrentEpochEmpty(this.seniorTrancheVaultContract);
+    async checkSeniorCurrentRedemptionSummaryEmpty() {
+        return await this.checkCurrentRedemptionSummaryEmpty(this.seniorTrancheVaultContract);
     }
 
-    async checkJuniorCurrentEpochEmpty() {
-        return await this.checkCurrentEpochEmpty(this.juniorTrancheVaultContract);
+    async checkJuniorCurrentRedemptionSummaryEmpty() {
+        return await this.checkCurrentRedemptionSummaryEmpty(this.juniorTrancheVaultContract);
     }
 
     async checkSeniorCurrentRedemptionSummary(
@@ -1353,10 +1383,10 @@ export class EpochChecker {
         );
     }
 
-    private async checkCurrentEpochEmpty(trancheContract: TrancheVault) {
+    private async checkCurrentRedemptionSummaryEmpty(trancheContract: TrancheVault) {
         const epochId = await this.epochManagerContract.currentEpochId();
-        const epoch = await trancheContract.epochRedemptionSummaries(epochId);
-        checkRedemptionSummary(epoch, BN.from(0), BN.from(0), BN.from(0), BN.from(0));
+        const redemptionSummary = await trancheContract.epochRedemptionSummaries(epochId);
+        checkRedemptionSummary(redemptionSummary, BN.from(0), BN.from(0), BN.from(0), BN.from(0));
         return epochId;
     }
 
@@ -1368,9 +1398,9 @@ export class EpochChecker {
         delta: number = 0,
     ) {
         const epochId = await this.epochManagerContract.currentEpochId();
-        const epoch = await trancheContract.epochRedemptionSummaries(epochId);
+        const redemptionSummary = await trancheContract.epochRedemptionSummaries(epochId);
         checkRedemptionSummary(
-            epoch,
+            redemptionSummary,
             epochId,
             sharesRequested,
             sharesProcessed,
@@ -1388,9 +1418,9 @@ export class EpochChecker {
         amountProcessed: BN = BN.from(0),
         delta: number = 0,
     ) {
-        const epoch = await trancheContract.epochRedemptionSummaries(epochId);
+        const redemptionSummary = await trancheContract.epochRedemptionSummaries(epochId);
         checkRedemptionSummary(
-            epoch,
+            redemptionSummary,
             epochId,
             sharesRequested,
             sharesProcessed,
@@ -1824,7 +1854,7 @@ export function getNextBillRefreshDate(
         latePaymentGracePeriodInDays,
     );
     if (cr.state === CreditState.GoodStanding && currentDate.isBefore(latePaymentDeadline)) {
-        // If this is the first time ever that the bill has surpassed the due dat, then we don't want to refresh
+        // If this is the first time ever that the bill has surpassed the due date, then we don't want to refresh
         // the bill since we want the user to focus on paying off the current due.
         return latePaymentDeadline;
     }
@@ -1868,13 +1898,8 @@ export function printCreditRecord(name: string, creditRecord: CreditRecordStruct
 async function getTranchesPolicyContractFactory(
     tranchesPolicyContractName: TranchesPolicyContractName,
 ) {
-    // Note: Both branches contain identical logic, which might seem unusual at first glance.
-    // This structure is intentional and solely to satisfy TypeScript's type inference.
-    // The TypeScript compiler cannot deduce the specific return types based solely on the input values,
-    // so this approach ensures correct type association for each possible input.
     switch (tranchesPolicyContractName) {
         case "FixedSeniorYieldTranchePolicy":
-            return await ethers.getContractFactory(tranchesPolicyContractName);
         case "RiskAdjustedTranchesPolicy":
             return await ethers.getContractFactory(tranchesPolicyContractName);
         default:
@@ -1883,17 +1908,10 @@ async function getTranchesPolicyContractFactory(
 }
 
 async function getCreditContractFactory(creditContractName: CreditContractName) {
-    // Note: All branches contain identical logic, which might seem unusual at first glance.
-    // This structure is intentional and solely to satisfy TypeScript's type inference.
-    // The TypeScript compiler cannot deduce the specific return types based solely on the input values,
-    // so this approach ensures correct type association for each possible input.
     switch (creditContractName) {
         case "CreditLine":
-            return await ethers.getContractFactory(creditContractName);
         case "ReceivableBackedCreditLine":
-            return await ethers.getContractFactory(creditContractName);
         case "ReceivableFactoringCredit":
-            return await ethers.getContractFactory(creditContractName);
         case "MockPoolCredit":
             return await ethers.getContractFactory(creditContractName);
         default:
@@ -1904,16 +1922,11 @@ async function getCreditContractFactory(creditContractName: CreditContractName) 
 async function getCreditManagerContractFactory(
     creditManagerContractName: CreditManagerContractName,
 ) {
-    // Note: All branches contain identical logic, which might seem unusual at first glance.
-    // This structure is intentional and solely to satisfy TypeScript's type inference.
-    // The TypeScript compiler cannot deduce the specific return types based solely on the input values,
-    // so this approach ensures correct type association for each possible input.
     switch (creditManagerContractName) {
         case "CreditLineManager":
-            return await ethers.getContractFactory(creditManagerContractName);
         case "ReceivableBackedCreditLineManager":
-            return await ethers.getContractFactory(creditManagerContractName);
         case "ReceivableFactoringCreditManager":
+        case "MockPoolCreditManager":
             return await ethers.getContractFactory(creditManagerContractName);
         default:
             throw new Error("Invalid creditManagerContractName");
@@ -2020,4 +2033,38 @@ export function checkRedemptionRecord(
     expect(redemptionRecord.principalRequested).to.be.closeTo(principalRequested, delta);
     expect(redemptionRecord.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
     expect(redemptionRecord.totalAmountWithdrawn).to.be.closeTo(totalAmountWithdrawn, delta);
+}
+
+export async function getAssetsAfterProfitAndLoss(
+    poolConfigContract: PoolConfig,
+    poolContract: Pool,
+    firstLossCoverContracts: FirstLossCover[],
+    poolOwner: SignerWithAddress,
+    feeCalculator: FeeCalculator,
+    profit: BN,
+    loss: BN,
+    lossRecovery: BN,
+) {
+    const adjustment = 8000;
+    await overrideLPConfig(poolConfigContract, poolOwner, {
+        tranchesRiskAdjustmentInBps: adjustment,
+    });
+    const assetInfo = await poolContract.tranchesAssets();
+    const assets = [assetInfo[CONSTANTS.SENIOR_TRANCHE], assetInfo[CONSTANTS.JUNIOR_TRANCHE]];
+    const profitAfterFees = await feeCalculator.calcPoolFeeDistribution(profit);
+    const firstLossCoverInfos = await Promise.all(
+        firstLossCoverContracts.map(
+            async (contract) => await getFirstLossCoverInfo(contract, poolConfigContract),
+        ),
+    );
+
+    return await PnLCalculator.calcRiskAdjustedProfitAndLoss(
+        profitAfterFees,
+        loss,
+        lossRecovery,
+        assets,
+        [BN.from(0), BN.from(0)],
+        BN.from(adjustment),
+        firstLossCoverInfos,
+    );
 }

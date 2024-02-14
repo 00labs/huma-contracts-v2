@@ -7,7 +7,6 @@ import {
     CreditDueManager,
     CreditLineManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
@@ -31,7 +30,6 @@ import {
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     pdsServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -39,9 +37,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress,
     lender: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -64,7 +60,6 @@ describe("Upgradeability Test", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             pdsServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -75,10 +70,9 @@ describe("Upgradeability Test", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             pdsServiceAccount,
             poolOwner,
         );
@@ -102,13 +96,13 @@ describe("Upgradeability Test", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
             "CreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender],
@@ -138,7 +132,7 @@ describe("Upgradeability Test", function () {
         await poolConfigNewImpl.deployed();
         await expect(
             poolConfigContract.connect(poolOwner).upgradeTo(poolConfigNewImpl.address),
-        ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+        ).to.be.revertedWithCustomError(poolConfigContract, "HumaOwnerRequired");
     });
 
     // A test that checks upgradeability of a Pool contract
@@ -158,7 +152,7 @@ describe("Upgradeability Test", function () {
         await poolNewImpl.deployed();
         await expect(
             poolContract.connect(poolOwner).upgradeTo(poolNewImpl.address),
-        ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+        ).to.be.revertedWithCustomError(poolConfigContract, "HumaOwnerRequired");
     });
 
     // A test that checks upgradeability of the TranchedVault contract
@@ -182,7 +176,7 @@ describe("Upgradeability Test", function () {
         await trancheVaultNewImpl.deployed();
         await expect(
             seniorTrancheVaultContract.connect(poolOwner).upgradeTo(trancheVaultNewImpl.address),
-        ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+        ).to.be.revertedWithCustomError(poolConfigContract, "HumaOwnerRequired");
     });
 
     // A test that checks upgradeability of the Receivable contract
@@ -206,10 +200,9 @@ describe("Upgradeability Test", function () {
     });
 
     it("PoolFactory upgrade test", async function () {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             pdsServiceAccount,
             poolOwner,
         );
@@ -287,6 +280,6 @@ describe("Upgradeability Test", function () {
         await poolFactoryNewImpl.deployed();
         await expect(
             poolFactoryContract.connect(lender).upgradeTo(poolFactoryNewImpl.address),
-        ).to.be.revertedWithCustomError(poolFactoryContract, "AdminRequired");
+        ).to.be.revertedWithCustomError(poolFactoryContract, "HumaOwnerRequired");
     });
 });

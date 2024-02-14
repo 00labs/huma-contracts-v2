@@ -8,7 +8,6 @@ import {
     Calendar,
     CreditDueManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
@@ -48,7 +47,6 @@ import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -57,9 +55,7 @@ let poolOwner: SignerWithAddress,
     protocolTreasury: SignerWithAddress,
     lender: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -82,7 +78,6 @@ describe("CreditDueManager Tests", function () {
             defaultDeployer,
             protocolOwner,
             protocolTreasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -100,10 +95,9 @@ describe("CreditDueManager Tests", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             protocolTreasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -125,13 +119,13 @@ describe("CreditDueManager Tests", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
             "CreditLineManager",
             evaluationAgent,
+            protocolTreasury,
             poolOwnerTreasury,
             poolOperator,
             [lender],
@@ -361,22 +355,6 @@ describe("CreditDueManager Tests", function () {
                 const timestamp = await getFutureBlockTime(2);
 
                 const [cc, cr, dd] = getInputParams({}, { state: CreditState.Deleted });
-                const [newCR, newDD] = await creditDueManagerContract.getDueInfo(
-                    cr,
-                    cc,
-                    dd,
-                    timestamp,
-                );
-                checkCreditRecordsMatch(newCR, cr);
-                checkDueDetailsMatch(newDD, dd);
-            });
-        });
-
-        describe("If the bill is paused", function () {
-            it("Should return the CreditRecord and DueDetail as is", async function () {
-                const timestamp = await getFutureBlockTime(2);
-
-                const [cc, cr, dd] = getInputParams({}, { state: CreditState.Paused });
                 const [newCR, newDD] = await creditDueManagerContract.getDueInfo(
                     cr,
                     cc,

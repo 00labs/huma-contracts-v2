@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {Errors} from "../common/Errors.sol";
 import {PoolConfig, PoolSettings} from "../common/PoolConfig.sol";
@@ -42,7 +42,7 @@ contract TrancheVault is
      * gets their return. For those who are getting paid each period, their number of shares
      * goes down when a yield payout happens.
      */
-    uint256 private constant MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS = 100;
+    uint256 private constant _MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS = 100;
 
     /**
      * @notice An epoch has been processed.
@@ -59,42 +59,56 @@ contract TrancheVault is
     );
 
     /**
+     * @notice A lender has been added.
+     * @param account The address of the lender.
+     * @param reinvestYield A flag indicating whether the lender is reinvesting or not.
+     */
+    event LenderAdded(address indexed account, bool reinvestYield);
+
+    /**
+     * @notice A lender has been removed.
+     * @param account The address of the lender.
+     */
+    event LenderRemoved(address indexed account);
+
+    /**
      * @notice A deposit has been made to the tranche.
      * @param sender The address that made the deposit.
-     * @param receiver The address of the beneficiary of the deposit. It owns the tranche token.
-     * @param assetAmount The amount measured in the underlying asset.
-     * @param shareAmount The number of shares minted for this deposit.
+     * @param assets The amount measured in the underlying asset.
+     * @param shares The number of shares minted for this deposit.
      */
-    event LiquidityDeposited(
-        address indexed sender,
-        address indexed receiver,
-        uint256 assetAmount,
-        uint256 shareAmount
-    );
+    event LiquidityDeposited(address indexed sender, uint256 assets, uint256 shares);
 
     /**
      * @notice A disbursement to the lender for a processed redemption.
      * @param account The account whose shares have been redeemed.
-     * @param receiver The account that receives the disbursement.
-     * @param withdrawnAmount The amount of the disbursement.
+     * @param amountDisbursed The amount of the disbursement.
      */
-    event LenderFundDisbursed(address indexed account, address receiver, uint256 withdrawnAmount);
+    event LenderFundDisbursed(address indexed account, uint256 amountDisbursed);
+
+    /**
+     * @notice A lender has withdrawn all their assets after pool closure.
+     * @param account The lender who has withdrawn.
+     * @param numShares The number of shares burned.
+     * @param assets The amount that was withdrawn.
+     */
+    event LenderFundWithdrawn(address indexed account, uint256 numShares, uint256 assets);
 
     /**
      * @notice A redemption request has been added.
      * @param account The account whose shares to be redeemed.
-     * @param shareAmount The number of shares to be redeemed.
+     * @param shares The number of shares to be redeemed.
      * @param epochId The epoch ID.
      */
-    event RedemptionRequestAdded(address indexed account, uint256 shareAmount, uint256 epochId);
+    event RedemptionRequestAdded(address indexed account, uint256 shares, uint256 epochId);
 
     /**
      * @notice A redemption request has been canceled.
      * @param account The account whose request to be canceled.
-     * @param shareAmount The number of shares to be included in the cancellation.
+     * @param shares The number of shares to be included in the cancellation.
      * @param epochId The epoch ID.
      */
-    event RedemptionRequestRemoved(address indexed account, uint256 shareAmount, uint256 epochId);
+    event RedemptionRequestRemoved(address indexed account, uint256 shares, uint256 epochId);
 
     /**
      * @notice Yield has been paid to the investor.
@@ -103,6 +117,20 @@ contract TrancheVault is
      * @param shares The number of shares burned for this distribution.
      */
     event YieldPaidOut(address indexed account, uint256 yields, uint256 shares);
+
+    /**
+     * @notice Yield payout to the investor has failed.
+     * @param account The account who should have received the yield distribution.
+     * @param yields The amount of yield that should have been distributed.
+     * @param shares The number of shares that should have been burned for this distribution.
+     * @param reason The reason why the payout failed.
+     */
+    event YieldPayoutFailed(
+        address indexed account,
+        uint256 yields,
+        uint256 shares,
+        string reason
+    );
 
     /**
      * @notice Yield has been reinvested into the tranche.
@@ -114,7 +142,7 @@ contract TrancheVault is
     /**
      * @notice The yield reinvestment setting has been updated.
      * @param account The account whose setting has been updated.
-     * @param reinvestYield A boolean indicating whether it is reinvesting or not.
+     * @param reinvestYield A flag indicating whether the lender is reinvesting or not.
      * @param by The address who has made the change.
      */
     event ReinvestYieldConfigSet(address indexed account, bool reinvestYield, address by);
@@ -123,7 +151,7 @@ contract TrancheVault is
      * @notice Initializes the tranche.
      * @param name The name of the tranche token.
      * @param symbol The symbol of the tranche token.
-     * @param _poolConfig PoolConfig that has various settings of the pool.
+     * @param poolConfig_ PoolConfig that has various settings of the pool.
      * @param seniorTrancheOrJuniorTranche Indicator of junior or senior tranche. Since only
      * junior and senior tranches are supported right now, this param needs to be 0 or 1.
      * @custom:access Initialize can be called when the contract is initialized.
@@ -131,13 +159,13 @@ contract TrancheVault is
     function initialize(
         string memory name,
         string memory symbol,
-        PoolConfig _poolConfig,
+        PoolConfig poolConfig_,
         uint8 seniorTrancheOrJuniorTranche
     ) external initializer {
         __ERC20_init(name, symbol);
         __AccessControl_init();
         __UUPSUpgradeable_init();
-        _initialize(_poolConfig);
+        _initialize(poolConfig_);
 
         if (seniorTrancheOrJuniorTranche > 1) revert Errors.InvalidTrancheIndex();
         trancheIndex = seniorTrancheOrJuniorTranche;
@@ -166,10 +194,12 @@ contract TrancheVault is
             DepositRecord({principal: 0, reinvestYield: reinvestYield, lastDepositTime: 0})
         );
         if (!reinvestYield) {
-            if (nonReinvestingLenders.length >= MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS)
+            if (nonReinvestingLenders.length >= _MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS)
                 revert Errors.NonReinvestYieldLenderCapacityReached();
             nonReinvestingLenders.push(lender);
         }
+
+        emit LenderAdded(lender, reinvestYield);
     }
 
     /**
@@ -179,19 +209,20 @@ contract TrancheVault is
      * they will be converted to auto reinvesting.
      * @dev It is intentional not to delete depositRecord for the lender so that they do not
      * lose existing investment. They can request redemption post removal as a lender.
-     * @dev Because of lockup period and pool liquidity constraint, we cannot automatically
-     * redeem the investment by this lender.
+     * @dev Because of lockout period and pool liquidity constraints, we cannot automatically
+     * disburse the investment by this lender.
      * @param lender The lender address.
      * @custom:access Only pool operators can access to remove lenders.
      */
     function removeApprovedLender(address lender) external {
         poolConfig.onlyPoolOperator(msg.sender);
         if (lender == address(0)) revert Errors.ZeroAddressProvided();
-        if (!hasRole(LENDER_ROLE, lender)) revert Errors.LenderRequired();
         _revokeRole(LENDER_ROLE, lender);
         if (!_getDepositRecord(lender).reinvestYield) {
             _removeLenderFromNonReinvestingLenders(lender);
         }
+
+        emit LenderRemoved(lender);
     }
 
     /**
@@ -200,13 +231,15 @@ contract TrancheVault is
      */
     function setReinvestYield(address lender, bool reinvestYield) external {
         poolConfig.onlyPoolOperator(msg.sender);
+        if (!hasRole(LENDER_ROLE, lender)) revert Errors.LenderRequired();
+
         DepositRecord memory depositRecord = _getDepositRecord(lender);
         if (depositRecord.reinvestYield == reinvestYield)
             revert Errors.ReinvestYieldOptionAlreadySet();
         if (!depositRecord.reinvestYield && reinvestYield) {
             _removeLenderFromNonReinvestingLenders(lender);
         } else {
-            if (nonReinvestingLenders.length >= MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS)
+            if (nonReinvestingLenders.length >= _MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS)
                 revert Errors.NonReinvestYieldLenderCapacityReached();
             nonReinvestingLenders.push(lender);
         }
@@ -256,7 +289,7 @@ contract TrancheVault is
      */
     function makeInitialDeposit(uint256 assets) external returns (uint256 shares) {
         _onlyAuthorizedInitialDepositor(msg.sender);
-        return _deposit(assets, msg.sender);
+        return _deposit(assets);
     }
 
     /**
@@ -267,18 +300,15 @@ contract TrancheVault is
      * which will cause a permanent loss and we cannot help reverse transactions
      * or retrieve assets from the contracts.
      * @param assets The number of underlyingTokens to be deposited.
-     * @param receiver The address to receive the minted tranche token.
      * @return shares The number of tranche token to be minted.
      * @custom:access Any approved lender can call to deposit.
      */
-    function deposit(uint256 assets, address receiver) external returns (uint256 shares) {
+    function deposit(uint256 assets) external returns (uint256 shares) {
         poolConfig.onlyProtocolAndPoolOn();
         if (assets == 0) revert Errors.ZeroAmountProvided();
-        if (receiver == address(0)) revert Errors.ZeroAddressProvided();
         _onlyLender(msg.sender);
-        _onlyLender(receiver);
 
-        return _deposit(assets, receiver);
+        return _deposit(assets);
     }
 
     /**
@@ -291,7 +321,7 @@ contract TrancheVault is
         poolConfig.onlyProtocolAndPoolOn();
 
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
-        uint256 nextEpochStartTime = ICalendar(poolConfig.calendar()).getStartDateOfNextPeriod(
+        uint256 nextEpochStartTime = calendar.getStartDateOfNextPeriod(
             poolSettings.payPeriodDuration,
             block.timestamp
         );
@@ -339,11 +369,7 @@ contract TrancheVault is
         uint256 principalRequested = (depositRecord.principal * shares) / sharesBalance;
         lenderRedemptionRecord.principalRequested += uint96(principalRequested);
         _setLenderRedemptionRecord(msg.sender, lenderRedemptionRecord);
-        depositRecord.principal = uint96(
-            depositRecord.principal > principalRequested
-                ? depositRecord.principal - principalRequested
-                : 0
-        );
+        depositRecord.principal -= uint96(principalRequested);
         _setDepositRecord(msg.sender, depositRecord);
 
         ERC20Upgradeable._transfer(msg.sender, address(this), shares);
@@ -401,13 +427,38 @@ contract TrancheVault is
     function disburse() external {
         poolConfig.onlyProtocolAndPoolOn();
 
-        LenderRedemptionRecord memory record = _getLatestLenderRedemptionRecordFor(msg.sender);
-        uint256 withdrawable = record.totalAmountProcessed - record.totalAmountWithdrawn;
-        if (withdrawable > 0) {
-            record.totalAmountWithdrawn += uint96(withdrawable);
-            _setLenderRedemptionRecord(msg.sender, record);
-            underlyingToken.safeTransfer(msg.sender, withdrawable);
-            emit LenderFundDisbursed(msg.sender, msg.sender, withdrawable);
+        _disburse();
+    }
+
+    /**
+     * @notice Allows the lender to withdraw all their assets after the pool has been permanently closed.
+     * @custom:access Only the lender can withdraw for themselves.
+     */
+    function withdrawAfterPoolClosure() external {
+        if (!pool.isPoolClosed()) revert Errors.PoolIsNotClosed();
+
+        // First, disburse all the funds from the lender's previously processed redemption requests.
+        _disburse();
+
+        // Then, let the lender withdraw all their remaining assets in the pool.
+        uint256 numShares = ERC20Upgradeable.balanceOf(msg.sender);
+        if (numShares > 0) {
+            uint256 assets = convertToAssets(numShares);
+
+            // Update tranches assets to reflect the reduction in total assets.
+            uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
+            tranchesAssets[trancheIndex] -= uint96(assets);
+            pool.updateTranchesAssets(tranchesAssets);
+
+            // Set the lender's deposited principal to 0.
+            DepositRecord memory depositRecord = _getDepositRecord(msg.sender);
+            depositRecord.principal = 0;
+            _setDepositRecord(msg.sender, depositRecord);
+
+            // Burn the LP tokens and transfer assets to the lender.
+            ERC20Upgradeable._burn(msg.sender, numShares);
+            poolSafe.withdraw(msg.sender, assets);
+            emit LenderFundWithdrawn(msg.sender, numShares, assets);
         }
     }
 
@@ -419,24 +470,34 @@ contract TrancheVault is
      * a cron-like mechanism like autotask to trigger it.
      */
     function processYieldForLenders() external {
-        uint256 len = nonReinvestingLenders.length;
+        poolConfig.onlyProtocolAndPoolOn();
 
-        uint256 price = convertToAssets(DEFAULT_DECIMALS_FACTOR);
+        uint256 priceWithDecimals = convertToAssets(DEFAULT_DECIMALS_FACTOR);
+        uint256 len = nonReinvestingLenders.length;
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
         for (uint256 i = 0; i < len; i++) {
             address lender = nonReinvestingLenders[i];
             uint256 shares = ERC20Upgradeable.balanceOf(lender);
-            uint256 assets = (shares * price) / DEFAULT_DECIMALS_FACTOR;
+            uint256 assetsWithDecimals = shares * priceWithDecimals;
             DepositRecord memory depositRecord = _getDepositRecord(lender);
-            if (assets > depositRecord.principal) {
-                uint256 yield = assets - depositRecord.principal;
-                tranchesAssets[trancheIndex] -= uint96(yield);
+            uint256 principalWithDecimals = depositRecord.principal * DEFAULT_DECIMALS_FACTOR;
+            if (assetsWithDecimals > principalWithDecimals) {
+                uint256 yieldWithDecimals = assetsWithDecimals - principalWithDecimals;
+                uint256 yield = yieldWithDecimals / DEFAULT_DECIMALS_FACTOR;
                 // Round up the number of shares the lender has to burn in order to receive
                 // the given amount of yield. Round-up applies the favor-the-pool principle.
-                shares = Math.ceilDiv(yield * DEFAULT_DECIMALS_FACTOR, price);
-                ERC20Upgradeable._burn(lender, shares);
-                poolSafe.withdraw(lender, yield);
-                emit YieldPaidOut(lender, yield, shares);
+                shares = Math.ceilDiv(yieldWithDecimals, priceWithDecimals);
+                // The underlying asset of the pool may incorporate a blocklist feature that prevents the lender
+                // from receiving yield if they are subject to sanctions, and consequently the `transfer` call
+                // would fail for the lender. We bypass the yield of this lender so that other lenders can
+                // still get their yield paid out as normal.
+                try poolSafe.withdraw(lender, yield) {
+                    tranchesAssets[trancheIndex] -= uint96(yield);
+                    ERC20Upgradeable._burn(lender, shares);
+                    emit YieldPaidOut(lender, yield, shares);
+                } catch Error(string memory reason) {
+                    emit YieldPayoutFailed(lender, yield, shares, reason);
+                }
             }
         }
         poolSafe.resetUnprocessedProfit();
@@ -444,17 +505,14 @@ contract TrancheVault is
     }
 
     /// @inheritdoc IRedemptionHandler
-    function currentRedemptionSummary()
-        external
-        view
-        override
-        returns (EpochRedemptionSummary memory redemptionSummary)
-    {
-        redemptionSummary = _getEpochRedemptionSummary(epochManager.currentEpochId());
+    function epochRedemptionSummary(
+        uint256 epochId
+    ) external view override returns (EpochRedemptionSummary memory redemptionSummary) {
+        redemptionSummary = _getEpochRedemptionSummary(epochId);
     }
 
     /**
-     * @notice Returns the withdrawable assets value of the given account.
+     * @notice Returns the amount of withdrawable value of the given account.
      * @param account The account whose withdrawable assets should be calculated.
      * @param assets The withdrawable amount.
      */
@@ -465,6 +523,11 @@ contract TrancheVault is
         assets =
             lenderRedemptionRecord.totalAmountProcessed -
             lenderRedemptionRecord.totalAmountWithdrawn;
+
+        if (pool.isPoolClosed()) {
+            // If the pool is closed, all the lender's assets are withdrawable.
+            assets += totalAssetsOf(account);
+        }
     }
 
     /**
@@ -479,10 +542,6 @@ contract TrancheVault is
         shares = _convertToShares(assets, totalAssets());
     }
 
-    function totalAssetsOf(address account) external view returns (uint256 assets) {
-        return convertToAssets(ERC20Upgradeable.balanceOf(account));
-    }
-
     /// Gets the list of lenders who are receiving yield distribution in each period.
     function getNonReinvestingLendersLength() external view returns (uint256) {
         return nonReinvestingLenders.length;
@@ -495,12 +554,27 @@ contract TrancheVault is
         revert Errors.UnsupportedFunction();
     }
 
+    /**
+     * @notice Disables the transfer functionality.
+     */
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) public virtual override returns (bool) {
+        revert Errors.UnsupportedFunction();
+    }
+
     function decimals() public view override returns (uint8) {
         return _decimals;
     }
 
     function totalAssets() public view returns (uint256) {
         return pool.trancheTotalAssets(trancheIndex);
+    }
+
+    function totalAssetsOf(address account) public view returns (uint256 assets) {
+        return convertToAssets(ERC20Upgradeable.balanceOf(account));
     }
 
     function convertToAssets(uint256 shares) public view returns (uint256 assets) {
@@ -510,32 +584,35 @@ contract TrancheVault is
     }
 
     /// Utility function to cache the dependent contract addresses.
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.underlyingToken();
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
+        address addr = poolConfig_.underlyingToken();
         assert(addr != address(0));
         underlyingToken = IERC20(addr);
         _decimals = IERC20MetadataUpgradeable(addr).decimals();
 
-        addr = _poolConfig.pool();
+        addr = poolConfig_.pool();
         assert(addr != address(0));
         pool = IPool(addr);
 
-        addr = _poolConfig.poolSafe();
+        addr = poolConfig_.poolSafe();
         assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
-        addr = _poolConfig.epochManager();
+        addr = poolConfig_.epochManager();
         assert(addr != address(0));
         epochManager = IEpochManager(addr);
+
+        addr = poolConfig_.calendar();
+        assert(addr != address(0));
+        calendar = ICalendar(addr);
     }
 
     /**
      * @notice Internal function to support LP deposit into the tranche.
      * @param assets The number of underlyingTokens to be deposited.
-     * @param receiver The address to receive the minted tranche token.
      * @return shares The number of tranche token to be minted.
      */
-    function _deposit(uint256 assets, address receiver) internal returns (uint256 shares) {
+    function _deposit(uint256 assets) internal returns (uint256 shares) {
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
         if (assets < poolSettings.minDepositAmount) {
             revert Errors.DepositAmountTooLow();
@@ -549,16 +626,36 @@ contract TrancheVault is
         uint96[2] memory tranches = pool.currentTranchesAssets();
         uint256 trancheAssets = tranches[trancheIndex];
         shares = _convertToShares(assets, trancheAssets);
-        ERC20Upgradeable._mint(receiver, shares);
-        DepositRecord memory depositRecord = _getDepositRecord(receiver);
+
+        if (shares == 0) {
+            // Disallows 0 shares to be minted. This can be caused by rounding errors or the tranche
+            // losing all of its assets after default.
+            revert Errors.ZeroSharesMinted();
+        }
+        ERC20Upgradeable._mint(msg.sender, shares);
+        DepositRecord memory depositRecord = _getDepositRecord(msg.sender);
         depositRecord.principal += uint96(assets);
         depositRecord.lastDepositTime = uint64(block.timestamp);
-        _setDepositRecord(receiver, depositRecord);
+        _setDepositRecord(msg.sender, depositRecord);
 
         tranches[trancheIndex] += uint96(assets);
         pool.updateTranchesAssets(tranches);
 
-        emit LiquidityDeposited(msg.sender, receiver, assets, shares);
+        emit LiquidityDeposited(msg.sender, assets, shares);
+    }
+
+    /**
+     * @notice Internal function to support the disbursement of funds from processed redemption requests.
+     */
+    function _disburse() internal {
+        LenderRedemptionRecord memory record = _getLatestLenderRedemptionRecordFor(msg.sender);
+        uint256 withdrawable = record.totalAmountProcessed - record.totalAmountWithdrawn;
+        if (withdrawable > 0) {
+            record.totalAmountWithdrawn += uint96(withdrawable);
+            _setLenderRedemptionRecord(msg.sender, record);
+            underlyingToken.safeTransfer(msg.sender, withdrawable);
+            emit LenderFundDisbursed(msg.sender, withdrawable);
+        }
     }
 
     /**
@@ -601,17 +698,17 @@ contract TrancheVault is
 
     /**
      * @notice Converts assets to shares of this tranche token.
-     * @param _assets The amount of the underlying assets.
-     * @param _totalAssets The total amount of the underlying assets in the tranche.
+     * @param assets The amount of the underlying assets.
+     * @param totalAssets_ The total amount of the underlying assets in the tranche.
      * @return shares The corresponding number of shares for the given assets.
      */
     function _convertToShares(
-        uint256 _assets,
-        uint256 _totalAssets
+        uint256 assets,
+        uint256 totalAssets_
     ) internal view returns (uint256 shares) {
         uint256 supply = ERC20Upgradeable.totalSupply();
-
-        return supply == 0 ? _assets : (_assets * supply) / _totalAssets;
+        if (supply != 0 && totalAssets_ == 0) return 0;
+        return supply == 0 ? assets : (assets * supply) / totalAssets_;
     }
 
     function _getLatestLenderRedemptionRecordFor(
@@ -638,11 +735,18 @@ contract TrancheVault is
     ) internal view returns (LenderRedemptionRecord memory lenderRedemptionRecord) {
         lenderRedemptionRecord = lenderRedemptionRecords[account];
         uint256 totalShares = lenderRedemptionRecord.numSharesRequested;
-        if (totalShares > 0 && lenderRedemptionRecord.nextEpochIdToProcess < currentEpochId) {
+        // The inclusion of "=" in the second condition is crucial. When the pool is active,
+        // redemption requests are processed at the closure of an epoch, and a new epoch is
+        // created and becomes the current epoch. As a result, there is no processed
+        // redemption requests in the current epoch. However, once the pool is closed, the pool owner will
+        // process outstanding redemption requests within the final epoch, without creating a new one.
+        // Consequently, the epoch ID will remain unchanged. This means that the current epoch may
+        // include processed requests, and therefore, it is essential to take the current epoch into account.
+        if (totalShares > 0 && lenderRedemptionRecord.nextEpochIdToProcess <= currentEpochId) {
             uint256 remainingShares = totalShares;
             for (
                 uint256 epochId = lenderRedemptionRecord.nextEpochIdToProcess;
-                epochId < currentEpochId && remainingShares > 0;
+                epochId <= currentEpochId && remainingShares > 0;
                 ++epochId
             ) {
                 EpochRedemptionSummary memory summary = _getEpochRedemptionSummary(epochId);

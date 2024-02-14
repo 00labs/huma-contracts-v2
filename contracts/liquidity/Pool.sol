@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {Errors} from "../common/Errors.sol";
 import {PoolConfig, LPConfig} from "../common/PoolConfig.sol";
@@ -13,6 +13,7 @@ import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {ICreditManager} from "../credit/interfaces/ICreditManager.sol";
 import {ICredit} from "../credit/interfaces/ICredit.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title Pool
@@ -31,8 +32,9 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     enum PoolStatus {
-        Off,
-        On
+        Off, // The pool is temporarily turned off.
+        On, // The pool is active.
+        Closed // The pool is permanently closed after maturity.
     }
 
     IEpochManager public epochManager;
@@ -42,11 +44,12 @@ contract Pool is PoolConfigCache, IPool {
     ITranchesPolicy public tranchesPolicy;
     ICredit public credit;
     ICreditManager public creditManager;
+    address public juniorTranche;
+    address public seniorTranche;
 
     TranchesAssets public tranchesAssets;
     TranchesLosses public tranchesLosses;
 
-    // Whether the pool is ON or OFF
     PoolStatus internal _status;
 
     bool public readyForFirstLossCoverWithdrawal;
@@ -56,6 +59,12 @@ contract Pool is PoolConfigCache, IPool {
      * @param by The address that disabled the pool.
      */
     event PoolDisabled(address indexed by);
+
+    /**
+     * @notice The pool has been closed.
+     * @param by The address that closed the pool.
+     */
+    event PoolClosed(address indexed by);
 
     /**
      * @notice The pool has been enabled.
@@ -68,18 +77,7 @@ contract Pool is PoolConfigCache, IPool {
      * @param by The address that updated the status.
      * @param ready Whether the pool is now ready for first loss cover withdrawal.
      */
-    event PoolReadyForFirstLossCoverWithdrawal(address indexed by, bool ready);
-
-    event PoolAssetsRefreshed(
-        uint256 refreshedTimestamp,
-        uint256 profit,
-        uint256 loss,
-        uint256 lossRecovery,
-        uint256 seniorTotalAssets,
-        uint256 juniorTotalAssets,
-        uint256 seniorTotalLoss,
-        uint256 juniorTotalLoss
-    );
+    event FirstLossCoverWithdrawalReadinessChanged(address indexed by, bool ready);
 
     /**
      * @notice Pool profit has been distributed.
@@ -127,7 +125,7 @@ contract Pool is PoolConfigCache, IPool {
      * @custom:access Only the pool owner or protocol owner can enable a pool.
      */
     function enablePool() external {
-        poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
+        poolConfig.onlyPoolOwnerOrHumaOwner(msg.sender);
         poolConfig.checkFirstLossCoverRequirementsForAdmin();
         poolConfig.checkLiquidityRequirements();
 
@@ -148,13 +146,36 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     /**
+     * @notice Closes the pool permanently.
+     * @custom:access Only the pool owner or protocol owner can close a pool.
+     */
+    function closePool() external {
+        poolConfig.onlyPoolOwnerOrHumaOwner(msg.sender);
+        _status = PoolStatus.Closed;
+
+        // Set `readyForFirstLossCoverWithdrawal` to `true` so that first loss cover providers
+        // can withdraw their assets.
+        readyForFirstLossCoverWithdrawal = true;
+
+        // Set the `maxSeniorJuniorRatio` to 0 so that all pending redemption requests
+        // can be processed.
+        LPConfig memory lpConfig = poolConfig.getLPConfig();
+        lpConfig.maxSeniorJuniorRatio = 0;
+        poolConfig.setLPConfig(lpConfig);
+        // Process all pending redemption requests.
+        epochManager.processEpochAfterPoolClosure();
+
+        emit PoolClosed(msg.sender);
+    }
+
+    /**
      * @notice Enables or disables the first loss cover investors to withdraw capital.
      * @custom:access Only pool owner or Huma protocol owner can call this function.
      */
     function setReadyForFirstLossCoverWithdrawal(bool isReady) external {
-        poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
+        poolConfig.onlyPoolOwnerOrHumaOwner(msg.sender);
         readyForFirstLossCoverWithdrawal = isReady;
-        emit PoolReadyForFirstLossCoverWithdrawal(msg.sender, isReady);
+        emit FirstLossCoverWithdrawalReadinessChanged(msg.sender, isReady);
     }
 
     /// @inheritdoc IPool
@@ -165,9 +186,9 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     /// @inheritdoc IPool
-    /// @custom:access Only Credit or CreditManager contract can call this function.
+    /// @custom:access Only the CreditManager contract can call this function.
     function distributeLoss(uint256 loss) external {
-        _onlyCreditOrCreditManager(msg.sender);
+        if (msg.sender != address(creditManager)) revert Errors.AuthorizedContractCallerRequired();
         _distributeLoss(loss);
     }
 
@@ -192,8 +213,13 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     /// @inheritdoc IPool
-    function isPoolOn() external view returns (bool status) {
+    function isPoolOn() external view returns (bool isOn) {
         return _status == PoolStatus.On;
+    }
+
+    /// @inheritdoc IPool
+    function isPoolClosed() external view returns (bool isClosed) {
+        return _status == PoolStatus.Closed;
     }
 
     /// @inheritdoc IPool
@@ -206,10 +232,12 @@ contract Pool is PoolConfigCache, IPool {
         if (index == SENIOR_TRANCHE) {
             // The available cap for the senior tranche is subject to the additional constraint of the
             // max senior : junior asset ratio, i.e. the total assets in the senior tranche must not exceed
-            // assets[JUNIOR_TRANCHE] * maxSeniorJuniorRatio at all times.
-            uint256 seniorAvailableCap = assets[JUNIOR_TRANCHE] *
-                config.maxSeniorJuniorRatio -
-                assets[SENIOR_TRANCHE];
+            // assets[JUNIOR_TRANCHE] * maxSeniorJuniorRatio at all times. Note that if this value is less than
+            // the current total senior assets (i.e. in the case of default), then the senior available cap is 0.
+            uint256 seniorAvailableCap = Math.max(
+                assets[JUNIOR_TRANCHE] * config.maxSeniorJuniorRatio,
+                assets[SENIOR_TRANCHE]
+            ) - assets[SENIOR_TRANCHE];
             availableCap = availableCap > seniorAvailableCap ? seniorAvailableCap : availableCap;
         }
     }
@@ -233,33 +261,41 @@ contract Pool is PoolConfigCache, IPool {
     /**
      * @notice Common function in Huma protocol to retrieve contract addresses from PoolConfig.
      */
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.poolSafe();
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
+        address addr = poolConfig_.poolSafe();
         assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
-        addr = _poolConfig.tranchesPolicy();
+        addr = poolConfig_.tranchesPolicy();
         assert(addr != address(0));
         tranchesPolicy = ITranchesPolicy(addr);
 
-        addr = _poolConfig.poolFeeManager();
+        addr = poolConfig_.poolFeeManager();
         assert(addr != address(0));
         feeManager = IPoolFeeManager(addr);
 
-        addr = _poolConfig.epochManager();
+        addr = poolConfig_.epochManager();
         assert(addr != address(0));
         epochManager = IEpochManager(addr);
 
-        addr = _poolConfig.credit();
+        addr = poolConfig_.credit();
         assert(addr != address(0));
         credit = ICredit(addr);
 
-        addr = _poolConfig.creditManager();
+        addr = poolConfig_.creditManager();
         assert(addr != address(0));
         creditManager = ICreditManager(addr);
 
+        addr = poolConfig_.seniorTranche();
+        assert(addr != address(0));
+        seniorTranche = addr;
+
+        addr = poolConfig_.juniorTranche();
+        assert(addr != address(0));
+        juniorTranche = addr;
+
         delete _firstLossCovers;
-        address[16] memory covers = _poolConfig.getFirstLossCovers();
+        address[16] memory covers = poolConfig_.getFirstLossCovers();
         for (uint256 i = 0; i < covers.length; i++) {
             if (covers[i] != address(0)) {
                 _firstLossCovers.push(IFirstLossCover(covers[i]));
@@ -291,15 +327,12 @@ contract Pool is PoolConfigCache, IPool {
             newAssets[SENIOR_TRANCHE] =
                 assets.seniorTotalAssets +
                 profitsForTrancheVaults[SENIOR_TRANCHE];
-            poolSafe.addUnprocessedProfit(
-                poolConfig.seniorTranche(),
-                profitsForTrancheVaults[SENIOR_TRANCHE]
-            );
+            poolSafe.addUnprocessedProfit(seniorTranche, profitsForTrancheVaults[SENIOR_TRANCHE]);
             newAssets[JUNIOR_TRANCHE] = assets.juniorTotalAssets;
             if (profitsForTrancheVaults[JUNIOR_TRANCHE] > 0) {
                 newAssets[JUNIOR_TRANCHE] += profitsForTrancheVaults[JUNIOR_TRANCHE];
                 poolSafe.addUnprocessedProfit(
-                    poolConfig.juniorTranche(),
+                    juniorTranche,
                     profitsForTrancheVaults[JUNIOR_TRANCHE]
                 );
             }
@@ -350,9 +383,18 @@ contract Pool is PoolConfigCache, IPool {
     function _distLossToTranches(uint256 loss) internal {
         TranchesAssets memory assets = tranchesAssets;
         uint256 juniorTotalAssets = assets.juniorTotalAssets;
-        // Distribute losses to junior tranche up to the total junior asset.
+        // Distribute losses to the junior tranche up to the total junior asset.
         uint256 juniorLoss = juniorTotalAssets >= loss ? loss : juniorTotalAssets;
-        uint256 seniorLoss = loss - juniorLoss;
+        // When triggering default, since we distribute profit right before distributing loss,
+        // `loss - juniorLoss` could surpass the total assets of the senior tranche in the following two scenarios:
+        // 1. Admins earn fees during profit distribution, but the fees do not explicitly participate in
+        //    loss distribution.
+        // 2. Theoretically, first loss covers could be configured to take on more profit than loss when
+        //    default is triggered, and the additional loss would fall on tranches. However, this is extremely unlikely.
+        // Therefore, we need to cap the loss at the senior total assets. It's important to note
+        // that borrowers' payment obligations are based on the total amount due in `CreditRecord`, thus omitting to
+        // fully account for losses in the senior tranche does not reduce the amount the borrower is required to pay.
+        uint256 seniorLoss = Math.min(assets.seniorTotalAssets, loss - juniorLoss);
 
         assets.seniorTotalAssets -= uint96(seniorLoss);
         assets.juniorTotalAssets -= uint96(juniorLoss);
@@ -431,8 +473,6 @@ contract Pool is PoolConfigCache, IPool {
             losses.seniorLoss,
             losses.juniorLoss
         );
-
-        return remainingLossRecovery;
     }
 
     /**
@@ -450,9 +490,9 @@ contract Pool is PoolConfigCache, IPool {
 
     function _onlyTrancheVaultOrEpochManager(address account) internal view {
         if (
-            account != poolConfig.juniorTranche() &&
-            account != poolConfig.seniorTranche() &&
-            account != poolConfig.epochManager()
+            account != juniorTranche &&
+            account != seniorTranche &&
+            account != address(epochManager)
         ) revert Errors.AuthorizedContractCallerRequired();
     }
 

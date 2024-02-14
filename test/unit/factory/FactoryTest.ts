@@ -8,7 +8,6 @@ import {
     CreditLine,
     CreditLineManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     FixedSeniorYieldTranchePolicy,
     HumaConfig,
@@ -38,7 +37,6 @@ import { toToken } from "../../TestUtils";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     pdsServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -46,9 +44,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress,
     lender: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigImpl: PoolConfig,
     poolFeeManagerImpl: PoolFeeManager,
     poolSafeImpl: PoolSafe,
@@ -78,7 +74,6 @@ describe("Factory Test", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             pdsServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -89,10 +84,9 @@ describe("Factory Test", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             pdsServiceAccount,
             poolOwner,
         );
@@ -179,10 +173,10 @@ describe("Factory Test", function () {
     it("Non Factory Admin cannot add or remove deployer", async function () {
         await expect(
             poolFactoryContract.connect(poolOperator).addDeployer(poolOperator.getAddress()),
-        ).to.be.revertedWithCustomError(poolFactoryContract, "AdminRequired");
+        ).to.be.revertedWithCustomError(poolFactoryContract, "HumaOwnerRequired");
         await expect(
             poolFactoryContract.connect(poolOperator).removeDeployer(defaultDeployer.getAddress()),
-        ).to.be.revertedWithCustomError(poolFactoryContract, "AdminRequired");
+        ).to.be.revertedWithCustomError(poolFactoryContract, "HumaOwnerRequired");
     });
 
     it("Deploy a pool using factory", async function () {
@@ -190,8 +184,6 @@ describe("Factory Test", function () {
             poolFactoryContract,
             mockTokenContract,
             await ethers.getContractAt("Receivable", ethers.constants.AddressZero),
-            defaultDeployer,
-            poolOwner,
             "creditline",
             "fixed",
             "test pool",

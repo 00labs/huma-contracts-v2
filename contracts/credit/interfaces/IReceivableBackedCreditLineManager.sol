@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {ReceivableState} from "../CreditStructs.sol";
 
@@ -15,10 +15,10 @@ interface IReceivableBackedCreditLineManager {
     /**
      * @notice Decreases the amount that the borrower can borrow from the credit line due to new drawdown.
      * @param creditHash The hash of the credit.
-     * @param amount The amount to decrease the avaible credit by.
+     * @param amount The amount to decrease the available credit by.
      * @custom:access Only the Credit contract can call this function.
      */
-    function decreaseCreditLimit(bytes32 creditHash, uint256 amount) external;
+    function decreaseAvailableCredit(bytes32 creditHash, uint256 amount) external;
 
     /**
      * @notice Validates the receivable is owned by the borrower.

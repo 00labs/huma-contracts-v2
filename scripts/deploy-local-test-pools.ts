@@ -19,7 +19,6 @@ import {
     CreditLine,
     CreditLineManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockToken,
@@ -37,7 +36,6 @@ import { advanceChainTime } from "./utils";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -53,9 +51,7 @@ let juniorLender: SignerWithAddress,
     borrowerLate: SignerWithAddress,
     borrowerDefault: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -118,7 +114,6 @@ async function deployPool(
         defaultDeployer,
         protocolOwner,
         treasury,
-        eaServiceAccount,
         sentinelServiceAccount,
         poolOwner,
         poolOwnerTreasury,
@@ -136,10 +131,9 @@ async function deployPool(
     ] = await ethers.getSigners();
 
     console.log("Deploying and setting up protocol contracts");
-    [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+    [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
         protocolOwner,
         treasury,
-        eaServiceAccount,
         sentinelServiceAccount,
         poolOwner,
     );
@@ -163,13 +157,13 @@ async function deployPool(
     ] = await deployAndSetupPoolContracts(
         humaConfigContract,
         mockTokenContract,
-        eaNFTContract,
         "RiskAdjustedTranchesPolicy",
         defaultDeployer,
         poolOwner,
         creditContractName,
         creditManagerContractName,
         evaluationAgent,
+        treasury,
         poolOwnerTreasury,
         poolOperator,
         [juniorLender, seniorLender, lenderRedemptionActive, borrowerActive],
@@ -202,12 +196,8 @@ async function deployPool(
     );
 
     // Depositing junior and senior liquidity into the tranches
-    await juniorTrancheVaultContract
-        .connect(juniorLender)
-        .deposit(toToken(150_000), juniorLender.address);
-    await seniorTrancheVaultContract
-        .connect(seniorLender)
-        .deposit(toToken(200_000), seniorLender.address);
+    await juniorTrancheVaultContract.connect(juniorLender).deposit(toToken(150_000));
+    await seniorTrancheVaultContract.connect(seniorLender).deposit(toToken(200_000));
 
     const frontLoadingFeeFlat = toToken(100);
     const frontLoadingFeeBps = BN.from(100);
@@ -218,7 +208,7 @@ async function deployPool(
 
     if (poolName === LocalPoolName.CreditLine) {
         console.log("Drawing down from CreditLine");
-        await creditManagerContract.connect(eaServiceAccount).approveBorrower(
+        await creditManagerContract.connect(evaluationAgent).approveBorrower(
             borrowerActive.address,
             toToken(100_000),
             5, // numOfPeriods
@@ -230,9 +220,7 @@ async function deployPool(
         const borrowAmount = toToken(100_000);
 
         // Drawing down credit line
-        await (creditContract as CreditLine)
-            .connect(borrowerActive)
-            .drawdown(borrowerActive.address, borrowAmount);
+        await (creditContract as CreditLine).connect(borrowerActive).drawdown(borrowAmount);
     } else if (poolName === LocalPoolName.ReceivableBackedCreditLine) {
         const latePaymentGracePeriodInDays = 5;
         const yieldInBps = 1200;
@@ -257,7 +245,7 @@ async function deployPool(
         });
 
         console.log("Drawing down from CreditLine");
-        await creditManagerContract.connect(eaServiceAccount).approveBorrower(
+        await creditManagerContract.connect(evaluationAgent).approveBorrower(
             borrowerActive.address,
             toToken(100_000),
             5, // numOfPeriods
@@ -280,7 +268,7 @@ async function deployPool(
             .approve(creditContract.address, receivableId);
         await (creditContract as ReceivableBackedCreditLine)
             .connect(borrowerActive)
-            .drawdownWithReceivable(borrowerActive.address, receivableId, borrowAmount);
+            .drawdownWithReceivable(receivableId, borrowAmount);
     }
 
     console.log("=====================================");
@@ -290,7 +278,6 @@ async function deployPool(
     console.log(`Borrower:      ${borrowerActive.address}`);
     console.log(`Sentinel Service:   ${sentinelServiceAccount.address}`);
     console.log(`Pool owner:   ${poolOwner.address}`);
-    console.log(`EA service:   ${eaServiceAccount.address}`);
 
     console.log("=====================================");
     console.log("Addresses:");

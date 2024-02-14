@@ -7,10 +7,10 @@ import {
     Calendar,
     CreditDueManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
+    MockPoolCreditManager,
     MockToken,
     Pool,
     PoolConfig,
@@ -20,18 +20,22 @@ import {
     TrancheVault,
 } from "../../../typechain-types";
 import {
+    EpochChecker,
     FeeCalculator,
     FirstLossCoverInfo,
     PnLCalculator,
     deployAndSetupPoolContracts,
     deployPoolContracts,
     deployProtocolContracts,
+    getAssetsAfterProfitAndLoss,
+    mockDistributePnL,
 } from "../../BaseTest";
 import {
     getFirstLossCoverInfo,
     getLatestBlock,
     getMinLiquidityRequirementForEA,
     getMinLiquidityRequirementForPoolOwner,
+    isCloseTo,
     overrideFirstLossCoverConfig,
     overrideLPConfig,
     setNextBlockTimestamp,
@@ -43,17 +47,14 @@ import { CONSTANTS } from "../../constants";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
     poolOperator: SignerWithAddress;
-let borrower: SignerWithAddress, lender: SignerWithAddress;
+let borrower: SignerWithAddress, lender: SignerWithAddress, lender2: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -66,9 +67,10 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
+    creditManagerContract: MockPoolCreditManager,
     creditDueManagerContract: CreditDueManager;
 
-let feeCalculator: FeeCalculator;
+let epochChecker: EpochChecker, feeCalculator: FeeCalculator;
 
 describe("Pool Test", function () {
     before(async function () {
@@ -76,7 +78,6 @@ describe("Pool Test", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -84,6 +85,7 @@ describe("Pool Test", function () {
             poolOperator,
             borrower,
             lender,
+            lender2,
         ] = await ethers.getSigners();
     });
 
@@ -91,10 +93,9 @@ describe("Pool Test", function () {
         let minPoolOwnerLiquidity: BN, minEALiquidity: BN;
 
         async function prepare() {
-            [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+            [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
                 protocolOwner,
                 treasury,
-                eaServiceAccount,
                 sentinelServiceAccount,
                 poolOwner,
             );
@@ -113,6 +114,7 @@ describe("Pool Test", function () {
                 juniorTrancheVaultContract,
                 creditContract as unknown,
                 creditDueManagerContract,
+                creditManagerContract as unknown,
             ] = await deployPoolContracts(
                 humaConfigContract,
                 mockTokenContract,
@@ -120,7 +122,7 @@ describe("Pool Test", function () {
                 defaultDeployer,
                 poolOwner,
                 "MockPoolCredit",
-                "CreditLineManager",
+                "MockPoolCreditManager",
             );
 
             // Set up first loss cover requirements.
@@ -135,17 +137,9 @@ describe("Pool Test", function () {
                 .connect(poolOwner)
                 .addCoverProvider(poolOwnerTreasury.address);
 
-            let eaNFTTokenId;
-            const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
-            const receipt = await tx.wait();
-            for (const evt of receipt.events!) {
-                if (evt.event === "NFTGenerated") {
-                    eaNFTTokenId = evt.args!.tokenId;
-                }
-            }
             await poolConfigContract
                 .connect(poolOwner)
-                .setEvaluationAgent(eaNFTTokenId, evaluationAgent.address);
+                .setEvaluationAgent(evaluationAgent.address);
             await adminFirstLossCoverContract
                 .connect(poolOwner)
                 .addCoverProvider(evaluationAgent.address);
@@ -159,14 +153,23 @@ describe("Pool Test", function () {
             await loadFixture(prepare);
         });
 
-        async function addLiquidity(poolOwnerAmount: BN, eaAmount: BN) {
+        async function addLiquidity(
+            poolOwnerAmountForJuniorTranche: BN,
+            poolOwnerAmountForSeniorTranche: BN,
+            eaAmount: BN,
+        ) {
             await mockTokenContract
                 .connect(poolOwnerTreasury)
                 .approve(poolSafeContract.address, ethers.constants.MaxUint256);
             await mockTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
             await juniorTrancheVaultContract
                 .connect(poolOwnerTreasury)
-                .makeInitialDeposit(poolOwnerAmount);
+                .makeInitialDeposit(poolOwnerAmountForJuniorTranche);
+            if (poolOwnerAmountForSeniorTranche.gt(0)) {
+                await seniorTrancheVaultContract
+                    .connect(poolOwnerTreasury)
+                    .makeInitialDeposit(poolOwnerAmountForSeniorTranche);
+            }
 
             await mockTokenContract
                 .connect(evaluationAgent)
@@ -178,7 +181,7 @@ describe("Pool Test", function () {
         it("Should not allow non-poolOwner and non-protocolAdmin to enable a pool", async function () {
             await expect(poolContract.enablePool()).to.be.revertedWithCustomError(
                 poolConfigContract,
-                "AdminRequired",
+                "PoolOwnerOrHumaOwnerRequired",
             );
             const isPoolOn = await poolContract.isPoolOn();
             expect(isPoolOn).to.be.false;
@@ -222,46 +225,98 @@ describe("Pool Test", function () {
             expect(isPoolOn).to.be.false;
         });
 
-        it("Should not enable a pool when there is not enough liquidity for the pool owner", async function () {
-            await addLiquidity(minPoolOwnerLiquidity.sub(1), minEALiquidity);
+        describe("If the senior tranche is enabled", function () {
+            let minDepositAmount: BN;
 
-            await expect(
-                poolContract.connect(protocolOwner).enablePool(),
-            ).to.be.revertedWithCustomError(poolConfigContract, "PoolOwnerInsufficientLiquidity");
-            const isPoolOn = await poolContract.isPoolOn();
-            expect(isPoolOn).to.be.false;
+            beforeEach(async function () {
+                const lpConfig = await poolConfigContract.getLPConfig();
+                expect(lpConfig.maxSeniorJuniorRatio).to.be.gt(0);
+
+                const poolSettings = await poolConfigContract.getPoolSettings();
+                minDepositAmount = poolSettings.minDepositAmount;
+            });
+
+            it("Should not enable a pool when the pool owner has only satisfied the liquidity requirement for the junior tranche", async function () {
+                await addLiquidity(minPoolOwnerLiquidity, toToken(0), minEALiquidity);
+
+                await expect(
+                    poolContract.connect(protocolOwner).enablePool(),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerInsufficientLiquidity",
+                );
+                const isPoolOn = await poolContract.isPoolOn();
+                expect(isPoolOn).to.be.false;
+            });
+
+            it("Should not enable a pool when the pool owner has only satisfied the liquidity requirement for the senior tranche", async function () {
+                const lpConfig = await poolConfigContract.getLPConfig();
+                // Deposit some fund into the junior tranche so that the senior tranche deposit is not blocked by the
+                // max senior : junior ratio.
+                await addLiquidity(
+                    minPoolOwnerLiquidity.div(lpConfig.maxSeniorJuniorRatio).add(toToken(1)),
+                    minDepositAmount,
+                    minEALiquidity,
+                );
+
+                await expect(
+                    poolContract.connect(protocolOwner).enablePool(),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerInsufficientLiquidity",
+                );
+                const isPoolOn = await poolContract.isPoolOn();
+                expect(isPoolOn).to.be.false;
+            });
+
+            it("Should not enable a pool when there is not enough liquidity for the EA", async function () {
+                await addLiquidity(minPoolOwnerLiquidity, minDepositAmount, minEALiquidity.sub(1));
+
+                await expect(
+                    poolContract.connect(protocolOwner).enablePool(),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "EvaluationAgentInsufficientLiquidity",
+                );
+                const isPoolOn = await poolContract.isPoolOn();
+                expect(isPoolOn).to.be.false;
+            });
+
+            it("Should allow the pool owner to enable a pool when conditions are met", async function () {
+                await addLiquidity(minPoolOwnerLiquidity, minDepositAmount, minEALiquidity);
+
+                await expect(poolContract.connect(protocolOwner).enablePool())
+                    .to.emit(poolContract, "PoolEnabled")
+                    .withArgs(protocolOwner.address);
+                const isPoolOn = await poolContract.isPoolOn();
+                expect(isPoolOn).to.be.true;
+            });
         });
 
-        it("Should not enable a pool when there is not enough liquidity for the EA", async function () {
-            await addLiquidity(minPoolOwnerLiquidity, minEALiquidity.sub(1));
+        describe("If the senior tranche is disabled", function () {
+            beforeEach(async function () {
+                await overrideLPConfig(poolConfigContract, poolOwner, {
+                    maxSeniorJuniorRatio: 0,
+                });
+            });
 
-            await expect(
-                poolContract.connect(protocolOwner).enablePool(),
-            ).to.be.revertedWithCustomError(
-                poolConfigContract,
-                "EvaluationAgentInsufficientLiquidity",
-            );
-            const isPoolOn = await poolContract.isPoolOn();
-            expect(isPoolOn).to.be.false;
-        });
+            it("Should allow the pool owner to enable a pool when conditions are met", async function () {
+                await addLiquidity(minPoolOwnerLiquidity, toToken(0), minEALiquidity);
 
-        it("Should allow the pool owner to enable a pool when conditions are met", async function () {
-            await addLiquidity(minPoolOwnerLiquidity, minEALiquidity);
-
-            await expect(poolContract.connect(protocolOwner).enablePool())
-                .to.emit(poolContract, "PoolEnabled")
-                .withArgs(protocolOwner.address);
-            const isPoolOn = await poolContract.isPoolOn();
-            expect(isPoolOn).to.be.true;
+                await expect(poolContract.connect(protocolOwner).enablePool())
+                    .to.emit(poolContract, "PoolEnabled")
+                    .withArgs(protocolOwner.address);
+                const isPoolOn = await poolContract.isPoolOn();
+                expect(isPoolOn).to.be.true;
+            });
         });
     });
 
     describe("After the pool is enabled", function () {
         async function prepare() {
-            [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+            [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
                 protocolOwner,
                 treasury,
-                eaServiceAccount,
                 sentinelServiceAccount,
                 poolOwner,
             );
@@ -280,21 +335,41 @@ describe("Pool Test", function () {
                 juniorTrancheVaultContract,
                 creditContract as unknown,
                 creditDueManagerContract,
+                creditManagerContract as unknown,
             ] = await deployAndSetupPoolContracts(
                 humaConfigContract,
                 mockTokenContract,
-                eaNFTContract,
                 "RiskAdjustedTranchesPolicy",
                 defaultDeployer,
                 poolOwner,
                 "MockPoolCredit",
-                "CreditLineManager",
+                "MockPoolCreditManager",
                 evaluationAgent,
+                treasury,
                 poolOwnerTreasury,
                 poolOperator,
-                [lender],
+                [lender, lender2],
             );
 
+            let juniorDepositAmount = toToken(400_000);
+            await juniorTrancheVaultContract.connect(lender).deposit(juniorDepositAmount);
+            let seniorDepositAmount = toToken(10_000);
+            await seniorTrancheVaultContract.connect(lender).deposit(seniorDepositAmount);
+
+            juniorDepositAmount = toToken(50_000);
+            await juniorTrancheVaultContract.connect(lender2).deposit(juniorDepositAmount);
+            seniorDepositAmount = toToken(20_000);
+            await seniorTrancheVaultContract.connect(lender2).deposit(seniorDepositAmount);
+
+            await overrideLPConfig(poolConfigContract, poolOwner, {
+                withdrawalLockoutPeriodInDays: 0,
+            });
+
+            epochChecker = new EpochChecker(
+                epochManagerContract,
+                seniorTrancheVaultContract,
+                juniorTrancheVaultContract,
+            );
             feeCalculator = new FeeCalculator(humaConfigContract, poolConfigContract);
         }
 
@@ -302,17 +377,365 @@ describe("Pool Test", function () {
             await loadFixture(prepare);
         });
 
-        it("Should not allow non-Operator to disable a pool", async function () {
-            await expect(poolContract.disablePool()).to.be.revertedWithCustomError(
-                poolConfigContract,
-                "PoolOperatorRequired",
-            );
+        describe("disablePool", function () {
+            it("Should not allow non-Operator to disable the pool", async function () {
+                await expect(poolContract.disablePool()).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOperatorRequired",
+                );
+                expect(await poolContract.isPoolOn()).to.be.true;
+            });
+
+            it("Should allow a pool operator to disable the pool", async function () {
+                await expect(poolContract.connect(poolOperator).disablePool())
+                    .to.emit(poolContract, "PoolDisabled")
+                    .withArgs(poolOperator.address);
+                expect(await poolContract.isPoolOn()).to.be.false;
+            });
         });
 
-        it("Should disable a pool", async function () {
-            await expect(poolContract.connect(poolOperator).disablePool())
-                .to.emit(poolContract, "PoolDisabled")
-                .withArgs(poolOperator.address);
+        describe("closePool", function () {
+            async function testClosePool(
+                seniorSharesRequested: BN,
+                seniorSharesRedeemable: BN,
+                juniorSharesRequested: BN,
+                juniorSharesRedeemable: BN,
+                profit: BN = BN.from(0),
+                loss: BN = BN.from(0),
+                lossRecovery: BN = BN.from(0),
+                delta: number = 0,
+            ) {
+                const currentEpoch = await epochManagerContract.currentEpoch();
+
+                const [[seniorAssets, juniorAssets]] = await getAssetsAfterProfitAndLoss(
+                    poolConfigContract,
+                    poolContract,
+                    [borrowerFirstLossCoverContract, adminFirstLossCoverContract],
+                    poolOwner,
+                    feeCalculator,
+                    profit,
+                    loss,
+                    lossRecovery,
+                );
+                const seniorTotalSupply = await seniorTrancheVaultContract.totalSupply();
+                const seniorTokenPrice = seniorAssets
+                    .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
+                    .div(seniorTotalSupply);
+                const seniorAmountRedeemable = seniorSharesRedeemable
+                    .mul(seniorTokenPrice)
+                    .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
+                const expectedSeniorAssets = seniorAssets.sub(seniorAmountRedeemable);
+                const seniorTokenBalance = await mockTokenContract.balanceOf(
+                    seniorTrancheVaultContract.address,
+                );
+
+                const juniorTotalSupply = await juniorTrancheVaultContract.totalSupply();
+                const juniorTokenPrice = juniorAssets
+                    .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
+                    .div(juniorTotalSupply);
+                const juniorAmountRedeemable = juniorSharesRedeemable
+                    .mul(juniorTokenPrice)
+                    .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
+                const expectedJuniorAssets = juniorAssets.sub(juniorAmountRedeemable);
+                const juniorTokenBalance = await mockTokenContract.balanceOf(
+                    juniorTrancheVaultContract.address,
+                );
+                const expectedUnprocessedAmount = seniorSharesRequested
+                    .sub(seniorSharesRedeemable)
+                    .mul(seniorTokenPrice)
+                    .add(juniorSharesRequested.sub(juniorSharesRedeemable).mul(juniorTokenPrice))
+                    .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
+
+                await mockDistributePnL(
+                    creditContract,
+                    creditManagerContract,
+                    profit,
+                    loss,
+                    lossRecovery,
+                );
+                await seniorTrancheVaultContract.processYieldForLenders();
+                await juniorTrancheVaultContract.processYieldForLenders();
+
+                await expect(poolContract.connect(poolOwner).closePool())
+                    .to.emit(poolContract, "PoolClosed")
+                    .withArgs(poolOwner.address)
+                    .to.emit(epochManagerContract, "RedemptionRequestsProcessed")
+                    .withArgs(
+                        (actualSeniorAssets: BN) =>
+                            isCloseTo(actualSeniorAssets, expectedSeniorAssets, delta),
+                        seniorTokenPrice.div(CONSTANTS.DEFAULT_DECIMALS_FACTOR),
+                        (actualJuniorAssets: BN) =>
+                            isCloseTo(actualJuniorAssets, expectedJuniorAssets, delta),
+                        juniorTokenPrice.div(CONSTANTS.DEFAULT_DECIMALS_FACTOR),
+                        (actualUnprocessedAmount: BN) =>
+                            isCloseTo(actualUnprocessedAmount, expectedUnprocessedAmount, delta),
+                    )
+                    .to.emit(epochManagerContract, "EpochProcessedAfterPoolClosure")
+                    .withArgs(currentEpoch.id.toNumber());
+
+                // Ensure that the remaining assets and supply match the expected amount.
+                expect(await seniorTrancheVaultContract.totalAssets()).to.be.closeTo(
+                    expectedSeniorAssets,
+                    delta,
+                );
+                expect(await seniorTrancheVaultContract.totalSupply()).to.be.closeTo(
+                    seniorTotalSupply.sub(seniorSharesRedeemable),
+                    delta,
+                );
+                expect(
+                    await mockTokenContract.balanceOf(seniorTrancheVaultContract.address),
+                ).to.be.closeTo(seniorTokenBalance.add(seniorAmountRedeemable), delta);
+                expect(await juniorTrancheVaultContract.totalAssets()).to.be.closeTo(
+                    expectedJuniorAssets,
+                    delta,
+                );
+                expect(await juniorTrancheVaultContract.totalSupply()).to.be.closeTo(
+                    juniorTotalSupply.sub(juniorSharesRedeemable),
+                    delta,
+                );
+                expect(
+                    await mockTokenContract.balanceOf(juniorTrancheVaultContract.address),
+                ).to.be.closeTo(juniorTokenBalance.add(juniorAmountRedeemable), delta);
+
+                expect(await poolContract.readyForFirstLossCoverWithdrawal()).to.be.true;
+            }
+
+            async function calcAmountsToRedeem(
+                profit: BN,
+                loss: BN,
+                lossRecovery: BN,
+                seniorSharesToRedeem: BN,
+                juniorSharesToRedeem: BN,
+            ) {
+                const [[seniorAssets, juniorAssets]] = await getAssetsAfterProfitAndLoss(
+                    poolConfigContract,
+                    poolContract,
+                    [borrowerFirstLossCoverContract, adminFirstLossCoverContract],
+                    poolOwner,
+                    feeCalculator,
+                    profit,
+                    loss,
+                    lossRecovery,
+                );
+                const seniorSupply = await seniorTrancheVaultContract.totalSupply();
+                const seniorPrice = seniorAssets
+                    .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
+                    .div(seniorSupply);
+                const seniorAmountProcessable = seniorSharesToRedeem
+                    .mul(seniorPrice)
+                    .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
+                const juniorSupply = await juniorTrancheVaultContract.totalSupply();
+                const juniorPrice = juniorAssets
+                    .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
+                    .div(juniorSupply);
+                const juniorAmountProcessable = juniorSharesToRedeem
+                    .mul(juniorPrice)
+                    .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
+
+                return [seniorAmountProcessable, juniorAmountProcessable];
+            }
+
+            it("Should close the pool and successfully process one senior redemption request", async function () {
+                const sharesToRedeem = toToken(2539);
+                await seniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(sharesToRedeem);
+
+                const profit = toToken(198),
+                    loss = toToken(67),
+                    lossRecovery = toToken(39);
+                const [amountToRedeem] = await calcAmountsToRedeem(
+                    profit,
+                    loss,
+                    lossRecovery,
+                    sharesToRedeem,
+                    BN.from(0),
+                );
+                let epochId = await epochManagerContract.currentEpochId();
+                await testClosePool(
+                    sharesToRedeem,
+                    sharesToRedeem,
+                    BN.from(0),
+                    BN.from(0),
+                    profit,
+                    loss,
+                    lossRecovery,
+                );
+                await epochChecker.checkSeniorRedemptionSummaryById(
+                    epochId,
+                    sharesToRedeem,
+                    sharesToRedeem,
+                    amountToRedeem,
+                );
+            });
+
+            it("Should close the pool and successfully process multiple senior redemption requests", async function () {
+                const epochId = await epochManagerContract.currentEpochId();
+
+                const lenderSharesRequested = toToken(236);
+                await seniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(lenderSharesRequested);
+                const lender2SharesRequested = toToken(1357);
+                await seniorTrancheVaultContract
+                    .connect(lender2)
+                    .addRedemptionRequest(lender2SharesRequested);
+                const totalSharesRequested = lenderSharesRequested.add(lender2SharesRequested);
+                const profit = toToken(198),
+                    loss = toToken(67),
+                    lossRecovery = toToken(39);
+                const [expectedSeniorAmountProcessed] = await calcAmountsToRedeem(
+                    profit,
+                    loss,
+                    lossRecovery,
+                    totalSharesRequested,
+                    BN.from(0),
+                );
+                await testClosePool(
+                    totalSharesRequested,
+                    totalSharesRequested,
+                    BN.from(0),
+                    BN.from(0),
+                    profit,
+                    loss,
+                    lossRecovery,
+                );
+
+                await epochChecker.checkSeniorRedemptionSummaryById(
+                    epochId,
+                    totalSharesRequested,
+                    totalSharesRequested,
+                    expectedSeniorAmountProcessed,
+                );
+            });
+
+            it("Should close the pool and successfully process one junior redemption request", async function () {
+                const sharesToRedeem = toToken(1);
+                await juniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(sharesToRedeem);
+
+                const profit = toToken(198),
+                    loss = toToken(67),
+                    lossRecovery = toToken(39);
+                const [, amountToRedeem] = await calcAmountsToRedeem(
+                    profit,
+                    loss,
+                    lossRecovery,
+                    BN.from(0),
+                    sharesToRedeem,
+                );
+
+                const epochId = await epochManagerContract.currentEpochId();
+                await testClosePool(
+                    BN.from(0),
+                    BN.from(0),
+                    sharesToRedeem,
+                    sharesToRedeem,
+                    profit,
+                    loss,
+                    lossRecovery,
+                );
+                await epochChecker.checkJuniorRedemptionSummaryById(
+                    epochId,
+                    sharesToRedeem,
+                    sharesToRedeem,
+                    amountToRedeem,
+                );
+            });
+
+            it("Should not allow non-PoolOwner or non-HumaOwner to close the pool", async function () {
+                await expect(poolContract.closePool()).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
+                expect(await poolContract.isPoolClosed()).to.be.false;
+            });
+
+            it("Should not close the pool if there is unprocessed profit in the senior tranche", async function () {
+                // Distribute profit and then process yield for the junior tranche so that there are unprocessed profits
+                // in the senior tranche only.
+                await mockDistributePnL(
+                    creditContract,
+                    creditManagerContract,
+                    toToken(10_000),
+                    0,
+                    0,
+                );
+                await juniorTrancheVaultContract.processYieldForLenders();
+                expect(
+                    await poolSafeContract.unprocessedTrancheProfit(
+                        seniorTrancheVaultContract.address,
+                    ),
+                ).to.be.gt(0);
+                expect(
+                    await poolSafeContract.unprocessedTrancheProfit(
+                        juniorTrancheVaultContract.address,
+                    ),
+                ).to.equal(0);
+
+                await expect(
+                    poolContract.connect(poolOwner).closePool(),
+                ).to.be.revertedWithCustomError(
+                    epochManagerContract,
+                    "RedemptionsCannotBeProcessedDueToUnprocessedProfit",
+                );
+            });
+
+            it("Should not close the pool if there is unprocessed profit in the junior tranche", async function () {
+                // Distribute profit and then process yield for the senior tranche so that there are unprocessed profits
+                // in the junior tranche only.
+                await mockDistributePnL(
+                    creditContract,
+                    creditManagerContract,
+                    toToken(10_000),
+                    0,
+                    0,
+                );
+                await seniorTrancheVaultContract.processYieldForLenders();
+                expect(
+                    await poolSafeContract.unprocessedTrancheProfit(
+                        seniorTrancheVaultContract.address,
+                    ),
+                ).to.equal(0);
+                expect(
+                    await poolSafeContract.unprocessedTrancheProfit(
+                        juniorTrancheVaultContract.address,
+                    ),
+                ).to.be.gt(0);
+
+                await expect(
+                    poolContract.connect(poolOwner).closePool(),
+                ).to.be.revertedWithCustomError(
+                    epochManagerContract,
+                    "RedemptionsCannotBeProcessedDueToUnprocessedProfit",
+                );
+            });
+        });
+
+        describe("setReadyForFirstLossCoverWithdrawal", function () {
+            it("Should allow the pool owner to set the flag", async function () {
+                await expect(
+                    poolContract.connect(poolOwner).setReadyForFirstLossCoverWithdrawal(true),
+                ).to.emit(poolContract, "FirstLossCoverWithdrawalReadinessChanged");
+                expect(await poolContract.readyForFirstLossCoverWithdrawal()).to.be.true;
+            });
+
+            it("Should allow the Huma owner to set the flag", async function () {
+                await expect(
+                    poolContract.connect(protocolOwner).setReadyForFirstLossCoverWithdrawal(true),
+                ).to.emit(poolContract, "FirstLossCoverWithdrawalReadinessChanged");
+                expect(await poolContract.readyForFirstLossCoverWithdrawal()).to.be.true;
+            });
+
+            it("Should not allow non-pool-owner or non-Huma-owner to set the flag", async function () {
+                await expect(
+                    poolContract.setReadyForFirstLossCoverWithdrawal(true),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
+            });
         });
 
         describe("PnL tests", function () {
@@ -320,15 +743,6 @@ describe("Pool Test", function () {
             let coverTotalAssets: BN;
 
             async function prepareForPnL() {
-                const juniorDepositAmount = toToken(250_000);
-                await juniorTrancheVaultContract
-                    .connect(lender)
-                    .deposit(juniorDepositAmount, lender.address);
-                const seniorDepositAmount = toToken(800_000);
-                await seniorTrancheVaultContract
-                    .connect(lender)
-                    .deposit(seniorDepositAmount, lender.address);
-
                 // Override the config so that first loss covers cover
                 // all losses up to the amount of their total assets.
                 firstLossCovers = [borrowerFirstLossCoverContract, adminFirstLossCoverContract];
@@ -417,9 +831,7 @@ describe("Pool Test", function () {
                             firstLossCoverInfos,
                         );
 
-                        await expect(
-                            creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0)),
-                        )
+                        await expect(creditContract.mockDistributeProfit(profit))
                             .to.emit(poolContract, "ProfitDistributed")
                             .withArgs(
                                 profit,
@@ -482,9 +894,7 @@ describe("Pool Test", function () {
                                 .add(losses[CONSTANTS.JUNIOR_TRANCHE])
                                 .gt(0)
                         ) {
-                            await expect(
-                                creditContract.mockDistributePnL(BN.from(0), loss, BN.from(0)),
-                            )
+                            await expect(creditManagerContract.mockDistributeLoss(loss))
                                 .to.emit(poolContract, "LossDistributed")
                                 .withArgs(
                                     loss.sub(sumBNArray([...lossesCoveredByFirstLossCovers])),
@@ -494,7 +904,7 @@ describe("Pool Test", function () {
                                     losses[CONSTANTS.JUNIOR_TRANCHE],
                                 );
                         } else {
-                            await creditContract.mockDistributePnL(BN.from(0), loss, BN.from(0));
+                            await creditManagerContract.mockDistributeLoss(loss);
                         }
 
                         seniorAssets = await poolContract.trancheTotalAssets(
@@ -537,9 +947,7 @@ describe("Pool Test", function () {
                             lossesCoveredByFirstLossCovers,
                         );
 
-                        await expect(
-                            creditContract.mockDistributePnL(BN.from(0), BN.from(0), recovery),
-                        )
+                        await expect(creditContract.mockDistributeLossRecovery(recovery))
                             .to.emit(poolContract, "LossRecoveryDistributed")
                             .withArgs(
                                 losses[CONSTANTS.SENIOR_TRANCHE]
@@ -641,6 +1049,23 @@ describe("Pool Test", function () {
                     expect(await adminFirstLossCoverContract.totalAssets()).to.equal(0);
                     expect(await juniorTrancheVaultContract.totalAssets()).to.equal(0);
                     expect(await seniorTrancheVaultContract.totalAssets()).to.equal(toToken(1));
+                });
+
+                it("Should distribute loss correctly when the loss exceeds tranche total assets", async function () {
+                    const assets = await poolContract.currentTranchesAssets();
+                    const profit = toToken(0);
+                    const loss = coverTotalAssets
+                        .add(assets[CONSTANTS.JUNIOR_TRANCHE])
+                        .add(assets[CONSTANTS.SENIOR_TRANCHE])
+                        .add(toToken(1_000));
+                    const recovery = toToken(0);
+
+                    await testDistribution(profit, loss, recovery);
+
+                    expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(0);
+                    expect(await adminFirstLossCoverContract.totalAssets()).to.equal(0);
+                    expect(await juniorTrancheVaultContract.totalAssets()).to.equal(0);
+                    expect(await seniorTrancheVaultContract.totalAssets()).to.equal(0);
                 });
 
                 it("Should distribute loss recovery correctly when senior loss can be partially recovered", async function () {
@@ -775,7 +1200,7 @@ describe("Pool Test", function () {
                     );
                 });
 
-                it("Should not allow non-credit or non-credit manager to distribute loss", async function () {
+                it("Should not allow non-credit manager to distribute loss", async function () {
                     await expect(
                         poolContract.connect(lender).distributeLoss(toToken(1)),
                     ).to.be.revertedWithCustomError(
@@ -847,7 +1272,13 @@ describe("Pool Test", function () {
                         lossesCoveredBuFirstLossCovers,
                     );
 
-                    await creditContract.mockDistributePnL(profit, loss, recovery);
+                    await mockDistributePnL(
+                        creditContract,
+                        creditManagerContract,
+                        profit,
+                        loss,
+                        recovery,
+                    );
                     const totalAssets = await poolContract.totalAssets();
                     expect(totalAssets).to.equal(
                         assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE].add(
@@ -963,6 +1394,8 @@ describe("Pool Test", function () {
                 await poolConfigContract
                     .connect(poolOwner)
                     .setTranches(defaultDeployer.getAddress(), defaultDeployer.getAddress());
+                await poolContract.connect(poolOwner).updatePoolConfigData();
+
                 await poolContract.updateTranchesAssets(tranchesAssets);
 
                 expect(await poolContract.currentTranchesAssets()).to.eql(tranchesAssets);
@@ -972,6 +1405,8 @@ describe("Pool Test", function () {
                 await poolConfigContract
                     .connect(poolOwner)
                     .setEpochManager(defaultDeployer.getAddress());
+                await poolContract.connect(poolOwner).updatePoolConfigData();
+
                 await poolContract.updateTranchesAssets(tranchesAssets);
 
                 expect(await poolContract.currentTranchesAssets()).to.eql(tranchesAssets);
@@ -986,12 +1421,8 @@ describe("Pool Test", function () {
 
         describe("getTrancheAvailableCap", function () {
             it("Should return the correct tranche available caps", async function () {
-                await seniorTrancheVaultContract
-                    .connect(lender)
-                    .deposit(toToken(10000), lender.address);
-                await juniorTrancheVaultContract
-                    .connect(lender)
-                    .deposit(toToken(10000), lender.address);
+                await seniorTrancheVaultContract.connect(lender).deposit(toToken(10000));
+                await juniorTrancheVaultContract.connect(lender).deposit(toToken(10000));
 
                 const seniorAvailableCap = await poolContract.getTrancheAvailableCap(
                     CONSTANTS.SENIOR_TRANCHE,
@@ -1001,8 +1432,8 @@ describe("Pool Test", function () {
                 );
                 const lpConfig = await poolConfigContract.getLPConfig();
                 const tranchesAssets = await poolContract.currentTranchesAssets();
-                expect(seniorAvailableCap).to.greaterThan(0);
-                expect(juniorAvailableCap).to.greaterThan(0);
+                expect(seniorAvailableCap).to.be.gt(0);
+                expect(juniorAvailableCap).to.be.gt(0);
                 expect(juniorAvailableCap).to.equal(
                     lpConfig.liquidityCap.sub(
                         tranchesAssets[CONSTANTS.JUNIOR_TRANCHE].add(
@@ -1033,6 +1464,35 @@ describe("Pool Test", function () {
                     expect(
                         await poolContract.getTrancheAvailableCap(CONSTANTS.SENIOR_TRANCHE),
                     ).to.equal(poolConfig.liquidityCap.sub(poolTotalAssets));
+                });
+
+                it("Should return 0 if the senior total assets is already higher than the 'junior total assets * max senior : junior ratio'", async function () {
+                    await seniorTrancheVaultContract.connect(lender).deposit(toToken(10_000));
+                    await juniorTrancheVaultContract.connect(lender).deposit(toToken(10_000));
+
+                    const [seniorAssets, juniorAssets] =
+                        await poolContract.currentTranchesAssets();
+                    // Make sure the liquidity cap is high enough so that the senior available cap is not constraint
+                    // by the liquidity cap.
+                    await overrideLPConfig(poolConfigContract, poolOwner, {
+                        liquidityCap: seniorAssets.add(toToken(1)),
+                    });
+                    // Mark all junior assets as loss.
+                    await mockDistributePnL(
+                        creditContract,
+                        creditManagerContract,
+                        0,
+                        juniorAssets,
+                        0,
+                    );
+                    const [newSeniorAssets, newJuniorAssets] =
+                        await poolContract.currentTranchesAssets();
+                    expect(newJuniorAssets).to.equal(0);
+                    expect(newSeniorAssets).to.equal(seniorAssets);
+
+                    expect(
+                        await poolContract.getTrancheAvailableCap(CONSTANTS.SENIOR_TRANCHE),
+                    ).to.equal(0);
                 });
             });
         });

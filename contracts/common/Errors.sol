@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 contract Errors {
     // Common
@@ -8,43 +8,44 @@ contract Errors {
     error InvalidBasisPointHigherThan10000(); // 0x5995a7a4
     error InsufficientAmountForRequest(); // 0x66367127
     error InsufficientSharesForRequest(); // 0xb0ef6d99
+    error ZeroSharesMinted(); // 0xd6a0a041
     error UnsupportedFunction(); // 0xea1c702e
 
     // Security
-    error AdminRequired(); // 0x92d14c9e
+    error HumaOwnerRequired(); // 0x290df4f6
+    error PoolOwnerOrHumaOwnerRequired(); // 0x3e984120
     error PoolOperatorRequired(); // 0xae7fe070
     error PoolOwnerRequired(); // 0x8b506451
-    error ProtocolOwnerRequired(); // 0xd99ba4d3
+    error HumaTreasuryRequired(); // 0x6e0a9ac9
     error PoolOwnerOrEARequired(); // 0xe54466f3
     error PauserRequired(); // 0xd4a99e4e
-    error NFTOwnerRequired(); // 0x85179c58
     error LenderRequired(); // 0x306fd1ae
     error BorrowerRequired(); // 0xeca877b1
     error BorrowerOrEARequired(); // 0xedaf53fe
     error PayerRequired(); // 0xb00f9713
     error CoverProviderRequired(); // 0x0c328563
     error AuthorizedContractCallerRequired(); // 0xf4bc99c7
-    error EvaluationAgentServiceAccountRequired(); // 0xa770729f
+    error EvaluationAgentRequired(); // 0x54a8b616
     error SentinelServiceAccountRequired(); // 0x272a85a5
     error TrancheRequired(); // 0x56b15134
 
     // Protocol config
     error TreasuryFeeHighThanUpperLimit(); // 0x743a9631
     error AlreadyAPauser(); // 0x2fe391f2
-    error AlreadyPoolAdmin(); // 0xebe277bd
 
     // Pool config
-    error ProposedEADoesNotOwnProvidedEANFT(); // 0xc7388fc8
     error UnderlyingTokenNotApprovedForHumaProtocol(); // 0x28918c5b
     error AdminRewardRateTooHigh(); // 0xa01087e8
     error PoolOwnerInsufficientLiquidity(); // 0xbd8efe51
     error EvaluationAgentInsufficientLiquidity(); // 0xc4c087d5
     error MinDepositAmountTooLow(); // 0xf250b9dc
+    error LatePaymentGracePeriodTooLong(); // 0x2e727550
 
     // Pool state
     error ProtocolIsPaused(); // 0xaf0b004c
     error PoolIsNotOn(); // 0xf082b5c3
     error PoolIsNotReadyForFirstLossCoverWithdrawal(); // 0x3c2546a3
+    error PoolIsNotClosed(); // 0x2faa680b
 
     // Calendar
     error StartDateLaterThanEndDate(); // 0xc496cd06
@@ -55,6 +56,7 @@ contract Errors {
     error WithdrawTooEarly(); // 0x64381803
     error InvalidTrancheIndex(); // 0x4e2a8dfe
     error EpochClosedTooEarly(); // 0xf6a9c460
+    error RedemptionsCannotBeProcessedDueToUnprocessedProfit(); // 0x0f4579c3
     error AlreadyALender(); // 0xce4108ca
     error NonReinvestYieldLenderCapacityReached(); // 0x39ad903d
     error ReinvestYieldOptionAlreadySet(); // 0xb44d305d
@@ -101,24 +103,7 @@ contract Errors {
     error ReceivableOwnerOrCreatorRequired(); // 0x6eae8328
     error ReceivableReferenceIdAlreadyExists(); // 0x6ff1906a
 
-    // Superfluid
-    error DurationTooLong(); // 0x9529f506
-    error InvalidFlowRate(); // 0xfe267e42
-    error OnlySuperfluid(); // 0xfb533448
-    error BorrowerMismatch(); // 0xb41f6d39
-    error FlowKeyMismatch(); // 0x8e6bfecd
-    error FlowIsNotTerminated(); // 0xe00cc45b
-    error InvalidSuperfluidCallback(); // 0xa229468b
-    error InvalidSuperfluidAction(); // 0x6ac91e96
-    error NotTradableStreamOwner(); // 0x03d702ef
-    error TradableStreamNotExisting(); // 0x4c3d6ac0
-    error TradableStreamNotMatured(); // 0x4bbf1794
-    error InsufficientAvailableFlowRate(); // 0x0d455f2e
-    error AuthorizationExpired(); // 0x0f05f5bf
-    error InvalidAuthorization(); // 0x2ce87eeb
-    error NewReceiverSameToOrigin(); // 0xdf9b7a8a
-
-    // factory
+    // Factory
     error InvalidPoolId(); // 0x0afa7ee8
     error InvalidTranchesPolicyType(); // 0xdfeca9c2
     error InvalidCreditType(); // 0x0dcf2e93

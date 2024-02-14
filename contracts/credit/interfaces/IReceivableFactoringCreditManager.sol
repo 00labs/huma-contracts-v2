@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {ReceivableInput} from "../CreditStructs.sol";
 
@@ -53,20 +53,6 @@ interface IReceivableFactoringCreditManager {
     function closeCredit(address borrower, uint256 receivableId) external;
 
     /**
-     * @notice Pauses the credit. No drawdown is allowed for paused credit.
-     * @param receivableId The ID of the receivable.
-     * @custom:access Only the EA can call this function
-     */
-    function pauseCredit(uint256 receivableId) external;
-
-    /**
-     * @notice Unpauses the credit to return the credit to normal.
-     * @param receivableId The ID of the receivable.
-     * @custom:access Only the EA can call this function.
-     */
-    function unpauseCredit(uint256 receivableId) external;
-
-    /**
      * @notice Updates the yield for the credit.
      * @param receivableId The ID of the receivable.
      * @param yieldInBps The new yield expressed in basis points.
@@ -89,7 +75,10 @@ interface IReceivableFactoringCreditManager {
      * this value and the actual amount of late fee due.
      * @custom:access Only the EA can call this function.
      */
-    function waiveLateFee(uint256 receivableId, uint256 waivedAmount) external;
+    function waiveLateFee(
+        uint256 receivableId,
+        uint256 waivedAmount
+    ) external returns (uint256 amountWaived);
 
     /**
      * @notice Checks whether the given account is a permitted payer for the credit.
