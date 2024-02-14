@@ -71,9 +71,9 @@ struct FrontLoadingFeesStructure {
 }
 
 struct FeeStructure {
-    // Expected yield in basis points
+    // Expected yield in basis points.
     uint16 yieldInBps;
-    // The min % of the outstanding principal to be paid in the statement for each each period
+    // The min % of the outstanding principal to be paid in the statement for each period.
     uint16 minPrincipalRateInBps;
     // The late fee rate expressed in bps. The late fee is the additional charge on top of the yield
     // when a payment is late, and is calculated as a % of the total outstanding balance.
