@@ -177,6 +177,16 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     }
 
     function _processRedemptionRequests(uint256 epochId) internal {
+        if (
+            poolSafe.unprocessedTrancheProfit(address(seniorTranche)) != 0 ||
+            poolSafe.unprocessedTrancheProfit(address(juniorTranche)) != 0
+        ) {
+            // Unprocessed profit may lead to suboptimal redemption processing since it's reserved in the pool safe
+            // and cannot be used for redemption processing. Revert to ensure yield distribution happen before
+            // redemption processing.
+            revert Errors.RedemptionsCannotBeProcessedDueToUnprocessedProfit();
+        }
+
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
         // Get unprocessed redemption requests.
         EpochRedemptionSummary memory seniorSummary = seniorTranche.epochRedemptionSummary(

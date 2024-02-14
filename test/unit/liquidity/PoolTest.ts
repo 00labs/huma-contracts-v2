@@ -153,14 +153,23 @@ describe("Pool Test", function () {
             await loadFixture(prepare);
         });
 
-        async function addLiquidity(poolOwnerAmount: BN, eaAmount: BN) {
+        async function addLiquidity(
+            poolOwnerAmountForJuniorTranche: BN,
+            poolOwnerAmountForSeniorTranche: BN,
+            eaAmount: BN,
+        ) {
             await mockTokenContract
                 .connect(poolOwnerTreasury)
                 .approve(poolSafeContract.address, ethers.constants.MaxUint256);
             await mockTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
             await juniorTrancheVaultContract
                 .connect(poolOwnerTreasury)
-                .makeInitialDeposit(poolOwnerAmount);
+                .makeInitialDeposit(poolOwnerAmountForJuniorTranche);
+            if (poolOwnerAmountForSeniorTranche.gt(0)) {
+                await seniorTrancheVaultContract
+                    .connect(poolOwnerTreasury)
+                    .makeInitialDeposit(poolOwnerAmountForSeniorTranche);
+            }
 
             await mockTokenContract
                 .connect(evaluationAgent)
@@ -216,37 +225,90 @@ describe("Pool Test", function () {
             expect(isPoolOn).to.be.false;
         });
 
-        it("Should not enable a pool when there is not enough liquidity for the pool owner", async function () {
-            await addLiquidity(minPoolOwnerLiquidity.sub(1), minEALiquidity);
+        describe("If the senior tranche is enabled", function () {
+            let minDepositAmount: BN;
 
-            await expect(
-                poolContract.connect(protocolOwner).enablePool(),
-            ).to.be.revertedWithCustomError(poolConfigContract, "PoolOwnerInsufficientLiquidity");
-            const isPoolOn = await poolContract.isPoolOn();
-            expect(isPoolOn).to.be.false;
+            beforeEach(async function () {
+                const lpConfig = await poolConfigContract.getLPConfig();
+                expect(lpConfig.maxSeniorJuniorRatio).to.be.gt(0);
+
+                const poolSettings = await poolConfigContract.getPoolSettings();
+                minDepositAmount = poolSettings.minDepositAmount;
+            });
+
+            it("Should not enable a pool when the pool owner has only satisfied the liquidity requirement for the junior tranche", async function () {
+                await addLiquidity(minPoolOwnerLiquidity, toToken(0), minEALiquidity);
+
+                await expect(
+                    poolContract.connect(protocolOwner).enablePool(),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerInsufficientLiquidity",
+                );
+                const isPoolOn = await poolContract.isPoolOn();
+                expect(isPoolOn).to.be.false;
+            });
+
+            it("Should not enable a pool when the pool owner has only satisfied the liquidity requirement for the senior tranche", async function () {
+                const lpConfig = await poolConfigContract.getLPConfig();
+                // Deposit some fund into the junior tranche so that the senior tranche deposit is not blocked by the
+                // max senior : junior ratio.
+                await addLiquidity(
+                    minPoolOwnerLiquidity.div(lpConfig.maxSeniorJuniorRatio).add(toToken(1)),
+                    minDepositAmount,
+                    minEALiquidity,
+                );
+
+                await expect(
+                    poolContract.connect(protocolOwner).enablePool(),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerInsufficientLiquidity",
+                );
+                const isPoolOn = await poolContract.isPoolOn();
+                expect(isPoolOn).to.be.false;
+            });
+
+            it("Should not enable a pool when there is not enough liquidity for the EA", async function () {
+                await addLiquidity(minPoolOwnerLiquidity, minDepositAmount, minEALiquidity.sub(1));
+
+                await expect(
+                    poolContract.connect(protocolOwner).enablePool(),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "EvaluationAgentInsufficientLiquidity",
+                );
+                const isPoolOn = await poolContract.isPoolOn();
+                expect(isPoolOn).to.be.false;
+            });
+
+            it("Should allow the pool owner to enable a pool when conditions are met", async function () {
+                await addLiquidity(minPoolOwnerLiquidity, minDepositAmount, minEALiquidity);
+
+                await expect(poolContract.connect(protocolOwner).enablePool())
+                    .to.emit(poolContract, "PoolEnabled")
+                    .withArgs(protocolOwner.address);
+                const isPoolOn = await poolContract.isPoolOn();
+                expect(isPoolOn).to.be.true;
+            });
         });
 
-        it("Should not enable a pool when there is not enough liquidity for the EA", async function () {
-            await addLiquidity(minPoolOwnerLiquidity, minEALiquidity.sub(1));
+        describe("If the senior tranche is disabled", function () {
+            beforeEach(async function () {
+                await overrideLPConfig(poolConfigContract, poolOwner, {
+                    maxSeniorJuniorRatio: 0,
+                });
+            });
 
-            await expect(
-                poolContract.connect(protocolOwner).enablePool(),
-            ).to.be.revertedWithCustomError(
-                poolConfigContract,
-                "EvaluationAgentInsufficientLiquidity",
-            );
-            const isPoolOn = await poolContract.isPoolOn();
-            expect(isPoolOn).to.be.false;
-        });
+            it("Should allow the pool owner to enable a pool when conditions are met", async function () {
+                await addLiquidity(minPoolOwnerLiquidity, toToken(0), minEALiquidity);
 
-        it("Should allow the pool owner to enable a pool when conditions are met", async function () {
-            await addLiquidity(minPoolOwnerLiquidity, minEALiquidity);
-
-            await expect(poolContract.connect(protocolOwner).enablePool())
-                .to.emit(poolContract, "PoolEnabled")
-                .withArgs(protocolOwner.address);
-            const isPoolOn = await poolContract.isPoolOn();
-            expect(isPoolOn).to.be.true;
+                await expect(poolContract.connect(protocolOwner).enablePool())
+                    .to.emit(poolContract, "PoolEnabled")
+                    .withArgs(protocolOwner.address);
+                const isPoolOn = await poolContract.isPoolOn();
+                expect(isPoolOn).to.be.true;
+            });
         });
     });
 
@@ -391,6 +453,9 @@ describe("Pool Test", function () {
                     loss,
                     lossRecovery,
                 );
+                await seniorTrancheVaultContract.processYieldForLenders();
+                await juniorTrancheVaultContract.processYieldForLenders();
+
                 await expect(poolContract.connect(poolOwner).closePool())
                     .to.emit(poolContract, "PoolClosed")
                     .withArgs(poolOwner.address)
@@ -585,6 +650,66 @@ describe("Pool Test", function () {
                     "PoolOwnerOrHumaOwnerRequired",
                 );
                 expect(await poolContract.isPoolClosed()).to.be.false;
+            });
+
+            it("Should not close the pool if there is unprocessed profit in the senior tranche", async function () {
+                // Distribute profit and then process yield for the junior tranche so that there are unprocessed profits
+                // in the senior tranche only.
+                await mockDistributePnL(
+                    creditContract,
+                    creditManagerContract,
+                    toToken(10_000),
+                    0,
+                    0,
+                );
+                await juniorTrancheVaultContract.processYieldForLenders();
+                expect(
+                    await poolSafeContract.unprocessedTrancheProfit(
+                        seniorTrancheVaultContract.address,
+                    ),
+                ).to.be.gt(0);
+                expect(
+                    await poolSafeContract.unprocessedTrancheProfit(
+                        juniorTrancheVaultContract.address,
+                    ),
+                ).to.equal(0);
+
+                await expect(
+                    poolContract.connect(poolOwner).closePool(),
+                ).to.be.revertedWithCustomError(
+                    epochManagerContract,
+                    "RedemptionsCannotBeProcessedDueToUnprocessedProfit",
+                );
+            });
+
+            it("Should not close the pool if there is unprocessed profit in the junior tranche", async function () {
+                // Distribute profit and then process yield for the senior tranche so that there are unprocessed profits
+                // in the junior tranche only.
+                await mockDistributePnL(
+                    creditContract,
+                    creditManagerContract,
+                    toToken(10_000),
+                    0,
+                    0,
+                );
+                await seniorTrancheVaultContract.processYieldForLenders();
+                expect(
+                    await poolSafeContract.unprocessedTrancheProfit(
+                        seniorTrancheVaultContract.address,
+                    ),
+                ).to.equal(0);
+                expect(
+                    await poolSafeContract.unprocessedTrancheProfit(
+                        juniorTrancheVaultContract.address,
+                    ),
+                ).to.be.gt(0);
+
+                await expect(
+                    poolContract.connect(poolOwner).closePool(),
+                ).to.be.revertedWithCustomError(
+                    epochManagerContract,
+                    "RedemptionsCannotBeProcessedDueToUnprocessedProfit",
+                );
             });
         });
 
@@ -1282,8 +1407,8 @@ describe("Pool Test", function () {
                 );
                 const lpConfig = await poolConfigContract.getLPConfig();
                 const tranchesAssets = await poolContract.currentTranchesAssets();
-                expect(seniorAvailableCap).to.greaterThan(0);
-                expect(juniorAvailableCap).to.greaterThan(0);
+                expect(seniorAvailableCap).to.be.gt(0);
+                expect(juniorAvailableCap).to.be.gt(0);
                 expect(juniorAvailableCap).to.equal(
                     lpConfig.liquidityCap.sub(
                         tranchesAssets[CONSTANTS.JUNIOR_TRANCHE].add(

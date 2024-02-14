@@ -228,29 +228,6 @@ describe("EpochManager Test", function () {
     });
 
     describe("closeEpoch", function () {
-        it("Should not close an epoch when the protocol is paused or the pool is off", async function () {
-            await humaConfigContract.connect(protocolOwner).pause();
-            await expect(epochManagerContract.closeEpoch()).to.be.revertedWithCustomError(
-                poolConfigContract,
-                "ProtocolIsPaused",
-            );
-            await humaConfigContract.connect(protocolOwner).unpause();
-
-            await poolContract.connect(poolOwner).disablePool();
-            await expect(epochManagerContract.closeEpoch()).to.be.revertedWithCustomError(
-                poolConfigContract,
-                "PoolIsNotOn",
-            );
-            await poolContract.connect(poolOwner).enablePool();
-        });
-
-        it("Should not close an epoch before end time", async function () {
-            await expect(epochManagerContract.closeEpoch()).to.be.revertedWithCustomError(
-                epochManagerContract,
-                "EpochClosedTooEarly",
-            );
-        });
-
         async function testCloseEpoch(
             seniorSharesRequested: BN,
             seniorSharesRedeemable: BN,
@@ -1810,6 +1787,93 @@ describe("EpochManager Test", function () {
                     );
                     await epochChecker.checkSeniorCurrentRedemptionSummaryEmpty();
                 },
+            );
+
+            it("Should not close an epoch if there is unprocessed profit in the senior tranche", async function () {
+                // Distribute profit and then process yield for the junior tranche so that there are unprocessed profits
+                // in the senior tranche only.
+                await mockDistributePnL(
+                    creditContract,
+                    creditManagerContract,
+                    toToken(10_000),
+                    0,
+                    0,
+                );
+                await juniorTrancheVaultContract.processYieldForLenders();
+                expect(
+                    await poolSafeContract.unprocessedTrancheProfit(
+                        seniorTrancheVaultContract.address,
+                    ),
+                ).to.be.gt(0);
+                expect(
+                    await poolSafeContract.unprocessedTrancheProfit(
+                        juniorTrancheVaultContract.address,
+                    ),
+                ).to.equal(0);
+
+                const lastEpoch = await epochManagerContract.currentEpoch();
+                const ts = lastEpoch.endTime.toNumber() + 60 * 5;
+                await setNextBlockTimestamp(ts);
+
+                await expect(epochManagerContract.closeEpoch()).to.be.revertedWithCustomError(
+                    epochManagerContract,
+                    "RedemptionsCannotBeProcessedDueToUnprocessedProfit",
+                );
+            });
+
+            it("Should not close an epoch if there is unprocessed profit in the junior tranche", async function () {
+                // Distribute profit and then process yield for the senior tranche so that there are unprocessed profits
+                // in the junior tranche only.
+                await mockDistributePnL(
+                    creditContract,
+                    creditManagerContract,
+                    toToken(10_000),
+                    0,
+                    0,
+                );
+                await seniorTrancheVaultContract.processYieldForLenders();
+                expect(
+                    await poolSafeContract.unprocessedTrancheProfit(
+                        seniorTrancheVaultContract.address,
+                    ),
+                ).to.equal(0);
+                expect(
+                    await poolSafeContract.unprocessedTrancheProfit(
+                        juniorTrancheVaultContract.address,
+                    ),
+                ).to.be.gt(0);
+
+                const lastEpoch = await epochManagerContract.currentEpoch();
+                const ts = lastEpoch.endTime.toNumber() + 60 * 5;
+                await setNextBlockTimestamp(ts);
+
+                await expect(epochManagerContract.closeEpoch()).to.be.revertedWithCustomError(
+                    epochManagerContract,
+                    "RedemptionsCannotBeProcessedDueToUnprocessedProfit",
+                );
+            });
+        });
+
+        it("Should not close an epoch when the protocol is paused or the pool is off", async function () {
+            await humaConfigContract.connect(protocolOwner).pause();
+            await expect(epochManagerContract.closeEpoch()).to.be.revertedWithCustomError(
+                poolConfigContract,
+                "ProtocolIsPaused",
+            );
+            await humaConfigContract.connect(protocolOwner).unpause();
+
+            await poolContract.connect(poolOwner).disablePool();
+            await expect(epochManagerContract.closeEpoch()).to.be.revertedWithCustomError(
+                poolConfigContract,
+                "PoolIsNotOn",
+            );
+            await poolContract.connect(poolOwner).enablePool();
+        });
+
+        it("Should not close an epoch before end time", async function () {
+            await expect(epochManagerContract.closeEpoch()).to.be.revertedWithCustomError(
+                epochManagerContract,
+                "EpochClosedTooEarly",
             );
         });
     });

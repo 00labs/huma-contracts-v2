@@ -42,6 +42,7 @@ import {
     evmRevert,
     evmSnapshot,
     getLatestBlock,
+    getMinLiquidityRequirementForPoolOwner,
     isCloseTo,
     overrideLPConfig,
     setNextBlockTimestamp,
@@ -205,12 +206,14 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
         .connect(poolOwnerTreasury)
         .approve(poolSafeContract.address, ethers.constants.MaxUint256);
     await mockTokenContract.mint(poolOwnerTreasury.getAddress(), toToken(1_000_000_000));
-    const poolOwnerLiquidity = BN.from(adminRnR.liquidityRateInBpsByPoolOwner)
-        .mul(POOL_LIQUIDITY_CAP)
-        .div(CONSTANTS.BP_FACTOR);
+    const poolOwnerLiquidity = await getMinLiquidityRequirementForPoolOwner(poolConfigContract);
     await juniorTrancheVaultContract
         .connect(poolOwnerTreasury)
         .makeInitialDeposit(poolOwnerLiquidity);
+    const poolSettings = await poolConfigContract.getPoolSettings();
+    await seniorTrancheVaultContract
+        .connect(poolOwnerTreasury)
+        .makeInitialDeposit(poolSettings.minDepositAmount);
 
     await mockTokenContract
         .connect(evaluationAgent)
@@ -744,7 +747,6 @@ describe("Multi-tranche Test", function () {
             await setNextBlockTimestamp(currentTS);
 
             let cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
             let profit = cr.yieldDue;
             let payment = cr.nextDue;
 
@@ -1063,7 +1065,7 @@ describe("Multi-tranche Test", function () {
             currentEpochId = newEpochId;
         });
 
-        it("Epoch 3, day 6: Late 3rd payment", async function () {
+        it("Epoch 3, day 6: Bill refreshed and the credit is delayed", async function () {
             currentTS += 5 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
@@ -1079,7 +1081,7 @@ describe("Multi-tranche Test", function () {
             await testRedemptionRequest([toToken(150_000)], []);
         });
 
-        it("Epoch 3, day 25: 4th payment by the borrower", async function () {
+        it("Epoch 3, day 25: 3rd payment by the borrower", async function () {
             currentTS += 15 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
@@ -1531,7 +1533,7 @@ describe("Multi-tranche Test", function () {
             currentEpochId = newEpochId;
         });
 
-        it("Epoch 6, day 6: Late 1st payment", async function () {
+        it("Epoch 6, day 6: Bill refreshed and the credit is delayed again", async function () {
             currentTS += 5 * CONSTANTS.SECONDS_IN_A_DAY + 100;
             await setNextBlockTimestamp(currentTS);
 
@@ -1611,7 +1613,7 @@ describe("Multi-tranche Test", function () {
             await checkLenderAssets(expectedTranchesAssets);
         });
 
-        it("Epoch 9, day 25: The borrower makes partial payment and distributes loss recovery", async function () {
+        it("Epoch 9, day 25: The borrower makes partial payment and loss recovery is distributed", async function () {
             currentTS += 24 * CONSTANTS.SECONDS_IN_A_DAY + 100;
             await setNextBlockTimestamp(currentTS);
 
@@ -2625,7 +2627,7 @@ describe("Multi-tranche Test", function () {
             currentEpochId = newEpochId;
         });
 
-        it("Epoch 3, day 6: Late 3rd payment", async function () {
+        it("Epoch 3, day 6: Bill refreshed and the credit is delayed", async function () {
             currentTS += 5 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
@@ -2641,7 +2643,7 @@ describe("Multi-tranche Test", function () {
             await testRedemptionRequest([toToken(70_000)], []);
         });
 
-        it("Epoch 3, day 25: 4th payment by the borrower", async function () {
+        it("Epoch 3, day 25: 3rd payment by the borrower", async function () {
             currentTS += 15 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
@@ -3107,7 +3109,7 @@ describe("Multi-tranche Test", function () {
             currentEpochId = newEpochId;
         });
 
-        it("Epoch 6, day 6: Late 1st payment", async function () {
+        it("Epoch 6, day 6: Bill refreshed and the credit is delayed again", async function () {
             currentTS += 5 * CONSTANTS.SECONDS_IN_A_DAY + 100;
             await setNextBlockTimestamp(currentTS);
 
@@ -3199,7 +3201,7 @@ describe("Multi-tranche Test", function () {
             await checkLenderAssets(expectedTranchesAssets);
         });
 
-        it("Epoch 9, day 25: The borrower makes some payment back and distributes loss recovery", async function () {
+        it("Epoch 9, day 25: The borrower makes some payment back and loss recovery is distributed", async function () {
             currentTS += 24 * CONSTANTS.SECONDS_IN_A_DAY + 100;
             await setNextBlockTimestamp(currentTS);
 

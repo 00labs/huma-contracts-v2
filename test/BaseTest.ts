@@ -44,6 +44,7 @@ import { EpochRedemptionSummaryStruct } from "../typechain-types/contracts/liqui
 import {
     getFirstLossCoverInfo,
     getLatestBlock,
+    getMinLiquidityRequirementForPoolOwner,
     maxBigNumber,
     minBigNumber,
     overrideLPConfig,
@@ -638,15 +639,13 @@ export async function setupPoolContracts(
     await poolConfigContract.connect(poolOwner).grantRole(role, poolOwner.getAddress());
     await poolConfigContract.connect(poolOwner).grantRole(role, poolOperator.getAddress());
 
-    // Deposit enough liquidity for the pool owner and EA in the junior tranche.
+    // Deposit enough liquidity for the pool owner in both tranches.
     const adminRnR = await poolConfigContract.getAdminRnR();
     await mockTokenContract
         .connect(poolOwnerTreasury)
         .approve(poolSafeContract.address, ethers.constants.MaxUint256);
     await mockTokenContract.mint(poolOwnerTreasury.getAddress(), toToken(1_000_000_000));
-    const poolOwnerLiquidity = BN.from(adminRnR.liquidityRateInBpsByPoolOwner)
-        .mul(poolLiquidityCap)
-        .div(CONSTANTS.BP_FACTOR);
+    const poolOwnerLiquidity = await getMinLiquidityRequirementForPoolOwner(poolConfigContract);
     await juniorTrancheVaultContract
         .connect(poolOperator)
         .addApprovedLender(poolOwnerTreasury.getAddress(), true);
@@ -656,7 +655,19 @@ export async function setupPoolContracts(
     await juniorTrancheVaultContract
         .connect(poolOwnerTreasury)
         .makeInitialDeposit(poolOwnerLiquidity);
-    let expectedInitialLiquidity = poolOwnerLiquidity;
+
+    const poolSettings = await poolConfigContract.getPoolSettings();
+    expect(await seniorTrancheVaultContract.totalSupply()).to.equal(0);
+    expect(
+        await seniorTrancheVaultContract.convertToShares(poolSettings.minDepositAmount),
+    ).to.equal(poolSettings.minDepositAmount);
+    expect(
+        await seniorTrancheVaultContract.convertToAssets(poolSettings.minDepositAmount),
+    ).to.equal(poolSettings.minDepositAmount);
+    await seniorTrancheVaultContract
+        .connect(poolOwnerTreasury)
+        .makeInitialDeposit(poolSettings.minDepositAmount);
+    let expectedInitialLiquidity = poolOwnerLiquidity.add(poolSettings.minDepositAmount);
 
     await mockTokenContract
         .connect(evaluationAgent)
@@ -700,10 +711,14 @@ export async function setupPoolContracts(
 
     await poolContract.connect(poolOwner).enablePool();
     expect(await poolContract.totalAssets()).to.equal(expectedInitialLiquidity);
-    expect(await juniorTrancheVaultContract.totalAssets()).to.equal(expectedInitialLiquidity);
-    expect(await juniorTrancheVaultContract.totalSupply()).to.equal(expectedInitialLiquidity);
-    expect(await seniorTrancheVaultContract.totalAssets()).to.equal(0);
-    expect(await seniorTrancheVaultContract.totalSupply()).to.equal(0);
+    expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
+        expectedInitialLiquidity.sub(poolSettings.minDepositAmount),
+    );
+    expect(await juniorTrancheVaultContract.totalSupply()).to.equal(
+        expectedInitialLiquidity.sub(poolSettings.minDepositAmount),
+    );
+    expect(await seniorTrancheVaultContract.totalAssets()).to.equal(poolSettings.minDepositAmount);
+    expect(await seniorTrancheVaultContract.totalSupply()).to.equal(poolSettings.minDepositAmount);
 
     for (let i = 0; i < accounts.length; i++) {
         await juniorTrancheVaultContract
