@@ -7,7 +7,6 @@ import {
     CreditDueManager,
     CreditLineManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
@@ -31,7 +30,6 @@ import {
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     pdsServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -39,9 +37,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress,
     lender: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -64,7 +60,6 @@ describe("Upgradeability Test", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             pdsServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -75,10 +70,9 @@ describe("Upgradeability Test", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             pdsServiceAccount,
             poolOwner,
         );
@@ -102,7 +96,6 @@ describe("Upgradeability Test", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
@@ -207,10 +200,9 @@ describe("Upgradeability Test", function () {
     });
 
     it("PoolFactory upgrade test", async function () {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             pdsServiceAccount,
             poolOwner,
         );

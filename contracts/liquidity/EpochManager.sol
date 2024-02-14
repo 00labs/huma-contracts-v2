@@ -115,6 +115,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
     /// @inheritdoc IEpochManager
     function processEpochAfterPoolClosure() external {
+        poolConfig.onlyPool(msg.sender);
         if (!pool.isPoolClosed()) revert Errors.PoolIsNotClosed();
 
         uint256 currentEpochId_ = _currentEpoch.id;

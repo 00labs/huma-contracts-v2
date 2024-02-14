@@ -5,7 +5,6 @@ import { ethers } from "hardhat";
 import {
     Calendar,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
@@ -26,7 +25,6 @@ import {
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -36,9 +34,7 @@ let poolOwner: SignerWithAddress,
     lender: SignerWithAddress,
     borrower: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -59,7 +55,6 @@ describe("Receivable Test", function () {
             defaultDeployer,
             protocolOwner,
             protocolTreasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -71,10 +66,9 @@ describe("Receivable Test", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             protocolTreasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -98,7 +92,6 @@ describe("Receivable Test", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
@@ -133,7 +126,7 @@ describe("Receivable Test", function () {
     describe("createReceivable and burn", function () {
         it("Should only allow the minter role to create receivable", async function () {
             await expect(
-                receivableContract.connect(eaServiceAccount).createReceivable(
+                receivableContract.connect(evaluationAgent).createReceivable(
                     0, // currencyCode
                     100,
                     100,
@@ -141,7 +134,7 @@ describe("Receivable Test", function () {
                     "Test URI",
                 ),
             ).to.be.revertedWith(
-                `AccessControl: account ${eaServiceAccount.address.toLowerCase()} is missing role ${await receivableContract.MINTER_ROLE()}`,
+                `AccessControl: account ${evaluationAgent.address.toLowerCase()} is missing role ${await receivableContract.MINTER_ROLE()}`,
             );
         });
 
