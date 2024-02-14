@@ -7,7 +7,6 @@ import {
     Calendar,
     CreditDueManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockToken,
@@ -48,7 +47,6 @@ import { CONSTANTS } from "../../constants";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -56,9 +54,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress;
 let lender: SignerWithAddress, borrower: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -81,7 +77,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -93,10 +88,9 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -120,7 +114,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
@@ -205,7 +198,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             const poolSettings = await poolConfigContract.getPoolSettings();
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.address,
                     creditLimit,
@@ -291,7 +284,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             await setNextBlockTimestamp(nextBlockTS);
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .updateLimitAndCommitment(borrower.address, creditLimit, borrowAmount.mul(5));
 
             // Day7
@@ -544,7 +537,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 .mul(CONSTANTS.BP_FACTOR.add(500))
                 .div(CONSTANTS.BP_FACTOR);
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .updateLimitAndCommitment(borrower.address, creditLimit, borrowAmount.mul(5));
         });
 

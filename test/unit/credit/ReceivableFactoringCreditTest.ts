@@ -7,7 +7,6 @@ import {
     Calendar,
     CreditDueManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockNFT,
@@ -44,7 +43,6 @@ import { CONSTANTS } from "../../constants";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -52,9 +50,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress;
 let lender: SignerWithAddress, borrower: SignerWithAddress, payer: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -77,7 +73,6 @@ describe("ReceivableFactoringCredit Tests", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -90,10 +85,9 @@ describe("ReceivableFactoringCredit Tests", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -116,7 +110,6 @@ describe("ReceivableFactoringCredit Tests", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
@@ -149,6 +142,41 @@ describe("ReceivableFactoringCredit Tests", function () {
         await loadFixture(prepare);
     });
 
+    describe("onERC721Received", function () {
+        let tokenId: BN;
+
+        async function prepareForTransfer() {
+            await nftContract.mintNFT(borrower.getAddress(), "");
+            tokenId = await nftContract.tokenOfOwnerByIndex(borrower.getAddress(), 0);
+        }
+
+        beforeEach(async function () {
+            await loadFixture(prepareForTransfer);
+        });
+
+        it("Should disallow transfers when the protocol is paused or pool is not on", async function () {
+            await humaConfigContract.connect(protocolOwner).pause();
+            await expect(
+                nftContract
+                    .connect(borrower)
+                    [
+                        "safeTransferFrom(address,address,uint256)"
+                    ](borrower.getAddress(), creditContract.address, tokenId),
+            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
+            await humaConfigContract.connect(protocolOwner).unpause();
+
+            await poolContract.connect(poolOwner).disablePool();
+            await expect(
+                nftContract
+                    .connect(borrower)
+                    [
+                        "safeTransferFrom(address,address,uint256)"
+                    ](borrower.getAddress(), creditContract.address, tokenId),
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
+            await poolContract.connect(poolOwner).enablePool();
+        });
+    });
+
     describe("getNextBillRefreshDate and getDueInfo", function () {
         const yieldInBps = 1217,
             principalRate = 100,
@@ -177,7 +205,7 @@ describe("ReceivableFactoringCredit Tests", function () {
             creditHash = await receivableLevelCreditHash(creditContract, nftContract, tokenId);
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveReceivable(
                     borrower.getAddress(),
                     { receivableAmount: creditLimit, receivableId: tokenId },
@@ -272,7 +300,7 @@ describe("ReceivableFactoringCredit Tests", function () {
 
         async function approveCredit() {
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveReceivable(
                     borrower.address,
                     { receivableAmount: creditLimit, receivableId: tokenId },
@@ -432,7 +460,7 @@ describe("ReceivableFactoringCredit Tests", function () {
 
         async function approveCreditAndDrawdown() {
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveReceivable(
                     borrower.address,
                     { receivableAmount: creditLimit, receivableId: tokenId },
@@ -464,7 +492,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                 const tokenId2 = await nftContract.tokenOfOwnerByIndex(borrower.getAddress(), 1);
                 await nftContract.connect(borrower).approve(creditContract.address, tokenId2);
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveReceivable(
                         borrower.address,
                         { receivableAmount: creditLimit, receivableId: tokenId2 },
@@ -607,7 +635,7 @@ describe("ReceivableFactoringCredit Tests", function () {
 
         async function approveCreditAndDrawdown() {
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveReceivable(
                     borrower.address,
                     { receivableAmount: creditLimit, receivableId: tokenId },
@@ -631,7 +659,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                 const tokenId2 = await nftContract.tokenOfOwnerByIndex(borrower.getAddress(), 1);
                 await nftContract.connect(borrower).approve(creditContract.address, tokenId2);
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveReceivable(
                         borrower.address,
                         { receivableAmount: creditLimit, receivableId: tokenId2 },
