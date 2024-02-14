@@ -61,6 +61,7 @@ let poolConfigContract: PoolConfig,
     creditContract: MockPoolCredit,
     creditManagerContract: MockPoolCreditManager,
     creditDueManagerContract: CreditDueManager;
+let seniorDepositAmount: BN;
 
 describe("FixedSeniorYieldTranchesPolicy Test", function () {
     before(async function () {
@@ -117,9 +118,9 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
             [lender],
         );
 
-        let juniorDepositAmount = toToken(100_000);
+        const juniorDepositAmount = toToken(100_000);
         await juniorTrancheVaultContract.connect(lender).deposit(juniorDepositAmount);
-        let seniorDepositAmount = toToken(300_000);
+        seniorDepositAmount = toToken(300_000);
         await seniorTrancheVaultContract.connect(lender).deposit(seniorDepositAmount);
 
         await overrideLPConfig(poolConfigContract, poolOwner, {
@@ -162,8 +163,7 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
         });
 
         it("Should distribute all profit to the senior tranche if unpaid yield is greater than the incoming profit", async function () {
-            const deployedAssets = toToken(300_000);
-            await creditContract.drawdown(ethers.constants.HashZero, deployedAssets);
+            await creditContract.drawdown(ethers.constants.HashZero, seniorDepositAmount);
             const assets = await poolContract.currentTranchesAssets();
             const profit = toToken(100);
             const currentTS = (await getLatestBlock()).timestamp;
@@ -213,14 +213,13 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
             const actualTracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(actualTracker, expectedTracker);
             const startOfNextDay = await calendarContract.getStartOfNextDay(nextTS);
-            expect(actualTracker.unpaidYield).to.equal(0);
+            expect(actualTracker.unpaidYield).to.be.gt(0);
             expect(actualTracker.lastUpdatedDate).to.equal(startOfNextDay);
             expect(actualTracker.totalAssets).to.equal(newAssets[CONSTANTS.SENIOR_TRANCHE]);
         });
 
         it("Should distribute profit to both senior and junior tranches if there is enough profit", async function () {
-            const deployedAssets = toToken(300_000);
-            await creditContract.drawdown(ethers.constants.HashZero, deployedAssets);
+            await creditContract.drawdown(ethers.constants.HashZero, seniorDepositAmount);
 
             const numFLCs = (await tranchesPolicyContract.getFirstLossCovers()).length;
             await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);

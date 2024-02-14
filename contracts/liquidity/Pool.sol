@@ -32,8 +32,9 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     enum PoolStatus {
-        Off,
-        On
+        Off, // The pool is temporarily turned off.
+        On, // The pool is active.
+        Closed // The pool is permanently closed after maturity.
     }
 
     IEpochManager public epochManager;
@@ -49,7 +50,6 @@ contract Pool is PoolConfigCache, IPool {
     TranchesAssets public tranchesAssets;
     TranchesLosses public tranchesLosses;
 
-    // Whether the pool is ON or OFF
     PoolStatus internal _status;
 
     bool public readyForFirstLossCoverWithdrawal;
@@ -59,6 +59,12 @@ contract Pool is PoolConfigCache, IPool {
      * @param by The address that disabled the pool.
      */
     event PoolDisabled(address indexed by);
+
+    /**
+     * @notice The pool has been closed.
+     * @param by The address that closed the pool.
+     */
+    event PoolClosed(address indexed by);
 
     /**
      * @notice The pool has been enabled.
@@ -140,6 +146,29 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     /**
+     * @notice Closes the pool permanently.
+     * @custom:access Only the pool owner or protocol owner can close a pool.
+     */
+    function closePool() external {
+        poolConfig.onlyPoolOwnerOrHumaOwner(msg.sender);
+        _status = PoolStatus.Closed;
+
+        // Set `readyForFirstLossCoverWithdrawal` to `true` so that first loss cover providers
+        // can withdraw their assets.
+        readyForFirstLossCoverWithdrawal = true;
+
+        // Set the `maxSeniorJuniorRatio` to 0 so that all pending redemption requests
+        // can be processed.
+        LPConfig memory lpConfig = poolConfig.getLPConfig();
+        lpConfig.maxSeniorJuniorRatio = 0;
+        poolConfig.setLPConfig(lpConfig);
+        // Process all pending redemption requests.
+        epochManager.processEpochAfterPoolClosure();
+
+        emit PoolClosed(msg.sender);
+    }
+
+    /**
      * @notice Enables or disables the first loss cover investors to withdraw capital.
      * @custom:access Only pool owner or Huma protocol owner can call this function.
      */
@@ -184,8 +213,13 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     /// @inheritdoc IPool
-    function isPoolOn() external view returns (bool status) {
+    function isPoolOn() external view returns (bool isOn) {
         return _status == PoolStatus.On;
+    }
+
+    /// @inheritdoc IPool
+    function isPoolClosed() external view returns (bool isClosed) {
+        return _status == PoolStatus.Closed;
     }
 
     /// @inheritdoc IPool

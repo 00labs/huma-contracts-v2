@@ -592,7 +592,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                     receivableAmount.sub(toToken(1)),
                 );
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .updateLimitAndCommitment(borrower.getAddress(), 0, 0);
 
             await poolConfigContract.connect(poolOwner).setCredit(defaultDeployer.getAddress());
