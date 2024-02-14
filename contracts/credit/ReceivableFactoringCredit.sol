@@ -164,7 +164,7 @@ contract ReceivableFactoringCredit is
         bytes32 creditHash,
         uint256 amount
     ) internal returns (uint256 amountPaid, bool paidoff) {
-        (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
+        (amountPaid, paidoff) = _makePayment(borrower, creditHash, amount);
         if (amount > amountPaid && msg.sender != borrower) {
             // If the payer paid more than the payoff amount, then disburse the remaining amount
             // to the borrower.
