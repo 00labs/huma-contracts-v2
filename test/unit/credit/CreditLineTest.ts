@@ -10,7 +10,6 @@ import {
     CreditLine,
     CreditLineManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockToken,
@@ -64,7 +63,6 @@ import { CONSTANTS } from "../../constants";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -72,9 +70,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress;
 let lender: SignerWithAddress, borrower: SignerWithAddress, borrower2: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -96,7 +92,6 @@ describe("CreditLine Test", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -109,10 +104,9 @@ describe("CreditLine Test", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -135,7 +129,6 @@ describe("CreditLine Test", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
@@ -190,7 +183,7 @@ describe("CreditLine Test", function () {
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.address,
                     toToken(100_000),
@@ -267,7 +260,7 @@ describe("CreditLine Test", function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(10_000),
@@ -283,7 +276,7 @@ describe("CreditLine Test", function () {
             await poolContract.connect(poolOwner).disablePool();
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(10_000),
@@ -307,16 +300,13 @@ describe("CreditLine Test", function () {
                     0,
                     true,
                 ),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentServiceAccountRequired",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
         });
 
         it("Should not approve with invalid parameters", async function () {
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         ethers.constants.AddressZero,
                         toToken(10_000),
@@ -330,7 +320,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(0),
@@ -344,7 +334,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(10_000),
@@ -358,7 +348,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(10_000),
@@ -378,7 +368,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         creditLimit,
@@ -391,7 +381,7 @@ describe("CreditLine Test", function () {
             ).to.be.revertedWithCustomError(creditManagerContract, "CreditLimitTooHigh");
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.address,
                     toToken(10_000),
@@ -404,7 +394,7 @@ describe("CreditLine Test", function () {
             await creditContract.connect(borrower).drawdown(toToken(10_000));
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(10_000),
@@ -420,7 +410,7 @@ describe("CreditLine Test", function () {
         it("Should not approve if the credit has no commitment but a designated start date", async function () {
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.getAddress(),
                         toToken(10_000),
@@ -446,7 +436,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.getAddress(),
                         toToken(10_000),
@@ -469,7 +459,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.getAddress(),
                         toToken(10_000),
@@ -492,7 +482,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(10_000),
@@ -547,7 +537,7 @@ describe("CreditLine Test", function () {
 
         it("Should approve again after a credit is closed", async function () {
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(borrower.address, toToken(10_000), 1, 1217, toToken(0), 0, true);
 
             await creditManagerContract.connect(borrower).closeCredit(borrower.address);
@@ -558,7 +548,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(20_000),
@@ -626,7 +616,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(10_000),
@@ -698,7 +688,7 @@ describe("CreditLine Test", function () {
                     nextBlockTimestamp,
                 );
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.getAddress(),
                         toToken(100_000),
@@ -805,7 +795,7 @@ describe("CreditLine Test", function () {
                     )
                 ).add(CONSTANTS.SECONDS_IN_A_DAY * 13);
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.getAddress(),
                         toToken(100_000),
@@ -954,7 +944,7 @@ describe("CreditLine Test", function () {
                 nextBlockTimestamp,
             );
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(100_000),
@@ -980,7 +970,7 @@ describe("CreditLine Test", function () {
         it("Should not start a credit that does not have a designated start date", async function () {
             committedAmount = toToken(50_000);
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(100_000),
@@ -1009,7 +999,7 @@ describe("CreditLine Test", function () {
                 nextBlockTimestamp,
             );
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(100_000),
@@ -1039,7 +1029,7 @@ describe("CreditLine Test", function () {
         describe("Without commitment", function () {
             async function prepareForDrawdown() {
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(100_000),
@@ -1296,7 +1286,7 @@ describe("CreditLine Test", function () {
                     defaultGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(triggerDefaultDate);
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .triggerDefault(borrower.getAddress());
                 const expectedCR = await creditContract.getCreditRecord(creditHash);
                 expect(expectedCR.state).to.equal(CreditState.Defaulted);
@@ -1335,7 +1325,7 @@ describe("CreditLine Test", function () {
                     .add(5, "days")
                     .startOf("day");
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(100_000),
@@ -1354,7 +1344,7 @@ describe("CreditLine Test", function () {
 
             it("Should not allow drawdown again if the credit line is non-revolving", async function () {
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(100_000),
@@ -1376,7 +1366,7 @@ describe("CreditLine Test", function () {
 
             it("Should not allow drawdown again if the credit limit is exceeded after bill refresh", async function () {
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(10_000),
@@ -1417,7 +1407,7 @@ describe("CreditLine Test", function () {
                     .connect(poolOwner)
                     .setPoolSettings({ ...settings, ...{ maxCreditLine: amount } });
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         amount,
@@ -1661,7 +1651,7 @@ describe("CreditLine Test", function () {
         describe("With commitment", function () {
             async function prepareForDrawdown() {
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(100_000),
@@ -1991,7 +1981,7 @@ describe("CreditLine Test", function () {
                 });
 
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(100_000),
@@ -2255,7 +2245,7 @@ describe("CreditLine Test", function () {
 
             committedAmount = toToken(10_000);
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.address,
                     toToken(100_000),
@@ -2296,7 +2286,7 @@ describe("CreditLine Test", function () {
 
                 it("Should not update anything if the credit is closed after approval", async function () {
                     await creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .closeCredit(borrower.getAddress());
 
                     const oldCR = await creditContract.getCreditRecord(creditHash);
@@ -2371,7 +2361,7 @@ describe("CreditLine Test", function () {
                         defaultGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY;
                     await setNextBlockTimestamp(triggerDefaultDate);
                     await creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .triggerDefault(borrower.getAddress());
                     const expectedCR = await creditContract.getCreditRecord(creditHash);
                     expect(expectedCR.state).to.equal(CreditState.Defaulted);
@@ -3759,7 +3749,7 @@ describe("CreditLine Test", function () {
                 .setPoolSettings({ ...settings, ...{ latePaymentGracePeriodInDays: 5 } });
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(100_000),
@@ -5563,7 +5553,7 @@ describe("CreditLine Test", function () {
                             .add(defaultGracePeriodInDays, "days");
                         await setNextBlockTimestamp(triggerDefaultDate.unix());
                         await creditManagerContract
-                            .connect(eaServiceAccount)
+                            .connect(evaluationAgent)
                             .triggerDefault(borrower.getAddress());
                         const cr = await creditContract.getCreditRecord(creditHash);
                         expect(cr.state).to.equal(CreditState.Defaulted);
@@ -7406,7 +7396,7 @@ describe("CreditLine Test", function () {
                 .setPoolSettings({ ...settings, ...{ latePaymentGracePeriodInDays: 5 } });
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(100_000),
@@ -7847,7 +7837,7 @@ describe("CreditLine Test", function () {
                         defaultGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY;
                     await setNextBlockTimestamp(triggerDefaultDate);
                     await creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .triggerDefault(borrower.getAddress());
                     const expectedCR = await creditContract.getCreditRecord(creditHash);
                     expect(expectedCR.state).to.equal(CreditState.Defaulted);
@@ -8141,7 +8131,7 @@ describe("CreditLine Test", function () {
                 ...{ defaultGracePeriodInDays: defaultGracePeriodInDays },
             });
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(borrower.address, toToken(100_000), 6, 1317, toToken(0), 0, true);
             await creditContract.connect(borrower).drawdown(borrowAmount);
         }
@@ -8224,7 +8214,7 @@ describe("CreditLine Test", function () {
                 lateFeeBps,
             });
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.address,
                     toToken(100_000),
@@ -8286,7 +8276,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .triggerDefault(borrower.getAddress()),
             )
                 .to.emit(creditManagerContract, "DefaultTriggered")
@@ -8295,7 +8285,7 @@ describe("CreditLine Test", function () {
                     expectedPrincipalLoss,
                     expectedYieldLoss,
                     expectedFeesLoss,
-                    await eaServiceAccount.getAddress(),
+                    await evaluationAgent.getAddress(),
                 )
                 .to.emit(creditContract, "BillRefreshed")
                 .to.emit(poolContract, "ProfitDistributed")
@@ -8307,7 +8297,7 @@ describe("CreditLine Test", function () {
             // Any further attempt to trigger default is disallowed.
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .triggerDefault(borrower.getAddress()),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
@@ -8341,23 +8331,20 @@ describe("CreditLine Test", function () {
         it("Should not allow default to be triggered when the protocol is paused or pool is not on", async function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
-                creditManagerContract.connect(eaServiceAccount).triggerDefault(borrower.address),
+                creditManagerContract.connect(evaluationAgent).triggerDefault(borrower.address),
             ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
             await expect(
-                creditManagerContract.connect(eaServiceAccount).triggerDefault(borrower.address),
+                creditManagerContract.connect(evaluationAgent).triggerDefault(borrower.address),
             ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
         });
 
         it("Should not allow non-EA service account to trigger default", async function () {
             await expect(
                 creditManagerContract.triggerDefault(borrower.address),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentServiceAccountRequired",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
         });
 
         it("Should not allow default to be triggered if the bill is not yet delayed", async function () {
@@ -8369,7 +8356,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .triggerDefault(borrower.getAddress()),
             ).to.be.revertedWithCustomError(creditManagerContract, "DefaultTriggeredTooEarly");
         });
@@ -8390,7 +8377,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .triggerDefault(borrower.getAddress()),
             ).to.be.revertedWithCustomError(creditManagerContract, "DefaultTriggeredTooEarly");
         });
@@ -8434,7 +8421,7 @@ describe("CreditLine Test", function () {
             ) {
                 creditHash = await borrowerLevelCreditHash(creditContract, borrower);
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(100_000),
@@ -8504,7 +8491,7 @@ describe("CreditLine Test", function () {
             });
 
             it("Should allow the evaluation agent to close a newly approved credit", async function () {
-                await testCloseCredit(eaServiceAccount);
+                await testCloseCredit(evaluationAgent);
             });
 
             it("Should allow the borrower to close a credit that's fully paid back", async function () {
@@ -8566,7 +8553,7 @@ describe("CreditLine Test", function () {
                 );
                 await creditContract.connect(borrower).makePrincipalPayment(paymentAmount);
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .updateYield(borrower.getAddress(), 0);
 
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -8630,7 +8617,7 @@ describe("CreditLine Test", function () {
         async function approveCredit() {
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.address,
                     toToken(100_000),
@@ -8653,7 +8640,7 @@ describe("CreditLine Test", function () {
             const newRemainingPeriods = oldCR.remainingPeriods + numOfPeriods;
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .extendRemainingPeriod(borrower.getAddress(), numOfPeriods),
             )
                 .to.emit(creditManagerContract, "RemainingPeriodsExtended")
@@ -8661,7 +8648,7 @@ describe("CreditLine Test", function () {
                     creditHash,
                     oldCR.remainingPeriods,
                     newRemainingPeriods,
-                    await eaServiceAccount.getAddress(),
+                    await evaluationAgent.getAddress(),
                 );
             const newCR = await creditContract.getCreditRecord(creditHash);
             expect(newCR.remainingPeriods).to.equal(newRemainingPeriods);
@@ -8671,7 +8658,7 @@ describe("CreditLine Test", function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .extendRemainingPeriod(borrower.getAddress(), numOfPeriods),
             ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
@@ -8679,7 +8666,7 @@ describe("CreditLine Test", function () {
             await poolContract.connect(poolOwner).disablePool();
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .extendRemainingPeriod(borrower.getAddress(), numOfPeriods),
             ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
             await poolContract.connect(poolOwner).enablePool();
@@ -8690,10 +8677,7 @@ describe("CreditLine Test", function () {
                 creditManagerContract
                     .connect(borrower)
                     .extendRemainingPeriod(borrower.getAddress(), numOfPeriods),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentServiceAccountRequired",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
         });
 
         it("Should not allow extension on a newly approved credit line", async function () {
@@ -8702,7 +8686,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .extendRemainingPeriod(borrower.getAddress(), 1),
             ).to.be.revertedWithCustomError(creditManagerContract, "CreditNotInStateForUpdate");
         });
@@ -8724,7 +8708,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .extendRemainingPeriod(borrower.getAddress(), 1),
             ).to.be.revertedWithCustomError(creditManagerContract, "CreditNotInStateForUpdate");
         });
@@ -8746,7 +8730,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .extendRemainingPeriod(borrower.getAddress(), 1),
             ).to.be.revertedWithCustomError(creditManagerContract, "CreditNotInStateForUpdate");
         });
@@ -8764,14 +8748,14 @@ describe("CreditLine Test", function () {
             await setNextBlockTimestamp(refreshDate);
             await creditManagerContract.refreshCredit(borrower.getAddress());
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .triggerDefault(borrower.getAddress());
             const newCR = await creditContract.getCreditRecord(creditHash);
             expect(newCR.state).to.equal(CreditState.Defaulted);
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .extendRemainingPeriod(borrower.getAddress(), 1),
             ).to.be.revertedWithCustomError(creditManagerContract, "CreditNotInStateForUpdate");
         });
@@ -8787,7 +8771,7 @@ describe("CreditLine Test", function () {
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     await borrower.getAddress(),
                     toToken(100_000),
@@ -8820,7 +8804,7 @@ describe("CreditLine Test", function () {
             const oldDD = await creditContract.getDueDetail(creditHash);
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .updateYield(borrower.getAddress(), newYieldInBps),
             )
                 .to.emit(creditManagerContract, "YieldUpdated")
@@ -8828,7 +8812,7 @@ describe("CreditLine Test", function () {
                     creditHash,
                     yieldInBps,
                     newYieldInBps,
-                    await eaServiceAccount.getAddress(),
+                    await evaluationAgent.getAddress(),
                 );
 
             const cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -8852,7 +8836,6 @@ describe("CreditLine Test", function () {
 
             it("Should update the yield due", async function () {
                 await drawdown();
-
                 await testUpdate();
             });
 
@@ -8864,7 +8847,7 @@ describe("CreditLine Test", function () {
                 const firstUpdateDate = drawdownDate + CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(firstUpdateDate);
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .updateYield(borrower.getAddress(), firstYieldInBps);
 
                 // Second update.
@@ -8876,7 +8859,7 @@ describe("CreditLine Test", function () {
 
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .updateYield(borrower.getAddress(), secondYieldInBps),
                 )
                     .to.emit(creditManagerContract, "YieldUpdated")
@@ -8884,7 +8867,7 @@ describe("CreditLine Test", function () {
                         creditHash,
                         firstYieldInBps,
                         secondYieldInBps,
-                        await eaServiceAccount.getAddress(),
+                        await evaluationAgent.getAddress(),
                     );
 
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -8912,7 +8895,7 @@ describe("CreditLine Test", function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .updateYield(await borrower.getAddress(), 1517),
             ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
@@ -8920,7 +8903,7 @@ describe("CreditLine Test", function () {
             await poolContract.connect(poolOwner).disablePool();
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .updateYield(await borrower.getAddress(), 1517),
             ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
             await poolContract.connect(poolOwner).enablePool();
@@ -8929,10 +8912,7 @@ describe("CreditLine Test", function () {
         it("Should not allow non-EAs to perform the update", async function () {
             await expect(
                 creditManagerContract.updateYield(await borrower.getAddress(), 1517),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentServiceAccountRequired",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
         });
 
         it("Should not allow the EA to update the yield if the credit is newly approved", async function () {
@@ -8941,21 +8921,21 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .updateYield(borrower.getAddress(), 1517),
             ).to.be.revertedWithCustomError(creditManagerContract, "CreditNotInStateForUpdate");
         });
 
         it("Should not allow the EA to update the yield if the credit is closed", async function () {
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .closeCredit(borrower.getAddress());
             const cr = await creditContract.getCreditRecord(creditHash);
             expect(cr.state).to.eq(CreditState.Deleted);
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .updateYield(borrower.getAddress(), 1517),
             ).to.be.revertedWithCustomError(creditManagerContract, "CreditNotInStateForUpdate");
         });
@@ -8972,7 +8952,7 @@ describe("CreditLine Test", function () {
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.address,
                     creditLimit,
@@ -9006,7 +8986,7 @@ describe("CreditLine Test", function () {
             const oldDD = await creditContract.getDueDetail(creditHash);
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .updateLimitAndCommitment(
                         borrower.getAddress(),
                         creditLimit,
@@ -9020,7 +9000,7 @@ describe("CreditLine Test", function () {
                     creditLimit,
                     committedAmount,
                     newCommittedAmount,
-                    await eaServiceAccount.getAddress(),
+                    await evaluationAgent.getAddress(),
                 );
 
             const cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -9045,7 +9025,7 @@ describe("CreditLine Test", function () {
 
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .updateLimitAndCommitment(
                             await borrower.getAddress(),
                             toToken(200_000),
@@ -9059,14 +9039,14 @@ describe("CreditLine Test", function () {
 
             it("Should not allow the EA to update the credit limit and commitment if the credit is closed", async function () {
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .closeCredit(borrower.getAddress());
                 const cr = await creditContract.getCreditRecord(creditHash);
                 expect(cr.state).to.equal(CreditState.Deleted);
 
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .updateLimitAndCommitment(
                             await borrower.getAddress(),
                             toToken(200_000),
@@ -9123,7 +9103,7 @@ describe("CreditLine Test", function () {
                     await humaConfigContract.connect(protocolOwner).pause();
                     await expect(
                         creditManagerContract
-                            .connect(eaServiceAccount)
+                            .connect(evaluationAgent)
                             .updateLimitAndCommitment(
                                 await borrower.getAddress(),
                                 toToken(200_000),
@@ -9135,7 +9115,7 @@ describe("CreditLine Test", function () {
                     await poolContract.connect(poolOwner).disablePool();
                     await expect(
                         creditManagerContract
-                            .connect(eaServiceAccount)
+                            .connect(evaluationAgent)
                             .updateLimitAndCommitment(
                                 await borrower.getAddress(),
                                 toToken(200_000),
@@ -9154,14 +9134,14 @@ describe("CreditLine Test", function () {
                         ),
                     ).to.be.revertedWithCustomError(
                         creditManagerContract,
-                        "EvaluationAgentServiceAccountRequired",
+                        "EvaluationAgentRequired",
                     );
                 });
 
                 it("Should not allow the updated committed amount to exceed the credit limit", async function () {
                     await expect(
                         creditManagerContract
-                            .connect(eaServiceAccount)
+                            .connect(evaluationAgent)
                             .updateLimitAndCommitment(
                                 await borrower.getAddress(),
                                 toToken(100_000),
@@ -9185,7 +9165,7 @@ describe("CreditLine Test", function () {
 
                     await expect(
                         creditManagerContract
-                            .connect(eaServiceAccount)
+                            .connect(evaluationAgent)
                             .updateLimitAndCommitment(
                                 await borrower.getAddress(),
                                 maxCreditLine.add(toToken(1)),
@@ -9233,7 +9213,7 @@ describe("CreditLine Test", function () {
             borrowAmount = toToken(50_000);
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.address,
                     toToken(100_000),
@@ -9274,7 +9254,7 @@ describe("CreditLine Test", function () {
                 expect(cr.state).to.eq(CreditState.Approved);
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .waiveLateFee(borrower.getAddress(), toToken(1)),
                 ).to.be.revertedWithCustomError(
                     creditManagerContract,
@@ -9284,13 +9264,13 @@ describe("CreditLine Test", function () {
 
             it("Should not allow the EA to waive late if the credit is closed", async function () {
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .closeCredit(borrower.getAddress());
                 const cr = await creditContract.getCreditRecord(creditHash);
                 expect(cr.state).to.eq(CreditState.Deleted);
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .waiveLateFee(borrower.getAddress(), toToken(1)),
                 ).to.be.revertedWithCustomError(
                     creditManagerContract,
@@ -9316,7 +9296,7 @@ describe("CreditLine Test", function () {
                 expect(oldDD.lateFee).to.be.gt(0);
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .waiveLateFee(borrower.getAddress(), waivedAmount),
                 )
                     .to.emit(creditManagerContract, "LateFeeWaived")
@@ -9324,7 +9304,7 @@ describe("CreditLine Test", function () {
                         creditHash,
                         oldDD.lateFee,
                         expectedNewLateFee,
-                        await eaServiceAccount.getAddress(),
+                        await evaluationAgent.getAddress(),
                     );
 
                 const actualCR = await creditContract.getCreditRecord(creditHash);
@@ -9365,7 +9345,7 @@ describe("CreditLine Test", function () {
                 await humaConfigContract.connect(protocolOwner).pause();
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .waiveLateFee(borrower.getAddress(), toToken(1)),
                 ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
@@ -9373,7 +9353,7 @@ describe("CreditLine Test", function () {
                 await poolContract.connect(poolOwner).disablePool();
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .waiveLateFee(borrower.getAddress(), toToken(1)),
                 ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
@@ -9382,10 +9362,7 @@ describe("CreditLine Test", function () {
             it("Should not allow non-EAs to waive the late fee", async function () {
                 await expect(
                     creditManagerContract.waiveLateFee(borrower.getAddress(), toToken(1)),
-                ).to.be.revertedWithCustomError(
-                    creditManagerContract,
-                    "EvaluationAgentServiceAccountRequired",
-                );
+                ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
             });
         });
     });

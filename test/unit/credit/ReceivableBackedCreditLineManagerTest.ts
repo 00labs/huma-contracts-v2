@@ -8,7 +8,6 @@ import {
     Calendar,
     CreditDueManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockToken,
@@ -34,7 +33,6 @@ import { CONSTANTS } from "../../constants";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -42,9 +40,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress;
 let lender: SignerWithAddress, borrower: SignerWithAddress, borrower2: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -67,7 +63,6 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -80,10 +75,9 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -107,7 +101,6 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
@@ -165,7 +158,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
             it("Should not approve receivables from the borrower", async function () {
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .approveReceivable(borrower.getAddress(), receivableId),
                 ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
             });
@@ -187,7 +180,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
 
                 creditLimit = toToken(65_000);
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.getAddress(),
                         creditLimit,
@@ -198,7 +191,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                         true,
                     );
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower2.getAddress(),
                         creditLimit,
@@ -222,7 +215,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                     .div(CONSTANTS.BP_FACTOR);
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .approveReceivable(borrower.getAddress(), receivableId),
                 )
                     .to.emit(creditManagerContract, "ReceivableApproved")
@@ -236,7 +229,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                 // The same receivable can be approved twice w/o increasing the available credit.
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .approveReceivable(borrower.getAddress(), receivableId),
                 ).not.to.emit(creditManagerContract, "ReceivableApproved");
                 const actualAvailableCredit =
@@ -262,7 +255,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                 const expectedAvailableCredit = actualAvailableCredit.add(newIncrementalCredit);
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .approveReceivable(borrower.getAddress(), receivableId2),
                 )
                     .to.emit(creditManagerContract, "ReceivableApproved")
@@ -292,7 +285,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                 );
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .approveReceivable(borrower.getAddress(), receivableId3),
                 ).to.be.revertedWithCustomError(creditManagerContract, "CreditLimitExceeded");
                 // There should be no change to the available credit.
@@ -309,7 +302,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                 await humaConfigContract.connect(protocolOwner).pause();
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .approveReceivable(borrower.getAddress(), receivableId),
                 ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
@@ -317,7 +310,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                 await poolContract.connect(poolOwner).disablePool();
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .approveReceivable(borrower.getAddress(), receivableId),
                 ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
@@ -337,7 +330,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
             it("Should not approve a receivable with 0 ID", async function () {
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .approveReceivable(borrower.getAddress(), 0),
                 ).to.be.revertedWithCustomError(creditManagerContract, "ZeroReceivableIdProvided");
             });
@@ -345,12 +338,12 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
             it("Should not approve a receivable that was previously approved to someone else", async function () {
                 // If there are n receivables, then receivable with ID n + 1 must not exist.
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveReceivable(borrower.getAddress(), receivableId);
 
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .approveReceivable(borrower2.getAddress(), receivableId),
                 ).to.be.revertedWithCustomError(creditManagerContract, "ReceivableIdMismatch");
             });
@@ -360,7 +353,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                 const numReceivables = await receivableContract.totalSupply();
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .approveReceivable(borrower.getAddress(), numReceivables.add(1)),
                 ).to.be.revertedWithCustomError(creditManagerContract, "ZeroReceivableAmount");
             });
@@ -380,7 +373,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
 
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .approveReceivable(borrower.getAddress(), receivableId2),
                 ).to.be.revertedWithCustomError(creditManagerContract, "ZeroReceivableAmount");
 
@@ -405,7 +398,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
 
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .approveReceivable(borrower.getAddress(), receivableId2),
                 ).to.be.revertedWithCustomError(creditManagerContract, "ReceivableAlreadyMatured");
 
@@ -432,7 +425,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
 
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .approveReceivable(borrower.getAddress(), receivableId2),
                 ).to.be.revertedWithCustomError(creditManagerContract, "InvalidReceivableState");
 
@@ -454,7 +447,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
 
         async function prepare() {
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(65_000),
@@ -472,7 +465,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                 .createReceivable(0, receivableAmount, maturityDate, "referenceId4", "Test URI");
             receivableId = await receivableContract.tokenOfOwnerByIndex(borrower.getAddress(), 0);
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveReceivable(borrower.getAddress(), receivableId);
         }
 
@@ -486,7 +479,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
             await mineNextBlockWithTimestamp(receivable.maturityDate.add(1));
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .validateReceivableStatus(receivable.maturityDate, receivable.state),
             ).to.be.revertedWithCustomError(creditManagerContract, "ReceivableAlreadyMatured");
         });
@@ -499,7 +492,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .validateReceivableStatus(receivable.maturityDate, receivable.state),
             ).to.be.revertedWithCustomError(creditManagerContract, "InvalidReceivableState");
         });
@@ -507,7 +500,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
 
     describe("decreaseAvailableCredit", function () {
         let creditHash: string;
-        let receivableAmount: BN, maturityDate: number;
+        let receivableAmount: BN, maturityDate: number, receivableId: BN;
 
         async function prepareForDecreaseAvailableCredit() {
             receivableAmount = toToken(10_000);
@@ -521,7 +514,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                 },
             });
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(100_000),
@@ -541,31 +534,34 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                 "referenceId4",
                 "Test URI",
             );
-            const receivableId = await receivableContract.tokenOfOwnerByIndex(
-                borrower.getAddress(),
-                0,
-            );
+            receivableId = await receivableContract.tokenOfOwnerByIndex(borrower.getAddress(), 0);
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveReceivable(borrower.getAddress(), receivableId);
+            await receivableContract
+                .connect(borrower)
+                .approve(creditContract.address, receivableId);
             const availableCredit = await creditManagerContract.getAvailableCredit(creditHash);
             expect(availableCredit).to.equal(receivableAmount);
-
-            await poolConfigContract.connect(poolOwner).setCredit(defaultDeployer.getAddress());
-            await creditManagerContract.connect(poolOwner).updatePoolConfigData();
         }
 
         beforeEach(async function () {
             await loadFixture(prepareForDecreaseAvailableCredit);
         });
 
-        it("Should allow the credit contract to decrease the credit limit", async function () {
+        it("Should allow the credit contract to decrease the available credit", async function () {
+            await poolConfigContract.connect(poolOwner).setCredit(defaultDeployer.getAddress());
+            await creditManagerContract.connect(poolOwner).updatePoolConfigData();
+
             await creditManagerContract.decreaseAvailableCredit(creditHash, receivableAmount);
             const availableCredit = await creditManagerContract.getAvailableCredit(creditHash);
             expect(availableCredit).to.equal(0);
         });
 
-        it("Should not allow non-Credit contracts to decrease credit limit", async function () {
+        it("Should not allow non-Credit contracts to decrease the available credit", async function () {
+            await poolConfigContract.connect(poolOwner).setCredit(defaultDeployer.getAddress());
+            await creditManagerContract.connect(poolOwner).updatePoolConfigData();
+
             await expect(
                 creditManagerContract
                     .connect(borrower)
@@ -576,12 +572,31 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
             );
         });
 
-        it("Should not decrease the credit limit beyond what's available", async function () {
+        it("Should not decrease the available credit if the amount exceeds the approved amount of available credit", async function () {
+            await poolConfigContract.connect(poolOwner).setCredit(defaultDeployer.getAddress());
+            await creditManagerContract.connect(poolOwner).updatePoolConfigData();
+
             await expect(
                 creditManagerContract.decreaseAvailableCredit(
                     creditHash,
                     receivableAmount.add(toToken(1)),
                 ),
+            ).to.be.revertedWithCustomError(creditManagerContract, "CreditLimitExceeded");
+        });
+
+        it("Should not decrease the available credit if the amount exceeds the credit limit", async function () {
+            await creditContract
+                .connect(borrower)
+                .drawdownWithReceivable(receivableId, receivableAmount.sub(toToken(1)));
+            await creditManagerContract
+                .connect(evaluationAgent)
+                .updateLimitAndCommitment(borrower.getAddress(), 0, 0);
+
+            await poolConfigContract.connect(poolOwner).setCredit(defaultDeployer.getAddress());
+            await creditManagerContract.connect(poolOwner).updatePoolConfigData();
+
+            await expect(
+                creditManagerContract.decreaseAvailableCredit(creditHash, toToken(1)),
             ).to.be.revertedWithCustomError(creditManagerContract, "CreditLimitExceeded");
         });
     });
