@@ -74,7 +74,7 @@ describe("HumaConfig Tests", function () {
         it("Should allow treasury to be changed", async function () {
             expect(await configContract.connect(origOwner).setHumaTreasury(newTreasury.address))
                 .to.emit(configContract, "HumaTreasuryChanged")
-                .withArgs(newTreasury.address);
+                .withArgs(newTreasury.address, await origOwner.getAddress());
             expect(await configContract.connect(origOwner).humaTreasury()).to.equal(
                 newTreasury.address,
             );
@@ -222,7 +222,7 @@ describe("HumaConfig Tests", function () {
         it("Should be able to change treasury fee", async function () {
             await expect(configContract.connect(origOwner).setTreasuryFee(2000))
                 .to.emit(configContract, "TreasuryFeeChanged")
-                .withArgs(500, 2000);
+                .withArgs(500, 2000, await origOwner.getAddress());
             expect(await configContract.protocolFeeInBps()).to.equal(2000);
         });
     });
@@ -251,7 +251,7 @@ describe("HumaConfig Tests", function () {
                     .setSentinelServiceAccount(sentinelServiceAccount.address),
             )
                 .to.emit(configContract, "SentinelServiceAccountChanged")
-                .withArgs(sentinelServiceAccount.address);
+                .withArgs(sentinelServiceAccount.address, await origOwner.getAddress());
             expect(await configContract.connect(origOwner).sentinelServiceAccount()).to.equal(
                 sentinelServiceAccount.address,
             );

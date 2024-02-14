@@ -159,9 +159,11 @@ describe("ReceivableFactoringCredit Tests", function () {
             await expect(
                 nftContract
                     .connect(borrower)
-                    [
-                        "safeTransferFrom(address,address,uint256)"
-                    ](borrower.getAddress(), creditContract.address, tokenId),
+                    ["safeTransferFrom(address,address,uint256)"](
+                        borrower.getAddress(),
+                        creditContract.address,
+                        tokenId,
+                    ),
             ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
@@ -169,9 +171,11 @@ describe("ReceivableFactoringCredit Tests", function () {
             await expect(
                 nftContract
                     .connect(borrower)
-                    [
-                        "safeTransferFrom(address,address,uint256)"
-                    ](borrower.getAddress(), creditContract.address, tokenId),
+                    ["safeTransferFrom(address,address,uint256)"](
+                        borrower.getAddress(),
+                        creditContract.address,
+                        tokenId,
+                    ),
             ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
             await poolContract.connect(poolOwner).enablePool();
         });
@@ -364,7 +368,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                         await borrower.getAddress(),
                     )
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, nextDueDate, nextDue);
+                    .withArgs(creditHash, nextDueDate, nextDue, 0);
                 const borrowerNewBalance = await mockTokenContract.balanceOf(
                     borrower.getAddress(),
                 );
