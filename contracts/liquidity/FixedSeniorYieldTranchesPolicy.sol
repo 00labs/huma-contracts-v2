@@ -41,7 +41,7 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
             revert Errors.AuthorizedContractCallerRequired();
         }
 
-        (SeniorYieldTracker memory tracker, bool updated) = _getYieldTracker();
+        (SeniorYieldTracker memory tracker, bool updated) = _getLatestYieldTracker();
         if (tracker.totalAssets != assets[SENIOR_TRANCHE]) {
             tracker.totalAssets = assets[SENIOR_TRANCHE];
             updated = true;
@@ -56,11 +56,11 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
         }
     }
 
-    function _distributeProfitForSeniorTranche(
+    function _calcProfitForSeniorTranche(
         uint256 profit,
         uint96[2] memory assets
     ) internal virtual override returns (uint256 seniorProfit, uint256 remainingProfit) {
-        (SeniorYieldTracker memory tracker, ) = _getYieldTracker();
+        (SeniorYieldTracker memory tracker, ) = _getLatestYieldTracker();
 
         seniorProfit = tracker.unpaidYield > profit ? profit : tracker.unpaidYield;
         remainingProfit = profit - seniorProfit;
@@ -90,7 +90,11 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
      * @return The (potentially) updated SeniorYieldTracker.
      * @return updated Whether the SeniorYieldTracker has been updated.
      */
-    function _getYieldTracker() internal view returns (SeniorYieldTracker memory, bool updated) {
+    function _getLatestYieldTracker()
+        internal
+        view
+        returns (SeniorYieldTracker memory, bool updated)
+    {
         SeniorYieldTracker memory tracker = seniorYieldTracker;
         uint256 startOfNextDay = calender.getStartOfNextDay(block.timestamp);
         uint256 daysDiff = calender.getDaysDiff(tracker.lastUpdatedDate, startOfNextDay);

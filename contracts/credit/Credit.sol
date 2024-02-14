@@ -8,7 +8,6 @@ import {IPool} from "../liquidity/interfaces/IPool.sol";
 import {PoolConfigCache} from "../common/PoolConfigCache.sol";
 import {CreditStorage} from "./CreditStorage.sol";
 import {CreditConfig, CreditRecord, CreditState, DueDetail} from "./CreditStructs.sol";
-import {PayPeriodDuration} from "../common/SharedDefs.sol";
 import {IFirstLossCover} from "../liquidity/interfaces/IFirstLossCover.sol";
 import {IPoolSafe} from "../liquidity/interfaces/IPoolSafe.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
