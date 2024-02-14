@@ -38,9 +38,15 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
      * @notice Account billing info refreshed with the updated due amount and date.
      * @param creditHash The hash of the credit.
      * @param newDueDate The updated due date of the bill.
-     * @param amountDue The amount due on the bill.
+     * @param nextDue The amount of next due on the bill.
+     * @param totalPastDue The total amount of past due on the bill.
      */
-    event BillRefreshed(bytes32 indexed creditHash, uint256 newDueDate, uint256 amountDue);
+    event BillRefreshed(
+        bytes32 indexed creditHash,
+        uint256 newDueDate,
+        uint256 nextDue,
+        uint256 totalPastDue
+    );
 
     /**
      * @notice A borrowing event has happened to the credit.
@@ -160,7 +166,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     ) internal virtual {
         _setCreditRecord(creditHash, cr);
         _setDueDetail(creditHash, dd);
-        emit BillRefreshed(creditHash, cr.nextDueDate, cr.nextDue);
+        emit BillRefreshed(creditHash, cr.nextDueDate, cr.nextDue, cr.totalPastDue);
     }
 
     /**
@@ -259,14 +265,12 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
      * @return amountPaid The actual amount paid to the contract. When the tendered
      * amount is larger than the payoff amount, the contract only accepts the payoff amount.
      * @return paidoff A flag indicating whether the account has been paid off.
-     * @return isReviewRequired a flag indicating whether this payment transaction has been
-     * flagged for review.
      */
     function _makePayment(
         address borrower,
         bytes32 creditHash,
         uint256 amount
-    ) internal returns (uint256 amountPaid, bool paidoff, bool isReviewRequired) {
+    ) internal returns (uint256 amountPaid, bool paidoff) {
         if (amount == 0) revert Errors.ZeroAmountProvided();
 
         CreditRecord memory cr = getCreditRecord(creditHash);
@@ -426,7 +430,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         }
 
         // amountToCollect == payoffAmount indicates paidoff or not. >= is a safe practice
-        return (amountToCollect, amountToCollect >= payoffAmount, false);
+        return (amountToCollect, amountToCollect >= payoffAmount);
     }
 
     /**
