@@ -64,9 +64,9 @@ struct LPConfig {
 }
 
 struct FrontLoadingFeesStructure {
-    // Part of platform fee, charged as a flat amount when a borrow happens
+    // Part of platform fee, charged as a flat amount when borrowing occurs.
     uint96 frontLoadingFeeFlat;
-    // Part of platform fee, charged as a % of the borrowing amount when a borrow happens
+    // Part of platform fee, charged as a % of the borrowing amount when borrowing occurs.
     uint16 frontLoadingFeeBps;
 }
 
