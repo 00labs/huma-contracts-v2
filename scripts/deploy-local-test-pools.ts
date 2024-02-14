@@ -19,7 +19,6 @@ import {
     CreditLine,
     CreditLineManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockToken,
@@ -37,7 +36,6 @@ import { advanceChainTime } from "./utils";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -53,9 +51,7 @@ let juniorLender: SignerWithAddress,
     borrowerLate: SignerWithAddress,
     borrowerDefault: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -118,7 +114,6 @@ async function deployPool(
         defaultDeployer,
         protocolOwner,
         treasury,
-        eaServiceAccount,
         sentinelServiceAccount,
         poolOwner,
         poolOwnerTreasury,
@@ -136,10 +131,9 @@ async function deployPool(
     ] = await ethers.getSigners();
 
     console.log("Deploying and setting up protocol contracts");
-    [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+    [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
         protocolOwner,
         treasury,
-        eaServiceAccount,
         sentinelServiceAccount,
         poolOwner,
     );
@@ -163,7 +157,6 @@ async function deployPool(
     ] = await deployAndSetupPoolContracts(
         humaConfigContract,
         mockTokenContract,
-        eaNFTContract,
         "RiskAdjustedTranchesPolicy",
         defaultDeployer,
         poolOwner,
@@ -215,7 +208,7 @@ async function deployPool(
 
     if (poolName === LocalPoolName.CreditLine) {
         console.log("Drawing down from CreditLine");
-        await creditManagerContract.connect(eaServiceAccount).approveBorrower(
+        await creditManagerContract.connect(evaluationAgent).approveBorrower(
             borrowerActive.address,
             toToken(100_000),
             5, // numOfPeriods
@@ -252,7 +245,7 @@ async function deployPool(
         });
 
         console.log("Drawing down from CreditLine");
-        await creditManagerContract.connect(eaServiceAccount).approveBorrower(
+        await creditManagerContract.connect(evaluationAgent).approveBorrower(
             borrowerActive.address,
             toToken(100_000),
             5, // numOfPeriods
@@ -285,7 +278,6 @@ async function deployPool(
     console.log(`Borrower:      ${borrowerActive.address}`);
     console.log(`Sentinel Service:   ${sentinelServiceAccount.address}`);
     console.log(`Pool owner:   ${poolOwner.address}`);
-    console.log(`EA service:   ${eaServiceAccount.address}`);
 
     console.log("=====================================");
     console.log("Addresses:");

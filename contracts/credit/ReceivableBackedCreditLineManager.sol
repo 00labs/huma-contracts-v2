@@ -36,7 +36,7 @@ contract ReceivableBackedCreditLineManager is
     /// @inheritdoc IReceivableBackedCreditLineManager
     function approveReceivable(address borrower, uint256 receivableId) external {
         poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != humaConfig.eaServiceAccount() && msg.sender != address(credit))
+        if (msg.sender != poolConfig.evaluationAgent() && msg.sender != address(credit))
             revert Errors.AuthorizedContractCallerRequired();
 
         if (receivableId == 0) revert Errors.ZeroReceivableIdProvided();
