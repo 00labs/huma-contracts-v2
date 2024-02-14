@@ -20,8 +20,8 @@ contract MockPoolCreditManager is PoolConfigCache {
         pool.distributeLoss(loss);
     }
 
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.pool();
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
+        address addr = poolConfig_.pool();
         assert(addr != address(0));
         pool = IPool(addr);
     }

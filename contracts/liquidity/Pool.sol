@@ -261,41 +261,41 @@ contract Pool is PoolConfigCache, IPool {
     /**
      * @notice Common function in Huma protocol to retrieve contract addresses from PoolConfig.
      */
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.poolSafe();
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
+        address addr = poolConfig_.poolSafe();
         assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
-        addr = _poolConfig.tranchesPolicy();
+        addr = poolConfig_.tranchesPolicy();
         assert(addr != address(0));
         tranchesPolicy = ITranchesPolicy(addr);
 
-        addr = _poolConfig.poolFeeManager();
+        addr = poolConfig_.poolFeeManager();
         assert(addr != address(0));
         feeManager = IPoolFeeManager(addr);
 
-        addr = _poolConfig.epochManager();
+        addr = poolConfig_.epochManager();
         assert(addr != address(0));
         epochManager = IEpochManager(addr);
 
-        addr = _poolConfig.credit();
+        addr = poolConfig_.credit();
         assert(addr != address(0));
         credit = ICredit(addr);
 
-        addr = _poolConfig.creditManager();
+        addr = poolConfig_.creditManager();
         assert(addr != address(0));
         creditManager = ICreditManager(addr);
 
-        addr = _poolConfig.seniorTranche();
+        addr = poolConfig_.seniorTranche();
         assert(addr != address(0));
         seniorTranche = addr;
 
-        addr = _poolConfig.juniorTranche();
+        addr = poolConfig_.juniorTranche();
         assert(addr != address(0));
         juniorTranche = addr;
 
         delete _firstLossCovers;
-        address[16] memory covers = _poolConfig.getFirstLossCovers();
+        address[16] memory covers = poolConfig_.getFirstLossCovers();
         for (uint256 i = 0; i < covers.length; i++) {
             if (covers[i] != address(0)) {
                 _firstLossCovers.push(IFirstLossCover(covers[i]));

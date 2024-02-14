@@ -268,8 +268,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     ) public view virtual override returns (uint256 fees) {
         uint256 frontLoadingFeeBps;
         (fees, frontLoadingFeeBps) = poolConfig.getFrontLoadingFees();
-        if (frontLoadingFeeBps > 0)
-            fees += (amount * frontLoadingFeeBps) / HUNDRED_PERCENT_IN_BPS;
+        if (frontLoadingFeeBps > 0) fees += (amount * frontLoadingFeeBps) / HUNDRED_PERCENT_IN_BPS;
     }
 
     function refreshLateFee(
