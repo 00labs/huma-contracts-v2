@@ -23,10 +23,10 @@ interface ICreditDueManager {
 
     /**
      * @notice Computes the front loading fee, which is also known as origination fee.
-     * @param _amount The borrowing amount.
+     * @param amount The borrowing amount.
      * @return fees The amount of fees to be charged for this borrowing.
      */
-    function calcFrontLoadingFee(uint256 _amount) external view returns (uint256 fees);
+    function calcFrontLoadingFee(uint256 amount) external view returns (uint256 fees);
 
     /**
      * @notice Returns the date the bill should be refreshed.
@@ -39,8 +39,8 @@ interface ICreditDueManager {
 
     /**
      * @notice Returns the updated late fee for a bill that's late.
-     * @param _cr The CreditRecord associated with the account.
-     * @param _dd The DueDetail associated with the account.
+     * @param cr The CreditRecord associated with the account.
+     * @param dd The DueDetail associated with the account.
      * @param periodDuration The pay period duration.
      * @param committedAmount The committed amount of the credit.
      * @param timestamp The timestamp until when the late fee should be calculated.
@@ -49,8 +49,8 @@ interface ICreditDueManager {
      * @return lateFee The updated late fee.
      */
     function refreshLateFee(
-        CreditRecord memory _cr,
-        DueDetail memory _dd,
+        CreditRecord memory cr,
+        DueDetail memory dd,
         PayPeriodDuration periodDuration,
         uint256 committedAmount,
         uint256 timestamp

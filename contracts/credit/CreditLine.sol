@@ -4,7 +4,6 @@ pragma solidity 0.8.23;
 import {ICreditLine} from "./interfaces/ICreditLine.sol";
 import {Credit} from "./Credit.sol";
 import {CreditRecord, DueDetail} from "./CreditStructs.sol";
-import {Errors} from "../common/Errors.sol";
 
 /**
  * @notice Credit Line is one of the most common forms of credit on Huma.
@@ -34,7 +33,7 @@ contract CreditLine is Credit, ICreditLine {
         bytes32 creditHash = getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);
 
-        (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
+        return _makePayment(borrower, creditHash, amount);
     }
 
     /// @inheritdoc ICreditLine

@@ -19,14 +19,13 @@ contract Errors {
     error HumaTreasuryRequired(); // 0x6e0a9ac9
     error PoolOwnerOrEARequired(); // 0xe54466f3
     error PauserRequired(); // 0xd4a99e4e
-    error NFTOwnerRequired(); // 0x85179c58
     error LenderRequired(); // 0x306fd1ae
     error BorrowerRequired(); // 0xeca877b1
     error BorrowerOrEARequired(); // 0xedaf53fe
     error PayerRequired(); // 0xb00f9713
     error CoverProviderRequired(); // 0x0c328563
     error AuthorizedContractCallerRequired(); // 0xf4bc99c7
-    error EvaluationAgentServiceAccountRequired(); // 0xa770729f
+    error EvaluationAgentRequired(); // 0x54a8b616
     error SentinelServiceAccountRequired(); // 0x272a85a5
     error TrancheRequired(); // 0x56b15134
 
@@ -35,7 +34,6 @@ contract Errors {
     error AlreadyAPauser(); // 0x2fe391f2
 
     // Pool config
-    error ProposedEADoesNotOwnProvidedEANFT(); // 0xc7388fc8
     error UnderlyingTokenNotApprovedForHumaProtocol(); // 0x28918c5b
     error AdminRewardRateTooHigh(); // 0xa01087e8
     error PoolOwnerInsufficientLiquidity(); // 0xbd8efe51
@@ -47,6 +45,7 @@ contract Errors {
     error ProtocolIsPaused(); // 0xaf0b004c
     error PoolIsNotOn(); // 0xf082b5c3
     error PoolIsNotReadyForFirstLossCoverWithdrawal(); // 0x3c2546a3
+    error PoolIsNotClosed(); // 0x2faa680b
 
     // Calendar
     error StartDateLaterThanEndDate(); // 0xc496cd06
@@ -57,6 +56,7 @@ contract Errors {
     error WithdrawTooEarly(); // 0x64381803
     error InvalidTrancheIndex(); // 0x4e2a8dfe
     error EpochClosedTooEarly(); // 0xf6a9c460
+    error RedemptionsCannotBeProcessedDueToUnprocessedProfit(); // 0x0f4579c3
     error AlreadyALender(); // 0xce4108ca
     error NonReinvestYieldLenderCapacityReached(); // 0x39ad903d
     error ReinvestYieldOptionAlreadySet(); // 0xb44d305d

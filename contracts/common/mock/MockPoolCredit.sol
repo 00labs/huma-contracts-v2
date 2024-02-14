@@ -29,16 +29,16 @@ contract MockPoolCredit is PoolConfigCache {
         pool.distributeLossRecovery(lossRecovery);
     }
 
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.poolSafe();
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
+        address addr = poolConfig_.poolSafe();
         assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
-        addr = _poolConfig.underlyingToken();
+        addr = poolConfig_.underlyingToken();
         assert(addr != address(0));
         IERC20(addr).approve(address(poolSafe), type(uint256).max);
 
-        addr = _poolConfig.pool();
+        addr = poolConfig_.pool();
         assert(addr != address(0));
         pool = IPool(addr);
     }

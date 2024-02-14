@@ -10,10 +10,10 @@ import {Errors} from "./Errors.sol";
  */
 contract HumaConfig is Ownable, Pausable {
     /// The default treasury fee in bps.
-    uint16 private constant DEFAULT_TREASURY_FEE = 500; // 5%
+    uint16 private constant _DEFAULT_TREASURY_FEE = 500; // 5%
 
     /// The treasury fee upper bound in bps.
-    uint16 private constant TREASURY_FEE_UPPER_BOUND = 5000; // 50%
+    uint16 private constant _TREASURY_FEE_UPPER_BOUND = 5000; // 50%
 
     /// % of platform income that will be reserved in the protocol, measured in basis points.
     uint16 public protocolFeeInBps;
@@ -21,38 +21,20 @@ contract HumaConfig is Ownable, Pausable {
     /// Address of the Huma protocol treasury.
     address public humaTreasury;
 
-    /// Address of EvaluationAgentNFT contract.
-    address public eaNFTContractAddress;
-
-    /// Service account for Huma's evaluation agent hosting service.
-    address public eaServiceAccount;
-
     /// Service account for Huma's Sentinel service.
     address public sentinelServiceAccount;
 
     /// Pausers can pause the pool.
-    mapping(address => bool) private pausers;
+    mapping(address => bool) public pausers;
 
     /// List of assets supported by the protocol for investing and borrowing.
-    mapping(address => bool) private validLiquidityAssets;
-
-    /**
-     * @notice Contract address for Evaluation Agent NFT changed.
-     * @param eaNFT The address of the new EA NFT.
-     */
-    event EANFTContractAddressChanged(address eaNFT);
-
-    /**
-     * @notice Service account for the Evaluation Agent platform has changed.
-     * @param eaService The address of the new EA Service account.
-     */
-    event EAServiceAccountChanged(address eaService);
+    mapping(address => bool) public validLiquidityAssets;
 
     /**
      * @notice The treasury address for Huma protocol has changed.
      * @param newTreasuryAddress The address of the new Huma treasury.
      */
-    event HumaTreasuryChanged(address indexed newTreasuryAddress);
+    event HumaTreasuryChanged(address indexed newTreasuryAddress, address by);
 
     /**
      * @notice New underlying asset supported by the protocol is added.
@@ -86,7 +68,7 @@ contract HumaConfig is Ownable, Pausable {
      * @notice Service account for the Sentinel Service has been changed.
      * @param sentinelService The address of the new Sentinel Service.
      */
-    event SentinelServiceAccountChanged(address sentinelService);
+    event SentinelServiceAccountChanged(address sentinelService, address by);
 
     /**
      * @notice The Huma protocol has been initialized.
@@ -99,7 +81,7 @@ contract HumaConfig is Ownable, Pausable {
      * @param oldFee The old treasury fee.
      * @param newFee The new treasury fee.
      */
-    event TreasuryFeeChanged(uint256 oldFee, uint256 newFee);
+    event TreasuryFeeChanged(uint256 oldFee, uint256 newFee, address by);
 
     /// Makes sure the msg.sender is one of the pausers.
     modifier onlyPausers() {
@@ -113,23 +95,23 @@ contract HumaConfig is Ownable, Pausable {
      * treasury fee, add or remove assets to be supported by the protocol.
      */
     constructor() {
-        protocolFeeInBps = DEFAULT_TREASURY_FEE;
+        protocolFeeInBps = _DEFAULT_TREASURY_FEE;
 
         emit ProtocolInitialized(msg.sender);
     }
 
     /**
      * @notice Adds a pauser, who can pause the entire protocol.
-     * @param _pauser The address to be added to the pauser list.
+     * @param pauser The address to be added to the pauser list.
      * @custom:access Only the protocol owner can call this function.
      */
-    function addPauser(address _pauser) external onlyOwner {
-        if (_pauser == address(0)) revert Errors.ZeroAddressProvided();
-        if (pausers[_pauser]) revert Errors.AlreadyAPauser();
+    function addPauser(address pauser) external onlyOwner {
+        if (pauser == address(0)) revert Errors.ZeroAddressProvided();
+        if (pausers[pauser]) revert Errors.AlreadyAPauser();
 
-        pausers[_pauser] = true;
+        pausers[pauser] = true;
 
-        emit PauserAdded(_pauser, msg.sender);
+        emit PauserAdded(pauser, msg.sender);
     }
 
     /**
@@ -143,39 +125,16 @@ contract HumaConfig is Ownable, Pausable {
 
     /**
      * @notice Removes a pauser.
-     * @param _pauser The address to be removed from the pauser list.
+     * @param pauser The address to be removed from the pauser list.
      * @custom:access Only the protocol owner can call this function.
      */
-    function removePauser(address _pauser) external onlyOwner {
-        if (_pauser == address(0)) revert Errors.ZeroAddressProvided();
-        if (!pausers[_pauser]) revert Errors.PauserRequired();
+    function removePauser(address pauser) external onlyOwner {
+        if (pauser == address(0)) revert Errors.ZeroAddressProvided();
+        if (!pausers[pauser]) revert Errors.PauserRequired();
 
-        pausers[_pauser] = false;
+        pausers[pauser] = false;
 
-        emit PauserRemoved(_pauser, msg.sender);
-    }
-
-    /**
-     * @notice Sets the contract address for Evaluation Agent NFT contract.
-     * @param contractAddress The new EA NFT contract address.
-     * @custom:access Only the protocol owner can call this function.
-     */
-    function setEANFTContractAddress(address contractAddress) external onlyOwner {
-        if (contractAddress == address(0)) revert Errors.ZeroAddressProvided();
-        eaNFTContractAddress = contractAddress;
-        emit EANFTContractAddressChanged(contractAddress);
-    }
-
-    /**
-     * @notice Sets the service account for Evaluation Agent service. This is the account
-     * that can approve credit requests.
-     * @param accountAddress The new EA Service account address.
-     * @custom:access Only the protocol owner can call this function.
-     */
-    function setEAServiceAccount(address accountAddress) external onlyOwner {
-        if (accountAddress == address(0)) revert Errors.ZeroAddressProvided();
-        eaServiceAccount = accountAddress;
-        emit EAServiceAccountChanged(accountAddress);
+        emit PauserRemoved(pauser, msg.sender);
     }
 
     /**
@@ -186,7 +145,7 @@ contract HumaConfig is Ownable, Pausable {
     function setHumaTreasury(address treasury) external onlyOwner {
         if (treasury == address(0)) revert Errors.ZeroAddressProvided();
         humaTreasury = treasury;
-        emit HumaTreasuryChanged(treasury);
+        emit HumaTreasuryChanged(treasury, msg.sender);
     }
 
     /**
@@ -215,7 +174,7 @@ contract HumaConfig is Ownable, Pausable {
     function setSentinelServiceAccount(address accountAddress) external onlyOwner {
         if (accountAddress == address(0)) revert Errors.ZeroAddressProvided();
         sentinelServiceAccount = accountAddress;
-        emit SentinelServiceAccountChanged(accountAddress);
+        emit SentinelServiceAccountChanged(accountAddress, msg.sender);
     }
 
     /**
@@ -224,10 +183,10 @@ contract HumaConfig is Ownable, Pausable {
      * @custom:access Only the protocol owner can call this function.
      */
     function setTreasuryFee(uint256 feeInBps) external onlyOwner {
-        if (feeInBps > TREASURY_FEE_UPPER_BOUND) revert Errors.TreasuryFeeHighThanUpperLimit();
+        if (feeInBps > _TREASURY_FEE_UPPER_BOUND) revert Errors.TreasuryFeeHighThanUpperLimit();
         uint256 oldFee = protocolFeeInBps;
         protocolFeeInBps = uint16(feeInBps);
-        emit TreasuryFeeChanged(oldFee, feeInBps);
+        emit TreasuryFeeChanged(oldFee, feeInBps, msg.sender);
     }
 
     /**

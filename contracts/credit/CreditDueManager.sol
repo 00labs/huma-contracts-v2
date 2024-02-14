@@ -42,36 +42,13 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
 
         bool shouldAdvanceToNextPeriod = false;
         bool isLate = false;
-
         {
             uint256 nextBillRefreshDate = getNextBillRefreshDate(cr);
             if (cr.state == CreditState.Approved || timestamp > nextBillRefreshDate) {
                 shouldAdvanceToNextPeriod = true;
             }
-            if (
-                cr.state == CreditState.Delayed ||
-                // The last due was not paid off
-                (cr.state == CreditState.GoodStanding &&
-                    cr.nextDue > 0 &&
-                    timestamp > nextBillRefreshDate) ||
-                // The last due was paid off, but next due wasn't refreshed
-                (cr.state == CreditState.GoodStanding &&
-                    cr.nextDue == 0 &&
-                    cr.unbilledPrincipal > 0 &&
-                    timestamp >
-                    calendar.getStartDateOfNextPeriod(cc.periodDuration, cr.nextDueDate)) ||
-                // Outstanding commitment
-                (cr.state == CreditState.GoodStanding &&
-                    cr.nextDue + cr.unbilledPrincipal == 0 &&
-                    cc.committedAmount > 0 &&
-                    cr.remainingPeriods > 0 &&
-                    timestamp >
-                    calendar.getStartDateOfNextPeriod(cc.periodDuration, cr.nextDueDate))
-            ) {
-                isLate = true;
-            }
+            isLate = _isLate(cc, cr, nextBillRefreshDate, timestamp);
         }
-
         if (!shouldAdvanceToNextPeriod && !isLate) return (cr, dd);
 
         newCR = _deepCopyCreditRecord(cr);
@@ -121,8 +98,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 // 2. Otherwise, since there was unpaid due, the period `cr` was in should be counted as a missed
                 //    period, hence the +1 in the `false` part of the ternary below.
                 newCR.missedPeriods += uint16(
-                    cr.nextDue + cr.totalPastDue == 0 &&
-                        (cr.unbilledPrincipal > 0 || cc.committedAmount > 0)
+                    cr.nextDue + cr.totalPastDue == 0
                         ? periodsPassed // last due was paid off
                         : periodsPassed + 1 // last due was not paid off
                 );
@@ -137,11 +113,14 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                     // monthly pay period, `cr.nextDueDate` is Feb 1, and `timestamp` is May 15, then March and April
                     // were "skipped", and we need to compute the yield and principal due that were supposed to happen
                     // in those two months and add the amounts to past due.
+                    uint256 yieldBasis = Math.max(
+                        cr.unbilledPrincipal + cr.nextDue - cr.yieldDue + dd.principalPastDue,
+                        cc.committedAmount
+                    );
                     newDD.yieldPastDue += uint96(
-                        _computeYieldNextDue(
+                        _computeYield(
+                            yieldBasis,
                             cc.yieldInBps,
-                            cr.unbilledPrincipal + cr.nextDue - cr.yieldDue + dd.principalPastDue,
-                            cc.committedAmount,
                             periodsPassed * totalDaysInFullPeriod
                         )
                     );
@@ -258,7 +237,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         uint256 daysRemaining = calendar.getDaysRemainingInPeriod(nextDueDate);
         // It's important to note that the yield calculation includes the day of the drawdown. For instance,
         // if the borrower draws down at 11:59 PM on October 30th, the yield for October 30th must be paid.
-        additionalYieldAccrued = _computeYieldDue(borrowAmount, yieldInBps, daysRemaining);
+        additionalYieldAccrued = _computeYield(borrowAmount, yieldInBps, daysRemaining);
         FeeStructure memory fees = poolConfig.getFeeStructure();
         if (fees.minPrincipalRateInBps > 0) {
             additionalPrincipalDue = _computePrincipalDueForPartialPeriod(
@@ -285,17 +264,16 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
 
     /// @inheritdoc ICreditDueManager
     function calcFrontLoadingFee(
-        uint256 _amount
+        uint256 amount
     ) public view virtual override returns (uint256 fees) {
         uint256 frontLoadingFeeBps;
         (fees, frontLoadingFeeBps) = poolConfig.getFrontLoadingFees();
-        if (frontLoadingFeeBps > 0)
-            fees += (_amount * frontLoadingFeeBps) / HUNDRED_PERCENT_IN_BPS;
+        if (frontLoadingFeeBps > 0) fees += (amount * frontLoadingFeeBps) / HUNDRED_PERCENT_IN_BPS;
     }
 
     function refreshLateFee(
-        CreditRecord memory _cr,
-        DueDetail memory _dd,
+        CreditRecord memory cr,
+        DueDetail memory dd,
         PayPeriodDuration periodDuration,
         uint256 committedAmount,
         uint256 timestamp
@@ -305,33 +283,33 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         // If the credit state is good-standing, then the bill is late for the first time.
         // We need to charge the late fee from the last due date onwards.
         uint256 lateFeeStartDate;
-        if (_cr.state == CreditState.GoodStanding) {
-            if (_cr.nextDue == 0) {
+        if (cr.state == CreditState.GoodStanding) {
+            if (cr.nextDue == 0) {
                 // If the amount due has been paid off in the current billing cycle,
                 // then the late fee should be charged from the due date of the next billing cycle onwards
                 // since the next billing cycle is the first cycle that's late.
                 lateFeeStartDate = calendar.getStartDateOfNextPeriod(
                     periodDuration,
-                    _cr.nextDueDate
+                    cr.nextDueDate
                 );
             } else {
-                lateFeeStartDate = _cr.nextDueDate;
+                lateFeeStartDate = cr.nextDueDate;
             }
         } else {
-            lateFeeStartDate = _dd.lateFeeUpdatedDate;
+            lateFeeStartDate = dd.lateFeeUpdatedDate;
         }
 
         // Use the larger of the outstanding principal and the committed amount as the basis for calculating
         // the late fee. While this is not 100% accurate since the relative magnitude of the two value
         // may change between the last time late fee was refreshed and now, we are intentionally making this
         // simplification since in reality the principal will almost always be higher the committed amount.
-        uint256 totalPrincipal = _cr.unbilledPrincipal +
-            _cr.nextDue -
-            _cr.yieldDue +
-            _dd.principalPastDue;
+        uint256 totalPrincipal = cr.unbilledPrincipal +
+            cr.nextDue -
+            cr.yieldDue +
+            dd.principalPastDue;
         uint256 lateFeeBasis = totalPrincipal > committedAmount ? totalPrincipal : committedAmount;
         lateFee = uint96(
-            _dd.lateFee +
+            dd.lateFee +
                 (fees.lateFeeBps *
                     lateFeeBasis *
                     calendar.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate)) /
@@ -339,10 +317,53 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         );
     }
 
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.calendar();
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
+        address addr = poolConfig_.calendar();
         assert(addr != address(0));
         calendar = ICalendar(addr);
+    }
+
+    function _isLate(
+        CreditConfig memory cc,
+        CreditRecord memory cr,
+        uint256 nextBillRefreshDate,
+        uint256 timestamp
+    ) internal view returns (bool) {
+        assert(
+            cr.state == CreditState.Approved ||
+                cr.state == CreditState.Delayed ||
+                cr.state == CreditState.GoodStanding
+        );
+
+        // If the bill has just been approved, then it hasn't started yet, so it's not late.
+        if (cr.state == CreditState.Approved) return false;
+        // The bill is late if it's already delayed.
+        if (cr.state == CreditState.Delayed) return true;
+
+        // The bill is currently in GoodStanding.
+        if (timestamp <= nextBillRefreshDate) {
+            // The bill is not late if it's still within the current period.
+            return false;
+        }
+        // The bill has gone past the period ending on `nextDueDate`.
+        uint256 startDateOfNextPeriod = calendar.getStartDateOfNextPeriod(
+            cc.periodDuration,
+            cr.nextDueDate
+        );
+        if (timestamp <= startDateOfNextPeriod) {
+            if (cr.nextDue == 0) {
+                // If the bill is in the next period, but the due on the bill has been paid off,
+                // then the bill is not late.
+                return false;
+            }
+        }
+        // The bill has gone past the next period.
+        if (cr.nextDue == 0 && cr.unbilledPrincipal == 0 && cc.committedAmount == 0) {
+            // If the bill has been paid off and there is no commitment, then the bill is not late.
+            return false;
+        }
+        // In all other cases, the bill is late.
+        return true;
     }
 
     function _computePrincipalDueForFullPeriods(
@@ -367,27 +388,17 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             (HUNDRED_PERCENT_IN_BPS * totalDaysInFullPeriod);
     }
 
-    function _computeYieldNextDue(
-        uint256 yieldInBps,
-        uint256 principal,
-        uint256 committedAmount,
-        uint256 daysPassed
-    ) internal pure returns (uint256 maxYieldDue) {
-        uint256 yieldBasis = Math.max(principal, committedAmount);
-        return _computeYieldDue(yieldBasis, yieldInBps, daysPassed);
-    }
-
     function _computeAccruedAndCommittedYieldDue(
         uint256 yieldInBps,
         uint256 principal,
         uint256 committedAmount,
         uint256 daysPassed
     ) internal pure returns (uint96 accrued, uint96 committed) {
-        accrued = _computeYieldDue(principal, yieldInBps, daysPassed);
-        committed = _computeYieldDue(committedAmount, yieldInBps, daysPassed);
+        accrued = _computeYield(principal, yieldInBps, daysPassed);
+        committed = _computeYield(committedAmount, yieldInBps, daysPassed);
     }
 
-    function _computeYieldDue(
+    function _computeYield(
         uint256 principal,
         uint256 yieldInBps,
         uint256 numDays

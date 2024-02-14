@@ -8,7 +8,6 @@ import {IPool} from "../liquidity/interfaces/IPool.sol";
 import {PoolConfigCache} from "../common/PoolConfigCache.sol";
 import {CreditStorage} from "./CreditStorage.sol";
 import {CreditConfig, CreditRecord, CreditState, DueDetail} from "./CreditStructs.sol";
-import {PayPeriodDuration} from "../common/SharedDefs.sol";
 import {IFirstLossCover} from "../liquidity/interfaces/IFirstLossCover.sol";
 import {IPoolSafe} from "../liquidity/interfaces/IPoolSafe.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
@@ -38,9 +37,15 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
      * @notice Account billing info refreshed with the updated due amount and date.
      * @param creditHash The hash of the credit.
      * @param newDueDate The updated due date of the bill.
-     * @param amountDue The amount due on the bill.
+     * @param nextDue The amount of next due on the bill.
+     * @param totalPastDue The total amount of past due on the bill.
      */
-    event BillRefreshed(bytes32 indexed creditHash, uint256 newDueDate, uint256 amountDue);
+    event BillRefreshed(
+        bytes32 indexed creditHash,
+        uint256 newDueDate,
+        uint256 nextDue,
+        uint256 totalPastDue
+    );
 
     /**
      * @notice A borrowing event has happened to the credit.
@@ -160,7 +165,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     ) internal virtual {
         _setCreditRecord(creditHash, cr);
         _setDueDetail(creditHash, dd);
-        emit BillRefreshed(creditHash, cr.nextDueDate, cr.nextDue);
+        emit BillRefreshed(creditHash, cr.nextDueDate, cr.nextDue, cr.totalPastDue);
     }
 
     /**
@@ -205,9 +210,12 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
                     revert Errors.CreditNotInStateForDrawdown();
             }
 
-            if (
-                borrowAmount > (cc.creditLimit - cr.unbilledPrincipal - (cr.nextDue - cr.yieldDue))
-            ) revert Errors.CreditLimitExceeded();
+            // cc.creditLimit may have been adjusted downwards to be lower than the outstanding
+            // principal, so it's safer to do compute the sum of the borrowAmount and all outstanding
+            // principal on the left-hand-side instead of subtracting the outstanding principal from
+            // the right-hand-side to prevent underflow.
+            if (borrowAmount + cr.unbilledPrincipal + (cr.nextDue - cr.yieldDue) > cc.creditLimit)
+                revert Errors.CreditLimitExceeded();
 
             // Add the yield of new borrowAmount for the remainder of the period
             (uint256 additionalYieldAccrued, uint256 additionalPrincipalDue) = dueManager
@@ -256,14 +264,12 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
      * @return amountPaid The actual amount paid to the contract. When the tendered
      * amount is larger than the payoff amount, the contract only accepts the payoff amount.
      * @return paidoff A flag indicating whether the account has been paid off.
-     * @return isReviewRequired a flag indicating whether this payment transaction has been
-     * flagged for review.
      */
     function _makePayment(
         address borrower,
         bytes32 creditHash,
         uint256 amount
-    ) internal returns (uint256 amountPaid, bool paidoff, bool isReviewRequired) {
+    ) internal returns (uint256 amountPaid, bool paidoff) {
         if (amount == 0) revert Errors.ZeroAmountProvided();
 
         CreditRecord memory cr = getCreditRecord(creditHash);
@@ -423,7 +429,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         }
 
         // amountToCollect == payoffAmount indicates paidoff or not. >= is a safe practice
-        return (amountToCollect, amountToCollect >= payoffAmount, false);
+        return (amountToCollect, amountToCollect >= payoffAmount);
     }
 
     /**
@@ -502,28 +508,28 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         return (amountToCollect, cr.nextDue == 0 && cr.unbilledPrincipal == 0);
     }
 
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = address(_poolConfig.humaConfig());
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
+        address addr = address(poolConfig_.humaConfig());
         assert(addr != address(0));
         humaConfig = HumaConfig(addr);
 
-        addr = _poolConfig.creditDueManager();
+        addr = poolConfig_.creditDueManager();
         assert(addr != address(0));
         dueManager = ICreditDueManager(addr);
 
-        addr = _poolConfig.pool();
+        addr = poolConfig_.pool();
         assert(addr != address(0));
         pool = IPool(addr);
 
-        addr = _poolConfig.poolSafe();
+        addr = poolConfig_.poolSafe();
         assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
-        addr = _poolConfig.getFirstLossCover(BORROWER_LOSS_COVER_INDEX);
+        addr = poolConfig_.getFirstLossCover(BORROWER_LOSS_COVER_INDEX);
         assert(addr != address(0));
         firstLossCover = IFirstLossCover(addr);
 
-        addr = _poolConfig.creditManager();
+        addr = poolConfig_.creditManager();
         assert(addr != address(0));
         creditManager = ICreditManager(addr);
     }

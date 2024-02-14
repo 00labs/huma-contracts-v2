@@ -7,7 +7,6 @@ import {
     Calendar,
     CreditDueManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     FixedSeniorYieldTranchePolicy,
     HumaConfig,
@@ -40,7 +39,6 @@ import { CONSTANTS } from "../../constants";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -48,9 +46,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress;
 let lender: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -65,6 +61,7 @@ let poolConfigContract: PoolConfig,
     creditContract: MockPoolCredit,
     creditManagerContract: MockPoolCreditManager,
     creditDueManagerContract: CreditDueManager;
+let seniorDepositAmount: BN;
 
 describe("FixedSeniorYieldTranchesPolicy Test", function () {
     before(async function () {
@@ -72,7 +69,6 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -85,10 +81,9 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
     const apy = 1200;
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -111,7 +106,6 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "FixedSeniorYieldTranchePolicy",
             defaultDeployer,
             poolOwner,
@@ -124,9 +118,9 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
             [lender],
         );
 
-        let juniorDepositAmount = toToken(100_000);
+        const juniorDepositAmount = toToken(100_000);
         await juniorTrancheVaultContract.connect(lender).deposit(juniorDepositAmount);
-        let seniorDepositAmount = toToken(300_000);
+        seniorDepositAmount = toToken(300_000);
         await seniorTrancheVaultContract.connect(lender).deposit(seniorDepositAmount);
 
         await overrideLPConfig(poolConfigContract, poolOwner, {
@@ -169,8 +163,7 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
         });
 
         it("Should distribute all profit to the senior tranche if unpaid yield is greater than the incoming profit", async function () {
-            const deployedAssets = toToken(300_000);
-            await creditContract.drawdown(ethers.constants.HashZero, deployedAssets);
+            await creditContract.drawdown(ethers.constants.HashZero, seniorDepositAmount);
             const assets = await poolContract.currentTranchesAssets();
             const profit = toToken(100);
             const currentTS = (await getLatestBlock()).timestamp;
@@ -220,14 +213,13 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
             const actualTracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(actualTracker, expectedTracker);
             const startOfNextDay = await calendarContract.getStartOfNextDay(nextTS);
-            expect(actualTracker.unpaidYield).to.equal(0);
+            expect(actualTracker.unpaidYield).to.be.gt(0);
             expect(actualTracker.lastUpdatedDate).to.equal(startOfNextDay);
             expect(actualTracker.totalAssets).to.equal(newAssets[CONSTANTS.SENIOR_TRANCHE]);
         });
 
         it("Should distribute profit to both senior and junior tranches if there is enough profit", async function () {
-            const deployedAssets = toToken(300_000);
-            await creditContract.drawdown(ethers.constants.HashZero, deployedAssets);
+            await creditContract.drawdown(ethers.constants.HashZero, seniorDepositAmount);
 
             const numFLCs = (await tranchesPolicyContract.getFirstLossCovers()).length;
             await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);

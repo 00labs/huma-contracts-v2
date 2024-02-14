@@ -10,15 +10,17 @@ import {IPoolFeeManager} from "../liquidity/interfaces/IPoolFeeManager.sol";
 import {IPool} from "../liquidity/interfaces/IPool.sol";
 import {IFirstLossCover} from "../liquidity/interfaces/IFirstLossCover.sol";
 import {ITranchesPolicy} from "../liquidity/interfaces/ITranchesPolicy.sol";
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ADMIN_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS, PayPeriodDuration} from "./SharedDefs.sol";
 import {HumaConfig} from "./HumaConfig.sol";
 import {Errors} from "./Errors.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 struct PoolSettings {
     // The maximum credit line for a borrower in terms of the amount of poolTokens
     uint96 maxCreditLine;
     // The minimum amount a lender/First Loss Cover provider needs to supply each time they deposit.
+    // This is also the absolute minimum balance the pool owner needs to maintain in tranches to prevent
+    // inflation attacks.
     uint96 minDepositAmount;
     // The number of months in one pay period
     PayPeriodDuration payPeriodDuration;
@@ -42,9 +44,9 @@ struct AdminRnR {
     uint16 rewardRateInBpsForEA;
     // Percentage of pool income allocated to Pool Owner
     uint16 rewardRateInBpsForPoolOwner;
-    // Percentage of the liquidityCap to be contributed by EA
+    // Percentage of the liquidityCap to be contributed by EA in the junior tranche.
     uint16 liquidityRateInBpsByEA;
-    // Percentage of the liquidityCap to be contributed by Pool Owner
+    // Percentage of the liquidityCap to be contributed by Pool Owner in the junior tranche.
     uint16 liquidityRateInBpsByPoolOwner;
 }
 
@@ -62,16 +64,16 @@ struct LPConfig {
 }
 
 struct FrontLoadingFeesStructure {
-    // Part of platform fee, charged as a flat amount when a borrow happens
+    // Part of platform fee, charged as a flat amount when borrowing occurs.
     uint96 frontLoadingFeeFlat;
-    // Part of platform fee, charged as a % of the borrowing amount when a borrow happens
+    // Part of platform fee, charged as a % of the borrowing amount when borrowing occurs.
     uint16 frontLoadingFeeBps;
 }
 
 struct FeeStructure {
-    // Expected yield in basis points
+    // Expected yield in basis points.
     uint16 yieldInBps;
-    // The min % of the outstanding principal to be paid in the statement for each each period
+    // The min % of the outstanding principal to be paid in the statement for each period.
     uint16 minPrincipalRateInBps;
     // The late fee rate expressed in bps. The late fee is the additional charge on top of the yield
     // when a payment is late, and is calculated as a % of the total outstanding balance.
@@ -99,7 +101,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     bytes32 public constant POOL_OPERATOR_ROLE = keccak256("POOL_OPERATOR");
     /// The smallest value that `PoolSettings.minDepositAmount` can be set to. Note that this value is "pre-decimals",
     /// i.e. if the underlying token is USDC, then this represents $10 in USDC.
-    uint256 private constant MIN_DEPOSIT_AMOUNT_THRESHOLD = 10;
+    uint256 private constant _MIN_DEPOSIT_AMOUNT_THRESHOLD = 10;
 
     string public poolName;
 
@@ -123,7 +125,6 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
     /// Evaluation Agents (EA) are the risk underwriting agents that associated with the pool.
     address public evaluationAgent;
-    uint256 public evaluationAgentId;
 
     /// The maximum number of first loss covers we allow is 16, which should be sufficient for now.
     address[16] internal _firstLossCovers;
@@ -141,13 +142,9 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
     address public receivableAsset;
 
-    event EARewardsAndLiquidityChanged(
-        uint256 rewardRate,
-        uint256 liquidityRate,
-        address indexed by
-    );
+    event EARewardsAndLiquidityChanged(uint256 rewardRate, uint256 liquidityRate, address by);
+    event EvaluationAgentChanged(address oldEA, address newEA, address by);
     event EvaluationAgentFeesWithdrawalFailed(address oldEA, uint256 fees, string reason);
-    event EvaluationAgentChanged(address oldEA, address newEA, uint256 newEAId, address by);
     event PoolFeeManagerChanged(address poolFeeManager, address by);
     event HumaConfigChanged(address humaConfig, address by);
 
@@ -156,9 +153,9 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     event PoolOwnerRewardsAndLiquidityChanged(
         uint256 rewardRate,
         uint256 liquidityRate,
-        address indexed by
+        address by
     );
-    event PoolOwnerTreasuryChanged(address treasury, address indexed by);
+    event PoolOwnerTreasuryChanged(address treasury, address by);
     event PoolUnderlyingTokenChanged(address underlyingToken, address by);
     event TranchesChanged(address seniorTranche, address juniorTranche, address by);
     event PoolSafeChanged(address poolSafe, address by);
@@ -217,55 +214,52 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
     /**
      * @notice Initialize the pool configuration.
-     * @param _poolName The name of the pool.
-     * @param _contracts The addresses of the contracts that are used by the pool.
-     *   _contracts[0]: address of HumaConfig
-     *   _contracts[1]: address of underlyingToken
-     *   _contracts[2]: address of calendar
-     *   _contracts[3]: address of pool
-     *   _contracts[4]: address of poolSafe
-     *   _contracts[5]: address of poolFeeManager
-     *   _contracts[6]: address of tranchesPolicy
-     *   _contracts[7]: address of epochManager
-     *   _contracts[8]: address of seniorTranche
-     *   _contracts[9]: address of juniorTranche
-     *   _contracts[10]: address of credit
-     *   _contracts[11]: address of creditDueManager
-     *   _contracts[12]: address of creditManager
+     * @param poolName_ The name of the pool.
+     * @param contracts The addresses of the contracts that are used by the pool.
+     *   contracts[0]: address of HumaConfig
+     *   contracts[1]: address of underlyingToken
+     *   contracts[2]: address of calendar
+     *   contracts[3]: address of pool
+     *   contracts[4]: address of poolSafe
+     *   contracts[5]: address of poolFeeManager
+     *   contracts[6]: address of tranchesPolicy
+     *   contracts[7]: address of epochManager
+     *   contracts[8]: address of seniorTranche
+     *   contracts[9]: address of juniorTranche
+     *   contracts[10]: address of credit
+     *   contracts[11]: address of creditDueManager
+     *   contracts[12]: address of creditManager
      */
-    function initialize(
-        string memory _poolName,
-        address[] memory _contracts
-    ) external initializer {
-        poolName = _poolName;
+    function initialize(string memory poolName_, address[] memory contracts) external initializer {
+        poolName = poolName_;
 
-        for (uint256 i = 0; i < _contracts.length; i++) {
-            if (_contracts[i] == address(0)) revert Errors.ZeroAddressProvided();
+        for (uint256 i = 0; i < contracts.length; i++) {
+            if (contracts[i] == address(0)) revert Errors.ZeroAddressProvided();
         }
 
-        humaConfig = HumaConfig(_contracts[0]);
-        address addr = _contracts[1];
+        humaConfig = HumaConfig(contracts[0]);
+        address addr = contracts[1];
         if (!humaConfig.isAssetValid(addr))
             revert Errors.UnderlyingTokenNotApprovedForHumaProtocol();
         underlyingToken = addr;
-        calendar = _contracts[2];
-        pool = _contracts[3];
-        poolSafe = _contracts[4];
-        poolFeeManager = _contracts[5];
-        tranchesPolicy = _contracts[6];
-        epochManager = _contracts[7];
-        seniorTranche = _contracts[8];
-        juniorTranche = _contracts[9];
-        credit = _contracts[10];
-        creditDueManager = _contracts[11];
-        creditManager = _contracts[12];
+        calendar = contracts[2];
+        pool = contracts[3];
+        poolSafe = contracts[4];
+        poolFeeManager = contracts[5];
+        tranchesPolicy = contracts[6];
+        epochManager = contracts[7];
+        seniorTranche = contracts[8];
+        juniorTranche = contracts[9];
+        credit = contracts[10];
+        creditDueManager = contracts[11];
+        creditManager = contracts[12];
 
         // Default values for the pool configurations. The pool owners are expected to reset
         // these values when setting up the pools. Setting these default values to avoid
         // strange behaviors when the pool owner missed setting up these configurations.
         PoolSettings memory tempPoolSettings = _poolSettings;
         tempPoolSettings.minDepositAmount = uint96(
-            MIN_DEPOSIT_AMOUNT_THRESHOLD * 10 ** IERC20Metadata(underlyingToken).decimals()
+            _MIN_DEPOSIT_AMOUNT_THRESHOLD * 10 ** IERC20Metadata(underlyingToken).decimals()
         );
         tempPoolSettings.payPeriodDuration = PayPeriodDuration.Monthly;
         tempPoolSettings.advanceRateInBps = 8000; // 80%
@@ -328,12 +322,9 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
      * @param agent The Evaluation Agent to be added.
      * @custom:access Only the pool owner and the Huma owner can call this function.
      */
-    function setEvaluationAgent(uint256 eaId, address agent) external {
+    function setEvaluationAgent(address agent) external {
         if (agent == address(0)) revert Errors.ZeroAddressProvided();
         _onlyPoolOwnerOrHumaOwner();
-
-        if (IERC721(humaConfig.eaNFTContractAddress()).ownerOf(eaId) != agent)
-            revert Errors.ProposedEADoesNotOwnProvidedEANFT();
 
         // Transfer the accrued EA income to the old EA's wallet.
         // Decided not to check if there is enough balance in the pool. If there is
@@ -359,37 +350,36 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
                 revert Errors.InsufficientFirstLossCover();
             }
             ITrancheVaultLike juniorTrancheVault = ITrancheVaultLike(juniorTranche);
-            checkLiquidityRequirementForEA(juniorTrancheVault.totalAssetsOf(agent));
+            _checkLiquidityRequirementForEA(juniorTrancheVault.totalAssetsOf(agent));
         }
 
         evaluationAgent = agent;
-        evaluationAgentId = eaId;
 
-        emit EvaluationAgentChanged(oldEA, agent, eaId, msg.sender);
+        emit EvaluationAgentChanged(oldEA, agent, msg.sender);
     }
 
     /// @custom:access Only the pool owner and the Huma owner can call this function.
-    function setPoolFeeManager(address _poolFeeManager) external {
+    function setPoolFeeManager(address poolFeeManager_) external {
         _onlyPoolOwnerOrHumaOwner();
-        if (_poolFeeManager == address(0)) revert Errors.ZeroAddressProvided();
-        poolFeeManager = _poolFeeManager;
-        emit PoolFeeManagerChanged(_poolFeeManager, msg.sender);
+        if (poolFeeManager_ == address(0)) revert Errors.ZeroAddressProvided();
+        poolFeeManager = poolFeeManager_;
+        emit PoolFeeManagerChanged(poolFeeManager_, msg.sender);
     }
 
-    /// @custom:access Only the pool owner and the Huma owner can call this function.
-    function setHumaConfig(address _humaConfig) external {
+    /// @custom:access Only the Huma owner can call this function.
+    function setHumaConfig(address humaConfig_) external {
         onlyHumaOwner(msg.sender);
-        if (_humaConfig == address(0)) revert Errors.ZeroAddressProvided();
-        humaConfig = HumaConfig(_humaConfig);
-        emit HumaConfigChanged(_humaConfig, msg.sender);
+        if (humaConfig_ == address(0)) revert Errors.ZeroAddressProvided();
+        humaConfig = HumaConfig(humaConfig_);
+        emit HumaConfigChanged(humaConfig_, msg.sender);
     }
 
     /// @custom:access Only the pool owner and the Huma owner can call this function.
-    function setPool(address _pool) external {
+    function setPool(address pool_) external {
         _onlyPoolOwnerOrHumaOwner();
-        if (_pool == address(0)) revert Errors.ZeroAddressProvided();
-        pool = _pool;
-        emit PoolChanged(_pool, msg.sender);
+        if (pool_ == address(0)) revert Errors.ZeroAddressProvided();
+        pool = pool_;
+        emit PoolChanged(pool_, msg.sender);
     }
 
     /// @custom:access Only the pool owner and the Huma owner can call this function.
@@ -400,44 +390,44 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     }
 
     /// @custom:access Only the pool owner and the Huma owner can call this function.
-    function setPoolOwnerTreasury(address _poolOwnerTreasury) external {
+    function setPoolOwnerTreasury(address poolOwnerTreasury_) external {
         _onlyPoolOwnerOrHumaOwner();
-        if (_poolOwnerTreasury == address(0)) revert Errors.ZeroAddressProvided();
-        poolOwnerTreasury = _poolOwnerTreasury;
-        emit PoolOwnerTreasuryChanged(_poolOwnerTreasury, msg.sender);
+        if (poolOwnerTreasury_ == address(0)) revert Errors.ZeroAddressProvided();
+        poolOwnerTreasury = poolOwnerTreasury_;
+        emit PoolOwnerTreasuryChanged(poolOwnerTreasury_, msg.sender);
     }
 
     /// @custom:access Only the pool owner and the Huma owner can call this function.
-    function setTranches(address _seniorTranche, address _juniorTranche) external {
+    function setTranches(address seniorTranche_, address juniorTranche_) external {
         _onlyPoolOwnerOrHumaOwner();
-        if (_seniorTranche == address(0) || _juniorTranche == address(0))
+        if (seniorTranche_ == address(0) || juniorTranche_ == address(0))
             revert Errors.ZeroAddressProvided();
-        seniorTranche = _seniorTranche;
-        juniorTranche = _juniorTranche;
-        emit TranchesChanged(_seniorTranche, _juniorTranche, msg.sender);
+        seniorTranche = seniorTranche_;
+        juniorTranche = juniorTranche_;
+        emit TranchesChanged(seniorTranche_, juniorTranche_, msg.sender);
     }
 
     /// @custom:access Only the pool owner and the Huma owner can call this function.
-    function setPoolSafe(address _poolSafe) external {
+    function setPoolSafe(address poolSafe_) external {
         _onlyPoolOwnerOrHumaOwner();
-        if (_poolSafe == address(0)) revert Errors.ZeroAddressProvided();
-        poolSafe = _poolSafe;
+        if (poolSafe_ == address(0)) revert Errors.ZeroAddressProvided();
+        poolSafe = poolSafe_;
         emit PoolSafeChanged(poolSafe, msg.sender);
     }
 
     /// @custom:access Only the pool owner and the Huma owner can call this function.
-    function setTranchesPolicy(address _tranchesPolicy) external {
+    function setTranchesPolicy(address tranchesPolicy_) external {
         _onlyPoolOwnerOrHumaOwner();
-        if (_tranchesPolicy == address(0)) revert Errors.ZeroAddressProvided();
-        tranchesPolicy = _tranchesPolicy;
-        emit TranchesPolicyChanged(_tranchesPolicy, msg.sender);
+        if (tranchesPolicy_ == address(0)) revert Errors.ZeroAddressProvided();
+        tranchesPolicy = tranchesPolicy_;
+        emit TranchesPolicyChanged(tranchesPolicy_, msg.sender);
     }
 
     /// @custom:access Only the pool owner and the Huma owner can call this function.
-    function setEpochManager(address _epochManager) external {
+    function setEpochManager(address epochManager_) external {
         _onlyPoolOwnerOrHumaOwner();
-        if (_epochManager == address(0)) revert Errors.ZeroAddressProvided();
-        epochManager = _epochManager;
+        if (epochManager_ == address(0)) revert Errors.ZeroAddressProvided();
+        epochManager = epochManager_;
         emit EpochManagerChanged(epochManager, msg.sender);
     }
 
@@ -450,11 +440,11 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     }
 
     /// @custom:access Only the pool owner and the Huma owner can call this function.
-    function setCredit(address _credit) external {
+    function setCredit(address credit_) external {
         _onlyPoolOwnerOrHumaOwner();
-        if (_credit == address(0)) revert Errors.ZeroAddressProvided();
-        credit = _credit;
-        emit CreditChanged(_credit, msg.sender);
+        if (credit_ == address(0)) revert Errors.ZeroAddressProvided();
+        credit = credit_;
+        emit CreditChanged(credit_, msg.sender);
     }
 
     /// @custom:access Only the pool owner and the Huma owner can call this function.
@@ -491,19 +481,19 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     }
 
     /// @custom:access Only the pool owner and the Huma owner can call this function.
-    function setCalendar(address _calendar) external {
+    function setCalendar(address calendar_) external {
         _onlyPoolOwnerOrHumaOwner();
-        if (_calendar == address(0)) revert Errors.ZeroAddressProvided();
-        calendar = _calendar;
-        emit CalendarChanged(_calendar, msg.sender);
+        if (calendar_ == address(0)) revert Errors.ZeroAddressProvided();
+        calendar = calendar_;
+        emit CalendarChanged(calendar_, msg.sender);
     }
 
     /// @custom:access Only the pool owner and the Huma owner can call this function.
-    function setReceivableAsset(address _receivableAsset) external {
+    function setReceivableAsset(address receivableAsset_) external {
         _onlyPoolOwnerOrHumaOwner();
-        if (_receivableAsset == address(0)) revert Errors.ZeroAddressProvided();
-        receivableAsset = _receivableAsset;
-        emit ReceivableAssetChanged(_receivableAsset, msg.sender);
+        if (receivableAsset_ == address(0)) revert Errors.ZeroAddressProvided();
+        receivableAsset = receivableAsset_;
+        emit ReceivableAssetChanged(receivableAsset_, msg.sender);
     }
 
     /// @custom:access Only the pool owner and the Huma owner can call this function.
@@ -511,7 +501,9 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         _onlyPoolOwnerOrHumaOwner();
         if (
             settings.minDepositAmount <
-            uint96(MIN_DEPOSIT_AMOUNT_THRESHOLD * 10 ** IERC20Metadata(underlyingToken).decimals())
+            uint96(
+                _MIN_DEPOSIT_AMOUNT_THRESHOLD * 10 ** IERC20Metadata(underlyingToken).decimals()
+            )
         ) {
             revert Errors.MinDepositAmountTooLow();
         }
@@ -539,7 +531,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
     /// @custom:access Only the pool owner and the Huma owner can call this function.
     function setLPConfig(LPConfig memory lpConfig) external {
-        _onlyPoolOwnerOrHumaOwner();
+        if (msg.sender != address(pool)) _onlyPoolOwnerOrHumaOwner();
         if (
             lpConfig.fixedSeniorYieldInBps > HUNDRED_PERCENT_IN_BPS ||
             lpConfig.tranchesRiskAdjustmentInBps > HUNDRED_PERCENT_IN_BPS
@@ -549,6 +541,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
                 IPool(pool).currentTranchesAssets()
             );
         }
+
         _lpConfig = lpConfig;
         emit LPConfigChanged(
             lpConfig.liquidityCap,
@@ -649,29 +642,29 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     /**
      * @notice Checks whether the admin first loss cover has met the liquidity requirements.
      */
-    function checkFirstLossCoverRequirementsForAdmin() public view {
+    function checkFirstLossCoverRequirementsForAdmin() external view {
         IFirstLossCover firstLossCover = IFirstLossCover(_firstLossCovers[ADMIN_LOSS_COVER_INDEX]);
         if (!firstLossCover.isSufficient()) revert Errors.InsufficientFirstLossCover();
-    }
-
-    function checkLiquidityRequirementForPoolOwner(uint256 balance) public view {
-        if (balance < _getRequiredLiquidityForPoolOwner())
-            revert Errors.PoolOwnerInsufficientLiquidity();
-    }
-
-    function checkLiquidityRequirementForEA(uint256 balance) public view {
-        if (balance < _getRequiredLiquidityForEA())
-            revert Errors.EvaluationAgentInsufficientLiquidity();
     }
 
     /**
      * @notice Checks whether both the EA and the pool owner treasury have met the pool's liquidity requirements
      */
-    function checkLiquidityRequirements() public view {
+    function checkLiquidityRequirements() external view {
         ITrancheVaultLike juniorTrancheVault = ITrancheVaultLike(juniorTranche);
-        checkLiquidityRequirementForPoolOwner(juniorTrancheVault.totalAssetsOf(poolOwnerTreasury));
+        // Pool owner needs to satisfy the liquidity requirements for both the junior and senior tranches.
+        _checkLiquidityRequirementForPoolOwner(
+            juniorTranche,
+            juniorTrancheVault.totalAssetsOf(poolOwnerTreasury)
+        );
+        _checkLiquidityRequirementForPoolOwner(
+            seniorTranche,
+            ITrancheVaultLike(seniorTranche).totalAssetsOf(poolOwnerTreasury)
+        );
+
         if (evaluationAgent != address(0)) {
-            checkLiquidityRequirementForEA(juniorTrancheVault.totalAssetsOf(evaluationAgent));
+            // EA only needs to satisfy the liquidity requirement in the junior tranche.
+            _checkLiquidityRequirementForEA(juniorTrancheVault.totalAssetsOf(evaluationAgent));
         }
     }
 
@@ -685,16 +678,14 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         address lender,
         address trancheVault,
         uint256 newBalance
-    ) public view {
-        if (trancheVault != juniorTranche) {
-            // There is no liquidity requirement for the senior tranche.
-            return;
-        }
+    ) external view {
         if (lender == poolOwnerTreasury) {
-            checkLiquidityRequirementForPoolOwner(newBalance);
+            // The pool owner needs to satisfy the liquidity requirement in both tranches.
+            _checkLiquidityRequirementForPoolOwner(trancheVault, newBalance);
         }
-        if (lender == evaluationAgent) {
-            checkLiquidityRequirementForEA(newBalance);
+        if (lender == evaluationAgent && trancheVault == juniorTranche) {
+            // EA is only required to participate in the junior tranche.
+            _checkLiquidityRequirementForEA(newBalance);
         }
     }
 
@@ -741,22 +732,44 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         }
     }
 
+    function _checkLiquidityRequirementForPoolOwner(
+        address tranche,
+        uint256 balance
+    ) internal view {
+        uint256 minDepositAmount = _poolSettings.minDepositAmount;
+        if (tranche == juniorTranche) {
+            // For the junior tranche, the pool owner's liquidity must be higher than both the
+            // absolute asset threshold and the the relative threshold determined by the pool liquidity cap.
+            uint256 minRelativeBalance = (_lpConfig.liquidityCap *
+                _adminRnR.liquidityRateInBpsByPoolOwner) / HUNDRED_PERCENT_IN_BPS;
+            if (balance < Math.max(minDepositAmount, minRelativeBalance)) {
+                revert Errors.PoolOwnerInsufficientLiquidity();
+            }
+        }
+        if (
+            tranche == seniorTranche &&
+            _lpConfig.maxSeniorJuniorRatio > 0 &&
+            balance < minDepositAmount
+        ) {
+            // If the `maxSeniorJuniorRatio` is 0, then the senior tranche is disabled, thus the pool owner
+            // does not have to deposit liquidity. Otherwise, the pool owner must maintain a balance of at least
+            // `minDepositAmount` to prevent inflation attacks.
+            revert Errors.PoolOwnerInsufficientLiquidity();
+        }
+    }
+
+    function _checkLiquidityRequirementForEA(uint256 balance) internal view {
+        uint256 minLiquidityRequirement = (_lpConfig.liquidityCap *
+            _adminRnR.liquidityRateInBpsByEA) / HUNDRED_PERCENT_IN_BPS;
+        if (balance < minLiquidityRequirement)
+            revert Errors.EvaluationAgentInsufficientLiquidity();
+    }
+
     /**
      * @notice "Modifier" function that limits access to pool owner or Huma protocol owner.
      */
     function _onlyPoolOwnerOrHumaOwner() internal view {
         onlyPoolOwnerOrHumaOwner(msg.sender);
-    }
-
-    function _getRequiredLiquidityForPoolOwner() internal view returns (uint256 amount) {
-        return
-            (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByPoolOwner) /
-            HUNDRED_PERCENT_IN_BPS;
-    }
-
-    function _getRequiredLiquidityForEA() internal view returns (uint256 amount) {
-        return
-            (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByEA) / HUNDRED_PERCENT_IN_BPS;
     }
 
     function _authorizeUpgrade(address) internal view override {

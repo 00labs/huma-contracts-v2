@@ -7,12 +7,12 @@ import {
     Calendar,
     CreditDueManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
     MockPoolCreditManager,
     MockToken,
+    MockTokenNonStandardERC20,
     Pool,
     PoolConfig,
     PoolFeeManager,
@@ -36,7 +36,6 @@ import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -46,9 +45,7 @@ let poolOwner: SignerWithAddress,
     protocolTreasury: SignerWithAddress,
     lender: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -70,7 +67,6 @@ describe("FirstLossCover Tests", function () {
             defaultDeployer,
             protocolOwner,
             protocolTreasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -82,10 +78,9 @@ describe("FirstLossCover Tests", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             protocolTreasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -108,7 +103,6 @@ describe("FirstLossCover Tests", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
@@ -1145,6 +1139,19 @@ describe("FirstLossCover Tests", function () {
             });
         });
 
+        describe("safeTransfer", function () {
+            it("Should not allow non-First Loss Cover contract to call", async function () {
+                await expect(
+                    adminFirstLossCoverContract
+                        .connect(lender)
+                        .safeTransfer(lender.getAddress(), toToken(1)),
+                ).to.be.revertedWithCustomError(
+                    adminFirstLossCoverContract,
+                    "AuthorizedContractCallerRequired",
+                );
+            });
+        });
+
         describe("isSufficient", function () {
             async function depositCover(assets: BN) {
                 await mockTokenContract.mint(evaluationAgent.getAddress(), assets);
@@ -1426,6 +1433,121 @@ describe("FirstLossCover Tests", function () {
                 "PoolIsNotOn",
             );
             await poolContract.connect(poolOwner).enablePool();
+        });
+
+        describe("When the underlying asset is not a standard implementation of ERC20", function () {
+            let mockTokenNonStandardContract: MockTokenNonStandardERC20;
+
+            async function prepareForYieldPayout() {
+                const MockTokenNonStandard = await ethers.getContractFactory(
+                    "MockTokenNonStandardERC20",
+                );
+                mockTokenNonStandardContract = await MockTokenNonStandard.deploy();
+                await mockTokenNonStandardContract.deployed();
+
+                await humaConfigContract
+                    .connect(protocolOwner)
+                    .setLiquidityAsset(mockTokenNonStandardContract.address, true);
+
+                [
+                    poolConfigContract,
+                    poolFeeManagerContract,
+                    poolSafeContract,
+                    calendarContract,
+                    borrowerFirstLossCoverContract,
+                    adminFirstLossCoverContract,
+                    tranchesPolicyContract,
+                    poolContract,
+                    epochManagerContract,
+                    seniorTrancheVaultContract,
+                    juniorTrancheVaultContract,
+                    creditContract as unknown,
+                    creditDueManagerContract,
+                    creditManagerContract as unknown,
+                ] = await deployAndSetupPoolContracts(
+                    humaConfigContract,
+                    mockTokenNonStandardContract,
+                    "RiskAdjustedTranchesPolicy",
+                    defaultDeployer,
+                    poolOwner,
+                    "MockPoolCredit",
+                    "MockPoolCreditManager",
+                    evaluationAgent,
+                    protocolTreasury,
+                    poolOwnerTreasury,
+                    poolOperator,
+                    [lender],
+                );
+            }
+
+            beforeEach(async function () {
+                await loadFixture(prepareForYieldPayout);
+            });
+
+            it("Should pay out yield to all providers", async function () {
+                const totalAssets = await adminFirstLossCoverContract.totalAssets();
+                const yieldAmount = toToken(8273);
+
+                await overrideFirstLossCoverConfig(
+                    adminFirstLossCoverContract,
+                    CONSTANTS.ADMIN_LOSS_COVER_INDEX,
+                    poolConfigContract,
+                    poolOwner,
+                    {
+                        maxLiquidity: totalAssets.sub(yieldAmount),
+                    },
+                );
+
+                const poolOwnerTreasuryBalance = await mockTokenNonStandardContract.balanceOf(
+                    poolOwnerTreasury.address,
+                );
+                const evaluationAgentBalance = await mockTokenNonStandardContract.balanceOf(
+                    evaluationAgent.address,
+                );
+                const totalShares = await adminFirstLossCoverContract.totalSupply();
+                const poolOwnerTreasuryShares = await adminFirstLossCoverContract.balanceOf(
+                    poolOwnerTreasury.address,
+                );
+                const evaluationAgentShares = await adminFirstLossCoverContract.balanceOf(
+                    evaluationAgent.address,
+                );
+
+                await expect(adminFirstLossCoverContract.payoutYield())
+                    .to.emit(adminFirstLossCoverContract, "YieldPaidOut")
+                    .withArgs(
+                        poolOwnerTreasury.address,
+                        yieldAmount.mul(poolOwnerTreasuryShares).div(totalShares),
+                    )
+                    .to.emit(adminFirstLossCoverContract, "YieldPaidOut")
+                    .withArgs(
+                        evaluationAgent.address,
+                        yieldAmount.mul(evaluationAgentShares).div(totalShares),
+                    );
+
+                // Paying out yield for a second time should do nothing.
+                await expect(adminFirstLossCoverContract.payoutYield()).to.not.emit(
+                    adminFirstLossCoverContract,
+                    "YieldPaidOut",
+                );
+
+                expect(await adminFirstLossCoverContract.totalAssets()).to.equal(
+                    totalAssets.sub(yieldAmount),
+                );
+                expect(
+                    await mockTokenNonStandardContract.balanceOf(poolOwnerTreasury.address),
+                ).to.equal(
+                    poolOwnerTreasuryBalance.add(
+                        poolOwnerTreasuryShares.mul(yieldAmount).div(totalShares),
+                    ),
+                );
+                expect(
+                    await mockTokenNonStandardContract.balanceOf(evaluationAgent.address),
+                ).to.equal(
+                    evaluationAgentBalance.add(
+                        evaluationAgentShares.mul(yieldAmount).div(totalShares),
+                    ),
+                );
+            });
         });
     });
 });

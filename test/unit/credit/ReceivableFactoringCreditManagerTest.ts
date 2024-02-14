@@ -7,7 +7,6 @@ import {
     Calendar,
     CreditDueManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockNFT,
@@ -45,7 +44,6 @@ import { CONSTANTS } from "../../constants";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -53,9 +51,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress;
 let lender: SignerWithAddress, borrower: SignerWithAddress, payer: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -78,7 +74,6 @@ describe("ReceivableFactoringCreditManager Test", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -91,10 +86,9 @@ describe("ReceivableFactoringCreditManager Test", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -117,7 +111,6 @@ describe("ReceivableFactoringCreditManager Test", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
@@ -209,7 +202,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
         it("Should not approve when the protocol is paused or pool is not on", async function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
-                creditManagerContract.connect(eaServiceAccount).approveReceivable(
+                creditManagerContract.connect(evaluationAgent).approveReceivable(
                     borrower.address,
                     {
                         receivableAmount: creditLimit,
@@ -224,7 +217,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
 
             await poolContract.connect(poolOwner).disablePool();
             await expect(
-                creditManagerContract.connect(eaServiceAccount).approveReceivable(
+                creditManagerContract.connect(evaluationAgent).approveReceivable(
                     borrower.address,
                     {
                         receivableAmount: creditLimit,
@@ -249,15 +242,12 @@ describe("ReceivableFactoringCreditManager Test", function () {
                     numOfPeriods,
                     yieldInBps,
                 ),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentServiceAccountRequired",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
         });
 
         it("Should not approve if the credit limit exceeds the receivable amount", async function () {
             await expect(
-                creditManagerContract.connect(eaServiceAccount).approveReceivable(
+                creditManagerContract.connect(evaluationAgent).approveReceivable(
                     borrower.address,
                     {
                         receivableAmount: creditLimit.sub(toToken(1)),
@@ -272,7 +262,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
 
         it("Should not approve if the receivable ID is 0", async function () {
             await expect(
-                creditManagerContract.connect(eaServiceAccount).approveReceivable(
+                creditManagerContract.connect(evaluationAgent).approveReceivable(
                     borrower.address,
                     {
                         receivableAmount: creditLimit,
@@ -289,7 +279,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
             const poolSettings = await poolConfigContract.getPoolSettings();
 
             await expect(
-                creditManagerContract.connect(eaServiceAccount).approveReceivable(
+                creditManagerContract.connect(evaluationAgent).approveReceivable(
                     borrower.address,
                     {
                         receivableAmount: creditLimit,
@@ -373,7 +363,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
             creditLimit = borrowAmount.mul(5);
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveReceivable(
                     borrower.address,
                     { receivableAmount: creditLimit, receivableId: tokenId },
@@ -408,7 +398,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
 
             await expect(creditManagerContract.refreshCredit(tokenId))
                 .to.emit(creditContract, "BillRefreshed")
-                .withArgs(creditHash, nextDueDate, accruedYieldDue);
+                .withArgs(creditHash, nextDueDate, accruedYieldDue, totalPastDue);
 
             const actualCR = await creditContract["getCreditRecord(uint256)"](tokenId);
             const expectedCR = {
@@ -438,13 +428,13 @@ describe("ReceivableFactoringCreditManager Test", function () {
         it("Should not allow the bill to be refreshed if the protocol is paused or the pool is not on", async function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
-                creditManagerContract.connect(eaServiceAccount).refreshCredit(tokenId),
+                creditManagerContract.connect(evaluationAgent).refreshCredit(tokenId),
             ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
             await expect(
-                creditManagerContract.connect(eaServiceAccount).refreshCredit(tokenId),
+                creditManagerContract.connect(evaluationAgent).refreshCredit(tokenId),
             ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
         });
     });
@@ -482,7 +472,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
             creditLimit = borrowAmount.mul(5);
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveReceivable(
                     borrower.address,
                     { receivableAmount: creditLimit, receivableId: tokenId },
@@ -536,14 +526,14 @@ describe("ReceivableFactoringCreditManager Test", function () {
                 ).toNumber() + 1;
             const expectedFeesLoss = await calcYield(borrowAmount, lateFeeBps, lateFeeDays);
 
-            await expect(creditManagerContract.connect(eaServiceAccount).triggerDefault(tokenId))
+            await expect(creditManagerContract.connect(evaluationAgent).triggerDefault(tokenId))
                 .to.emit(creditManagerContract, "DefaultTriggered")
                 .withArgs(
                     creditHash,
                     expectedPrincipalLoss,
                     expectedYieldLoss,
                     expectedFeesLoss,
-                    await eaServiceAccount.getAddress(),
+                    await evaluationAgent.getAddress(),
                 )
                 .to.emit(creditContract, "BillRefreshed")
                 .to.emit(poolContract, "ProfitDistributed")
@@ -554,7 +544,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
 
             // Any further attempt to trigger default is disallowed.
             await expect(
-                creditManagerContract.connect(eaServiceAccount).triggerDefault(tokenId),
+                creditManagerContract.connect(evaluationAgent).triggerDefault(tokenId),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
                 "DefaultHasAlreadyBeenTriggered",
@@ -574,23 +564,20 @@ describe("ReceivableFactoringCreditManager Test", function () {
         it("Should not allow default to be triggered when the protocol is paused or pool is not on", async function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
-                creditManagerContract.connect(eaServiceAccount).triggerDefault(tokenId),
+                creditManagerContract.connect(evaluationAgent).triggerDefault(tokenId),
             ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
             await expect(
-                creditManagerContract.connect(eaServiceAccount).triggerDefault(tokenId),
+                creditManagerContract.connect(evaluationAgent).triggerDefault(tokenId),
             ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
         });
 
         it("Should not allow non-EA service accounts to trigger default", async function () {
             await expect(
                 creditManagerContract.triggerDefault(tokenId),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentServiceAccountRequired",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
         });
     });
 
@@ -646,7 +633,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
                 creditLimit = toToken(15_000);
 
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveReceivable(
                         borrower.address,
                         { receivableAmount: creditLimit, receivableId: tokenId },
@@ -711,7 +698,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
             creditLimit = borrowAmount.mul(5);
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveReceivable(
                     borrower.address,
                     { receivableAmount: creditLimit, receivableId: tokenId },
@@ -734,16 +721,14 @@ describe("ReceivableFactoringCreditManager Test", function () {
             const oldCR = await creditContract["getCreditRecord(uint256)"](tokenId);
             const oldDD = await creditContract.getDueDetail(creditHash);
             await expect(
-                creditManagerContract
-                    .connect(eaServiceAccount)
-                    .updateYield(tokenId, newYieldInBps),
+                creditManagerContract.connect(evaluationAgent).updateYield(tokenId, newYieldInBps),
             )
                 .to.emit(creditManagerContract, "YieldUpdated")
                 .withArgs(
                     creditHash,
                     yieldInBps,
                     newYieldInBps,
-                    await eaServiceAccount.getAddress(),
+                    await evaluationAgent.getAddress(),
                 );
 
             const cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -762,16 +747,14 @@ describe("ReceivableFactoringCreditManager Test", function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .updateYield(await borrower.getAddress(), 1517),
             ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
             await expect(
-                creditManagerContract
-                    .connect(eaServiceAccount)
-                    .updateYield(tokenId, newYieldInBps),
+                creditManagerContract.connect(evaluationAgent).updateYield(tokenId, newYieldInBps),
             ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
             await poolContract.connect(poolOwner).enablePool();
         });
@@ -779,10 +762,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
         it("Should not allow non-EAs to perform the update", async function () {
             await expect(
                 creditManagerContract.updateYield(tokenId, newYieldInBps),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentServiceAccountRequired",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
         });
     });
 
@@ -808,7 +788,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
             creditLimit = borrowAmount.mul(5);
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveReceivable(
                     borrower.address,
                     { receivableAmount: creditLimit, receivableId: tokenId },
@@ -828,7 +808,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
             const newRemainingPeriods = oldCR.remainingPeriods + numOfPeriods;
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .extendRemainingPeriod(tokenId, numOfPeriods),
             )
                 .to.emit(creditManagerContract, "RemainingPeriodsExtended")
@@ -836,7 +816,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
                     creditHash,
                     oldCR.remainingPeriods,
                     newRemainingPeriods,
-                    await eaServiceAccount.getAddress(),
+                    await evaluationAgent.getAddress(),
                 );
             const newCR = await creditContract["getCreditRecord(uint256)"](tokenId);
             expect(newCR.remainingPeriods).to.equal(newRemainingPeriods);
@@ -846,7 +826,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .extendRemainingPeriod(tokenId, numOfPeriods),
             ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
@@ -854,7 +834,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
             await poolContract.connect(poolOwner).disablePool();
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .extendRemainingPeriod(tokenId, numOfPeriods),
             ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
             await poolContract.connect(poolOwner).enablePool();
@@ -865,10 +845,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
                 creditManagerContract
                     .connect(borrower)
                     .extendRemainingPeriod(tokenId, numOfPeriods),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentServiceAccountRequired",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
         });
     });
 
@@ -903,7 +880,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
             creditLimit = borrowAmount.mul(5);
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveReceivable(
                     borrower.address,
                     { receivableAmount: creditLimit, receivableId: tokenId },
@@ -940,16 +917,14 @@ describe("ReceivableFactoringCreditManager Test", function () {
             const oldDD = await creditContract.getDueDetail(creditHash);
             expect(oldDD.lateFee).to.be.gt(0);
             await expect(
-                creditManagerContract
-                    .connect(eaServiceAccount)
-                    .waiveLateFee(tokenId, waivedAmount),
+                creditManagerContract.connect(evaluationAgent).waiveLateFee(tokenId, waivedAmount),
             )
                 .to.emit(creditManagerContract, "LateFeeWaived")
                 .withArgs(
                     creditHash,
                     oldDD.lateFee,
                     expectedNewLateFee,
-                    await eaServiceAccount.getAddress(),
+                    await evaluationAgent.getAddress(),
                 );
 
             const actualCR = await creditContract["getCreditRecord(uint256)"](tokenId);
@@ -980,13 +955,13 @@ describe("ReceivableFactoringCreditManager Test", function () {
         it("Should not allow update when the protocol is paused or pool is not on", async function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
-                creditManagerContract.connect(eaServiceAccount).waiveLateFee(tokenId, toToken(1)),
+                creditManagerContract.connect(evaluationAgent).waiveLateFee(tokenId, toToken(1)),
             ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
             await expect(
-                creditManagerContract.connect(eaServiceAccount).waiveLateFee(tokenId, toToken(1)),
+                creditManagerContract.connect(evaluationAgent).waiveLateFee(tokenId, toToken(1)),
             ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
             await poolContract.connect(poolOwner).enablePool();
         });
@@ -994,10 +969,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
         it("Should not allow non-EAs to waive the late fee", async function () {
             await expect(
                 creditManagerContract.waiveLateFee(tokenId, toToken(1)),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentServiceAccountRequired",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
         });
     });
 });

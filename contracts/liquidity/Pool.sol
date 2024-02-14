@@ -32,8 +32,9 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     enum PoolStatus {
-        Off,
-        On
+        Off, // The pool is temporarily turned off.
+        On, // The pool is active.
+        Closed // The pool is permanently closed after maturity.
     }
 
     IEpochManager public epochManager;
@@ -49,7 +50,6 @@ contract Pool is PoolConfigCache, IPool {
     TranchesAssets public tranchesAssets;
     TranchesLosses public tranchesLosses;
 
-    // Whether the pool is ON or OFF
     PoolStatus internal _status;
 
     bool public readyForFirstLossCoverWithdrawal;
@@ -59,6 +59,12 @@ contract Pool is PoolConfigCache, IPool {
      * @param by The address that disabled the pool.
      */
     event PoolDisabled(address indexed by);
+
+    /**
+     * @notice The pool has been closed.
+     * @param by The address that closed the pool.
+     */
+    event PoolClosed(address indexed by);
 
     /**
      * @notice The pool has been enabled.
@@ -71,7 +77,7 @@ contract Pool is PoolConfigCache, IPool {
      * @param by The address that updated the status.
      * @param ready Whether the pool is now ready for first loss cover withdrawal.
      */
-    event PoolReadyForFirstLossCoverWithdrawal(address indexed by, bool ready);
+    event FirstLossCoverWithdrawalReadinessChanged(address indexed by, bool ready);
 
     /**
      * @notice Pool profit has been distributed.
@@ -140,13 +146,36 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     /**
+     * @notice Closes the pool permanently.
+     * @custom:access Only the pool owner or protocol owner can close a pool.
+     */
+    function closePool() external {
+        poolConfig.onlyPoolOwnerOrHumaOwner(msg.sender);
+        _status = PoolStatus.Closed;
+
+        // Set `readyForFirstLossCoverWithdrawal` to `true` so that first loss cover providers
+        // can withdraw their assets.
+        readyForFirstLossCoverWithdrawal = true;
+
+        // Set the `maxSeniorJuniorRatio` to 0 so that all pending redemption requests
+        // can be processed.
+        LPConfig memory lpConfig = poolConfig.getLPConfig();
+        lpConfig.maxSeniorJuniorRatio = 0;
+        poolConfig.setLPConfig(lpConfig);
+        // Process all pending redemption requests.
+        epochManager.processEpochAfterPoolClosure();
+
+        emit PoolClosed(msg.sender);
+    }
+
+    /**
      * @notice Enables or disables the first loss cover investors to withdraw capital.
      * @custom:access Only pool owner or Huma protocol owner can call this function.
      */
     function setReadyForFirstLossCoverWithdrawal(bool isReady) external {
         poolConfig.onlyPoolOwnerOrHumaOwner(msg.sender);
         readyForFirstLossCoverWithdrawal = isReady;
-        emit PoolReadyForFirstLossCoverWithdrawal(msg.sender, isReady);
+        emit FirstLossCoverWithdrawalReadinessChanged(msg.sender, isReady);
     }
 
     /// @inheritdoc IPool
@@ -184,8 +213,13 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     /// @inheritdoc IPool
-    function isPoolOn() external view returns (bool status) {
+    function isPoolOn() external view returns (bool isOn) {
         return _status == PoolStatus.On;
+    }
+
+    /// @inheritdoc IPool
+    function isPoolClosed() external view returns (bool isClosed) {
+        return _status == PoolStatus.Closed;
     }
 
     /// @inheritdoc IPool
@@ -227,41 +261,41 @@ contract Pool is PoolConfigCache, IPool {
     /**
      * @notice Common function in Huma protocol to retrieve contract addresses from PoolConfig.
      */
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.poolSafe();
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
+        address addr = poolConfig_.poolSafe();
         assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
-        addr = _poolConfig.tranchesPolicy();
+        addr = poolConfig_.tranchesPolicy();
         assert(addr != address(0));
         tranchesPolicy = ITranchesPolicy(addr);
 
-        addr = _poolConfig.poolFeeManager();
+        addr = poolConfig_.poolFeeManager();
         assert(addr != address(0));
         feeManager = IPoolFeeManager(addr);
 
-        addr = _poolConfig.epochManager();
+        addr = poolConfig_.epochManager();
         assert(addr != address(0));
         epochManager = IEpochManager(addr);
 
-        addr = _poolConfig.credit();
+        addr = poolConfig_.credit();
         assert(addr != address(0));
         credit = ICredit(addr);
 
-        addr = _poolConfig.creditManager();
+        addr = poolConfig_.creditManager();
         assert(addr != address(0));
         creditManager = ICreditManager(addr);
 
-        addr = _poolConfig.seniorTranche();
+        addr = poolConfig_.seniorTranche();
         assert(addr != address(0));
         seniorTranche = addr;
 
-        addr = _poolConfig.juniorTranche();
+        addr = poolConfig_.juniorTranche();
         assert(addr != address(0));
         juniorTranche = addr;
 
         delete _firstLossCovers;
-        address[16] memory covers = _poolConfig.getFirstLossCovers();
+        address[16] memory covers = poolConfig_.getFirstLossCovers();
         for (uint256 i = 0; i < covers.length; i++) {
             if (covers[i] != address(0)) {
                 _firstLossCovers.push(IFirstLossCover(covers[i]));
