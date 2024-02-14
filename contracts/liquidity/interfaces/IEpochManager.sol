@@ -17,6 +17,12 @@ interface IEpochManager {
     function closeEpoch() external;
 
     /**
+     * @notice Processes all pending redemption requests in the epoch after the pool is closed so that lenders
+     * can withdraw all their assets.
+     */
+    function processEpochAfterPoolClosure() external;
+
+    /**
      * @notice Returns the ID of the current epoch.
      * @return The ID of the current epoch.
      */

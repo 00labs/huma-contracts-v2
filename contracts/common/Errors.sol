@@ -45,6 +45,7 @@ contract Errors {
     error ProtocolIsPaused(); // 0xaf0b004c
     error PoolIsNotOn(); // 0xf082b5c3
     error PoolIsNotReadyForFirstLossCoverWithdrawal(); // 0x3c2546a3
+    error PoolIsNotClosed(); // 0x2faa680b
 
     // Calendar
     error StartDateLaterThanEndDate(); // 0xc496cd06
@@ -55,6 +56,7 @@ contract Errors {
     error WithdrawTooEarly(); // 0x64381803
     error InvalidTrancheIndex(); // 0x4e2a8dfe
     error EpochClosedTooEarly(); // 0xf6a9c460
+    error RedemptionsCannotBeProcessedDueToUnprocessedProfit(); // 0x0f4579c3
     error AlreadyALender(); // 0xce4108ca
     error NonReinvestYieldLenderCapacityReached(); // 0x39ad903d
     error ReinvestYieldOptionAlreadySet(); // 0xb44d305d
