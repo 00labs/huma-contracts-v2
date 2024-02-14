@@ -9,7 +9,6 @@ import {
     CreditLine,
     CreditLineManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockToken,
@@ -57,7 +56,6 @@ import { CONSTANTS } from "../../constants";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -65,9 +63,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress;
 let juniorLender: SignerWithAddress, seniorLender: SignerWithAddress, borrower: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -198,10 +194,9 @@ describe("CreditLine Integration Test", function () {
     }
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -224,7 +219,6 @@ describe("CreditLine Integration Test", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
@@ -320,7 +314,6 @@ describe("CreditLine Integration Test", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -352,7 +345,7 @@ describe("CreditLine Integration Test", function () {
         });
         await setNextBlockTimestamp(dateOfApproval.unix());
         await creditManagerContract
-            .connect(eaServiceAccount)
+            .connect(evaluationAgent)
             .approveBorrower(
                 borrower.getAddress(),
                 creditLimit,
@@ -1408,7 +1401,7 @@ describe("CreditLine Integration Test", function () {
 
         const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
         await expect(
-            creditManagerContract.connect(eaServiceAccount).triggerDefault(borrower.getAddress()),
+            creditManagerContract.connect(evaluationAgent).triggerDefault(borrower.getAddress()),
         )
             .to.emit(creditManagerContract, "DefaultTriggered")
             .withArgs(
@@ -1416,7 +1409,7 @@ describe("CreditLine Integration Test", function () {
                 totalPrincipal,
                 oldCR.yieldDue.add(oldDD.yieldPastDue),
                 totalLateFee,
-                await eaServiceAccount.getAddress(),
+                await evaluationAgent.getAddress(),
             )
             .to.emit(creditContract, "BillRefreshed")
             .withArgs(creditHash, oldCR.nextDueDate, oldCR.nextDue, totalPastDue)
@@ -1512,11 +1505,11 @@ describe("CreditLine Integration Test", function () {
 
         await expect(
             creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .waiveLateFee(borrower.getAddress(), waivedAmount),
         )
             .to.emit(creditManagerContract, "LateFeeWaived")
-            .withArgs(creditHash, oldDD.lateFee, 0, await eaServiceAccount.getAddress());
+            .withArgs(creditHash, oldDD.lateFee, 0, await evaluationAgent.getAddress());
 
         const actualCR = await creditContract.getCreditRecord(creditHash);
         const expectedCR = {
@@ -2092,7 +2085,7 @@ describe("CreditLine Integration Test", function () {
 
         await expect(
             creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .updateLimitAndCommitment(borrower.getAddress(), creditLimit, newCommittedAmount),
         )
             .to.emit(creditManagerContract, "LimitAndCommitmentUpdated")
@@ -2102,7 +2095,7 @@ describe("CreditLine Integration Test", function () {
                 creditLimit,
                 committedAmount,
                 newCommittedAmount,
-                await eaServiceAccount.getAddress(),
+                await evaluationAgent.getAddress(),
             );
 
         const actualCC = await creditManagerContract.getCreditConfig(creditHash);
@@ -2224,11 +2217,11 @@ describe("CreditLine Integration Test", function () {
 
         await expect(
             creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .updateYield(borrower.getAddress(), newYieldInBps),
         )
             .to.emit(creditManagerContract, "YieldUpdated")
-            .withArgs(creditHash, yieldInBps, newYieldInBps, await eaServiceAccount.getAddress());
+            .withArgs(creditHash, yieldInBps, newYieldInBps, await evaluationAgent.getAddress());
 
         const actualCC = await creditManagerContract.getCreditConfig(creditHash);
         const expectedCC = {
@@ -2526,11 +2519,11 @@ describe("CreditLine Integration Test", function () {
 
         await expect(
             creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .extendRemainingPeriod(borrower.getAddress(), numExtendedPeriods),
         )
             .to.emit(creditManagerContract, "RemainingPeriodsExtended")
-            .withArgs(creditHash, 0, numExtendedPeriods, await eaServiceAccount.getAddress());
+            .withArgs(creditHash, 0, numExtendedPeriods, await evaluationAgent.getAddress());
 
         const actualCC = await creditManagerContract.getCreditConfig(creditHash);
         const expectedCC = {

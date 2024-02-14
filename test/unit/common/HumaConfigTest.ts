@@ -1,36 +1,21 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { EvaluationAgentNFT, HumaConfig, MockToken } from "../../../typechain-types";
+import { HumaConfig, MockToken } from "../../../typechain-types";
 
 describe("HumaConfig Tests", function () {
-    let eaNFTContract: EvaluationAgentNFT,
-        configContract: HumaConfig,
-        mockTokenContract: MockToken;
+    let configContract: HumaConfig, mockTokenContract: MockToken;
     let origOwner: SignerWithAddress,
         pauser: SignerWithAddress,
         treasury: SignerWithAddress,
         newOwner: SignerWithAddress,
         newTreasury: SignerWithAddress,
         sentinelServiceAccount: SignerWithAddress,
-        eaServiceAccount: SignerWithAddress,
         randomUser: SignerWithAddress;
 
     before(async function () {
-        [
-            origOwner,
-            pauser,
-            treasury,
-            newOwner,
-            newTreasury,
-            sentinelServiceAccount,
-            eaServiceAccount,
-            randomUser,
-        ] = await ethers.getSigners();
-
-        // Deploy EvaluationAgentNFT
-        const EvaluationAgentNFT = await ethers.getContractFactory("EvaluationAgentNFT");
-        eaNFTContract = await EvaluationAgentNFT.deploy();
+        [origOwner, pauser, treasury, newOwner, newTreasury, sentinelServiceAccount, randomUser] =
+            await ethers.getSigners();
 
         const HumaConfig = await ethers.getContractFactory("HumaConfig");
         configContract = await HumaConfig.deploy();
@@ -218,7 +203,6 @@ describe("HumaConfig Tests", function () {
         });
     });
 
-    // Test suites for changing treasury fee
     describe("Change Treasury Fee", function () {
         it("Should disallow non-owner to change treasury fee", async function () {
             await expect(
@@ -243,7 +227,6 @@ describe("HumaConfig Tests", function () {
         });
     });
 
-    // Test suite for sentinelServiceAccount
     describe("Update sentinelServiceAccount", function () {
         it("Should disallow non-owner to change sentinelServiceAccount", async function () {
             await expect(
@@ -275,37 +258,6 @@ describe("HumaConfig Tests", function () {
         });
     });
 
-    // Test suite for eaServiceAccount
-    describe("Update eaServiceAccount", function () {
-        it("Should disallow non-owner to change eaServiceAccount", async function () {
-            await expect(
-                configContract.connect(randomUser).setEAServiceAccount(eaServiceAccount.address),
-            ).to.be.revertedWith("Ownable: caller is not the owner");
-        });
-
-        it("Should reject 0 address eaServiceAccount", async function () {
-            await expect(
-                configContract
-                    .connect(origOwner)
-                    .setEAServiceAccount(ethers.constants.AddressZero),
-            ).to.be.revertedWithCustomError(configContract, "ZeroAddressProvided");
-        });
-
-        it("Should allow eaServiceAccount to be changed", async function () {
-            expect(
-                await configContract
-                    .connect(origOwner)
-                    .setEAServiceAccount(eaServiceAccount.address),
-            )
-                .to.emit(configContract, "EAServiceAccountChanged")
-                .withArgs(eaServiceAccount.address);
-            expect(await configContract.connect(origOwner).eaServiceAccount()).to.equal(
-                eaServiceAccount.address,
-            );
-        });
-    });
-
-    // Test suites for valid liquidity assets
     describe("Change Liquidity Assets", function () {
         it("Should disallow non-proto-admin to change liquidity asset", async function () {
             await expect(
@@ -335,31 +287,6 @@ describe("HumaConfig Tests", function () {
                 .to.emit(configContract, "LiquidityAssetRemoved")
                 .withArgs(mockTokenContract.address, origOwner.address);
             expect(await configContract.isAssetValid(mockTokenContract.address)).to.equal(false);
-        });
-    });
-
-    describe("Change EA NFT Contract Address", function () {
-        it("Should disallow non-proto-admin to change EANFT Address", async function () {
-            await expect(
-                configContract.connect(randomUser).setEANFTContractAddress(eaNFTContract.address),
-            ).to.be.revertedWith("Ownable: caller is not the owner");
-        });
-
-        it("Should reject zero address EANFT contract address", async function () {
-            await expect(
-                configContract
-                    .connect(origOwner)
-                    .setEANFTContractAddress(ethers.constants.AddressZero),
-            ).to.be.revertedWithCustomError(configContract, "ZeroAddressProvided");
-        });
-
-        it("Should be able to change EANFT Address", async function () {
-            await expect(
-                configContract.connect(origOwner).setEANFTContractAddress(eaNFTContract.address),
-            )
-                .to.emit(configContract, "EANFTContractAddressChanged")
-                .withArgs(eaNFTContract.address);
-            expect(await configContract.eaNFTContractAddress()).to.equal(eaNFTContract.address);
         });
     });
 });
