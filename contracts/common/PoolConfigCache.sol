@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {PoolConfig} from "./PoolConfig.sol";
 import {Errors} from "./Errors.sol";
@@ -31,8 +31,8 @@ abstract contract PoolConfigCache is Initializable, UUPSUpgradeable {
         _disableInitializers();
     }
 
-    function initialize(PoolConfig _poolConfig) external virtual initializer {
-        _initialize(_poolConfig);
+    function initialize(PoolConfig poolConfig_) external virtual initializer {
+        _initialize(poolConfig_);
         __UUPSUpgradeable_init();
     }
 
@@ -48,27 +48,27 @@ abstract contract PoolConfigCache is Initializable, UUPSUpgradeable {
 
     /**
      * @notice Sets new pool config contract address.
-     * @param _poolConfig The address of the new pool config contract.
+     * @param poolConfig_ The address of the new pool config contract.
      * @custom:access Only the pool owner of the old pool config contract can call this function.
      */
-    function setPoolConfig(PoolConfig _poolConfig) external {
-        if (address(_poolConfig) == address(0)) revert Errors.ZeroAddressProvided();
+    function setPoolConfig(PoolConfig poolConfig_) external {
+        if (address(poolConfig_) == address(0)) revert Errors.ZeroAddressProvided();
         PoolConfig oldPoolConfig = poolConfig;
         oldPoolConfig.onlyPoolOwner(msg.sender);
-        poolConfig = _poolConfig;
-        _updatePoolConfigData(_poolConfig);
-        emit PoolConfigChanged(address(_poolConfig), address(oldPoolConfig));
+        poolConfig = poolConfig_;
+        _updatePoolConfigData(poolConfig_);
+        emit PoolConfigChanged(address(poolConfig_), address(oldPoolConfig));
     }
 
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual;
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual;
 
-    function _initialize(PoolConfig _poolConfig) internal onlyInitializing {
-        if (address(_poolConfig) == address(0)) revert Errors.ZeroAddressProvided();
-        poolConfig = _poolConfig;
-        _updatePoolConfigData(_poolConfig);
+    function _initialize(PoolConfig poolConfig_) internal onlyInitializing {
+        if (address(poolConfig_) == address(0)) revert Errors.ZeroAddressProvided();
+        poolConfig = poolConfig_;
+        _updatePoolConfigData(poolConfig_);
     }
 
     function _authorizeUpgrade(address) internal view override {
-        poolConfig.onlyHumaMasterAdmin(msg.sender);
+        poolConfig.onlyHumaOwner(msg.sender);
     }
 }

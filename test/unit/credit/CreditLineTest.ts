@@ -10,7 +10,6 @@ import {
     CreditLine,
     CreditLineManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockToken,
@@ -26,7 +25,6 @@ import {
     DueDetailStruct,
 } from "../../../typechain-types/contracts/credit/Credit";
 import {
-    CreditClosureReason,
     CreditState,
     PayPeriodDuration,
     calcLateFeeNew,
@@ -53,7 +51,6 @@ import {
     getMaturityDate,
     getStartOfDay,
     getStartOfNextMonth,
-    isCloseTo,
     maxBigNumber,
     minBigNumber,
     mineNextBlockWithTimestamp,
@@ -66,7 +63,6 @@ import { CONSTANTS } from "../../constants";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -74,9 +70,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress;
 let lender: SignerWithAddress, borrower: SignerWithAddress, borrower2: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -98,7 +92,6 @@ describe("CreditLine Test", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -111,10 +104,9 @@ describe("CreditLine Test", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -137,13 +129,13 @@ describe("CreditLine Test", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
             "CreditLine",
             "CreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender, borrower, borrower2],
@@ -191,7 +183,7 @@ describe("CreditLine Test", function () {
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.address,
                     toToken(100_000),
@@ -209,7 +201,7 @@ describe("CreditLine Test", function () {
 
         it("Should return the latest bill for the borrower", async function () {
             borrowAmount = toToken(15_000);
-            await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+            await creditContract.connect(borrower).drawdown(borrowAmount);
 
             const oldCR = await creditContract.getCreditRecord(creditHash);
             const viewTime =
@@ -268,7 +260,7 @@ describe("CreditLine Test", function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(10_000),
@@ -284,7 +276,7 @@ describe("CreditLine Test", function () {
             await poolContract.connect(poolOwner).disablePool();
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(10_000),
@@ -308,16 +300,13 @@ describe("CreditLine Test", function () {
                     0,
                     true,
                 ),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentServiceAccountRequired",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
         });
 
         it("Should not approve with invalid parameters", async function () {
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         ethers.constants.AddressZero,
                         toToken(10_000),
@@ -331,7 +320,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(0),
@@ -345,7 +334,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(10_000),
@@ -359,7 +348,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(10_000),
@@ -379,7 +368,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         creditLimit,
@@ -392,7 +381,7 @@ describe("CreditLine Test", function () {
             ).to.be.revertedWithCustomError(creditManagerContract, "CreditLimitTooHigh");
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.address,
                     toToken(10_000),
@@ -402,10 +391,10 @@ describe("CreditLine Test", function () {
                     0,
                     true,
                 );
-            await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
+            await creditContract.connect(borrower).drawdown(toToken(10_000));
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(10_000),
@@ -421,7 +410,7 @@ describe("CreditLine Test", function () {
         it("Should not approve if the credit has no commitment but a designated start date", async function () {
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.getAddress(),
                         toToken(10_000),
@@ -447,7 +436,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.getAddress(),
                         toToken(10_000),
@@ -470,7 +459,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.getAddress(),
                         toToken(10_000),
@@ -493,7 +482,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(10_000),
@@ -548,7 +537,7 @@ describe("CreditLine Test", function () {
 
         it("Should approve again after a credit is closed", async function () {
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(borrower.address, toToken(10_000), 1, 1217, toToken(0), 0, true);
 
             await creditManagerContract.connect(borrower).closeCredit(borrower.address);
@@ -559,7 +548,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(20_000),
@@ -627,7 +616,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(10_000),
@@ -699,7 +688,7 @@ describe("CreditLine Test", function () {
                     nextBlockTimestamp,
                 );
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.getAddress(),
                         toToken(100_000),
@@ -806,7 +795,7 @@ describe("CreditLine Test", function () {
                     )
                 ).add(CONSTANTS.SECONDS_IN_A_DAY * 13);
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.getAddress(),
                         toToken(100_000),
@@ -943,7 +932,7 @@ describe("CreditLine Test", function () {
                 creditManagerContract
                     .connect(sentinelServiceAccount)
                     .startCommittedCredit(borrower.getAddress()),
-            ).to.be.revertedWithCustomError(creditContract, "BorrowerRequired");
+            ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
         });
 
         it("Should not start a credit that's in the wrong state", async function () {
@@ -955,7 +944,7 @@ describe("CreditLine Test", function () {
                 nextBlockTimestamp,
             );
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(100_000),
@@ -967,9 +956,7 @@ describe("CreditLine Test", function () {
                 );
             const drawdownDate = startDate.add(CONSTANTS.SECONDS_IN_A_DAY);
             await setNextBlockTimestamp(drawdownDate);
-            await creditContract
-                .connect(borrower)
-                .drawdown(borrower.getAddress(), toToken(20_000));
+            await creditContract.connect(borrower).drawdown(toToken(20_000));
             await expect(
                 creditManagerContract
                     .connect(sentinelServiceAccount)
@@ -983,7 +970,7 @@ describe("CreditLine Test", function () {
         it("Should not start a credit that does not have a designated start date", async function () {
             committedAmount = toToken(50_000);
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(100_000),
@@ -1012,7 +999,7 @@ describe("CreditLine Test", function () {
                 nextBlockTimestamp,
             );
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(100_000),
@@ -1042,7 +1029,7 @@ describe("CreditLine Test", function () {
         describe("Without commitment", function () {
             async function prepareForDrawdown() {
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(100_000),
@@ -1061,31 +1048,27 @@ describe("CreditLine Test", function () {
             it("Should not allow drawdown when the protocol is paused or pool is not on", async function () {
                 await humaConfigContract.connect(protocolOwner).pause();
                 await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                    creditContract.connect(borrower).drawdown(toToken(10_000)),
                 ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
 
                 await poolContract.connect(poolOwner).disablePool();
                 await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                    creditContract.connect(borrower).drawdown(toToken(10_000)),
                 ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
             });
 
             it("Should not allow drawdown with invalid parameters", async function () {
                 await expect(
-                    creditContract.connect(borrower).drawdown(borrower2.address, toToken(10_000)),
-                ).to.be.revertedWithCustomError(creditContract, "BorrowerRequired");
+                    creditContract.connect(borrower2).drawdown(toToken(10_000)),
+                ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
 
                 await expect(
-                    creditContract.connect(borrower2).drawdown(borrower2.address, toToken(10_000)),
-                ).to.be.revertedWithCustomError(creditContract, "BorrowerRequired");
-
-                await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, toToken(0)),
+                    creditContract.connect(borrower).drawdown(toToken(0)),
                 ).to.be.revertedWithCustomError(creditContract, "ZeroAmountProvided");
 
                 await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, toToken(100_001)),
+                    creditContract.connect(borrower).drawdown(toToken(100_001)),
                 ).to.be.revertedWithCustomError(creditContract, "CreditLimitExceeded");
             });
 
@@ -1093,7 +1076,7 @@ describe("CreditLine Test", function () {
                 await creditManagerContract.connect(borrower).closeCredit(borrower.address);
 
                 await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                    creditContract.connect(borrower).drawdown(toToken(10_000)),
                 ).to.be.revertedWithCustomError(
                     creditContract,
                     "DrawdownNotAllowedInFinalPeriodAndBeyond",
@@ -1111,7 +1094,7 @@ describe("CreditLine Test", function () {
                 const borrowAmount = toToken(50_000);
                 const firstDrawdownDate = await getFutureBlockTime(3);
                 await setNextBlockTimestamp(firstDrawdownDate);
-                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+                await creditContract.connect(borrower).drawdown(borrowAmount);
 
                 const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
                 const cr = await creditContract.getCreditRecord(creditHash);
@@ -1121,7 +1104,7 @@ describe("CreditLine Test", function () {
                     (poolSettings.latePaymentGracePeriodInDays - 1) * CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(secondDrawdownDate);
                 await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
+                    creditContract.connect(borrower).drawdown(borrowAmount),
                 ).to.be.revertedWithCustomError(
                     creditContract,
                     "DrawdownNotAllowedAfterDueDateWithUnpaidDue",
@@ -1129,7 +1112,7 @@ describe("CreditLine Test", function () {
             });
 
             it("Should not allow drawdown if drawdown happens after the due date and there is unpaid next due", async function () {
-                await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
+                await creditContract.connect(borrower).drawdown(toToken(10_000));
                 const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
                 let cr = await creditContract.getCreditRecord(creditHash);
                 const settings = await poolConfigContract.getPoolSettings();
@@ -1140,7 +1123,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(nextTime);
 
                 await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                    creditContract.connect(borrower).drawdown(toToken(10_000)),
                 ).to.be.revertedWithCustomError(
                     creditContract,
                     "DrawdownNotAllowedAfterDueDateWithUnpaidDue",
@@ -1148,7 +1131,7 @@ describe("CreditLine Test", function () {
             });
 
             it("Should not allow drawdown in the last period", async function () {
-                await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
+                await creditContract.connect(borrower).drawdown(toToken(10_000));
                 // Pay off the bill.
                 const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
                 const cr = await creditContract.getCreditRecord(creditHash);
@@ -1168,7 +1151,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(drawdownDate);
 
                 await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                    creditContract.connect(borrower).drawdown(toToken(10_000)),
                 ).to.be.revertedWithCustomError(
                     creditContract,
                     "DrawdownNotAllowedInFinalPeriodAndBeyond",
@@ -1176,7 +1159,7 @@ describe("CreditLine Test", function () {
             });
 
             it("Should not allow drawdown in the last period if refresh credit happens in the last period right before drawdown", async function () {
-                await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
+                await creditContract.connect(borrower).drawdown(toToken(10_000));
                 // Pay off the bill.
                 const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
                 const cr = await creditContract.getCreditRecord(creditHash);
@@ -1197,7 +1180,7 @@ describe("CreditLine Test", function () {
                 await creditManagerContract.refreshCredit(borrower.getAddress());
 
                 await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                    creditContract.connect(borrower).drawdown(toToken(10_000)),
                 ).to.be.revertedWithCustomError(
                     creditContract,
                     "DrawdownNotAllowedInFinalPeriodAndBeyond",
@@ -1205,7 +1188,7 @@ describe("CreditLine Test", function () {
             });
 
             it("Should not allow drawdown post maturity even if there is no amount due", async function () {
-                await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
+                await creditContract.connect(borrower).drawdown(toToken(10_000));
                 // Pay off the bill.
                 const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
                 const cr = await creditContract.getCreditRecord(creditHash);
@@ -1225,7 +1208,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(drawdownDate);
 
                 await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                    creditContract.connect(borrower).drawdown(toToken(10_000)),
                 ).to.be.revertedWithCustomError(
                     creditContract,
                     "DrawdownNotAllowedInFinalPeriodAndBeyond",
@@ -1233,7 +1216,7 @@ describe("CreditLine Test", function () {
             });
 
             it("Should not allow drawdown post maturity if refresh credit happens post maturity but before the drawdown attempt and there is no amount due", async function () {
-                await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
+                await creditContract.connect(borrower).drawdown(toToken(10_000));
                 // Pay off the bill.
                 const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
                 const cr = await creditContract.getCreditRecord(creditHash);
@@ -1254,7 +1237,7 @@ describe("CreditLine Test", function () {
                 await creditManagerContract.refreshCredit(borrower.getAddress());
 
                 await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                    creditContract.connect(borrower).drawdown(toToken(10_000)),
                 ).to.be.revertedWithCustomError(
                     creditContract,
                     "DrawdownNotAllowedInFinalPeriodAndBeyond",
@@ -1263,7 +1246,7 @@ describe("CreditLine Test", function () {
 
             it("Should not allow drawdown if the bill is delayed after refresh", async function () {
                 // First drawdown, then pay for all due in the same cycle.
-                await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
+                await creditContract.connect(borrower).drawdown(toToken(10_000));
                 const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
                 const oldCR = await creditContract.getCreditRecord(creditHash);
                 await creditContract
@@ -1278,7 +1261,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(secondDrawdownDate);
 
                 await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                    creditContract.connect(borrower).drawdown(toToken(10_000)),
                 ).to.be.revertedWithCustomError(creditContract, "CreditNotInStateForDrawdown");
             });
 
@@ -1290,7 +1273,7 @@ describe("CreditLine Test", function () {
                     ...{ defaultGracePeriodInDays: defaultGracePeriodInDays },
                 });
 
-                await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
+                await creditContract.connect(borrower).drawdown(toToken(10_000));
                 const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
                 const oldCR = await creditContract.getCreditRecord(creditHash);
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -1303,14 +1286,14 @@ describe("CreditLine Test", function () {
                     defaultGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(triggerDefaultDate);
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .triggerDefault(borrower.getAddress());
                 const expectedCR = await creditContract.getCreditRecord(creditHash);
                 expect(expectedCR.state).to.equal(CreditState.Defaulted);
                 const expectedDD = await creditContract.getDueDetail(creditHash);
 
                 await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                    creditContract.connect(borrower).drawdown(toToken(10_000)),
                 ).to.be.revertedWithCustomError(creditContract, "CreditNotInStateForDrawdown");
                 const actualCR = await creditContract.getCreditRecord(creditHash);
                 checkCreditRecordsMatch(actualCR, expectedCR);
@@ -1331,7 +1314,7 @@ describe("CreditLine Test", function () {
                 );
 
                 await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                    creditContract.connect(borrower).drawdown(toToken(10_000)),
                 ).to.be.revertedWithCustomError(creditContract, "InsufficientFirstLossCover");
             });
 
@@ -1342,7 +1325,7 @@ describe("CreditLine Test", function () {
                     .add(5, "days")
                     .startOf("day");
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(100_000),
@@ -1355,13 +1338,13 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(drawdownDate);
 
                 await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                    creditContract.connect(borrower).drawdown(toToken(10_000)),
                 ).to.be.revertedWithCustomError(creditContract, "FirstDrawdownTooEarly");
             });
 
             it("Should not allow drawdown again if the credit line is non-revolving", async function () {
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(100_000),
@@ -1371,10 +1354,10 @@ describe("CreditLine Test", function () {
                         0,
                         false,
                     );
-                await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
+                await creditContract.connect(borrower).drawdown(toToken(10_000));
 
                 await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                    creditContract.connect(borrower).drawdown(toToken(10_000)),
                 ).to.be.revertedWithCustomError(
                     creditContract,
                     "AttemptedDrawdownOnNonRevolvingLine",
@@ -1383,7 +1366,7 @@ describe("CreditLine Test", function () {
 
             it("Should not allow drawdown again if the credit limit is exceeded after bill refresh", async function () {
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(10_000),
@@ -1393,10 +1376,10 @@ describe("CreditLine Test", function () {
                         0,
                         true,
                     );
-                await creditContract.connect(borrower).drawdown(borrower.address, toToken(9_000));
+                await creditContract.connect(borrower).drawdown(toToken(9_000));
 
                 await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, toToken(1_001)),
+                    creditContract.connect(borrower).drawdown(toToken(1_001)),
                 ).to.be.revertedWithCustomError(creditContract, "CreditLimitExceeded");
             });
 
@@ -1409,7 +1392,7 @@ describe("CreditLine Test", function () {
                 });
 
                 await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, toToken(999)),
+                    creditContract.connect(borrower).drawdown(toToken(999)),
                 ).to.be.revertedWithCustomError(
                     creditDueManagerContract,
                     "BorrowAmountLessThanPlatformFees",
@@ -1424,7 +1407,7 @@ describe("CreditLine Test", function () {
                     .connect(poolOwner)
                     .setPoolSettings({ ...settings, ...{ maxCreditLine: amount } });
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         amount,
@@ -1436,7 +1419,7 @@ describe("CreditLine Test", function () {
                     );
 
                 await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, amount),
+                    creditContract.connect(borrower).drawdown(amount),
                 ).to.be.revertedWithCustomError(
                     creditContract,
                     "InsufficientPoolBalanceForDrawdown",
@@ -1473,13 +1456,11 @@ describe("CreditLine Test", function () {
                 const [yieldDue] = calcYieldDue(cc, borrowAmount, days);
 
                 const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-                await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
-                )
+                await expect(creditContract.connect(borrower).drawdown(borrowAmount))
                     .to.emit(creditContract, "DrawdownMade")
                     .withArgs(borrower.address, borrowAmount, netBorrowAmount)
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, nextDueDate, yieldDue);
+                    .withArgs(creditHash, nextDueDate, yieldDue, 0);
                 const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
                 expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
 
@@ -1532,13 +1513,11 @@ describe("CreditLine Test", function () {
                 let totalYieldDue = yieldDue;
 
                 let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-                await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
-                )
+                await expect(creditContract.connect(borrower).drawdown(borrowAmount))
                     .to.emit(creditContract, "DrawdownMade")
                     .withArgs(borrower.address, borrowAmount, netBorrowAmount)
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, nextDueDate, yieldDue)
+                    .withArgs(creditHash, nextDueDate, yieldDue, 0)
                     .to.emit(poolContract, "ProfitDistributed");
                 let borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
                 expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
@@ -1576,9 +1555,7 @@ describe("CreditLine Test", function () {
                 totalYieldDue = totalYieldDue.add(yieldDue);
 
                 borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-                await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
-                )
+                await expect(creditContract.connect(borrower).drawdown(borrowAmount))
                     .to.emit(creditContract, "DrawdownMade")
                     .withArgs(borrower.address, borrowAmount, netBorrowAmount)
                     .to.emit(poolContract, "ProfitDistributed");
@@ -1606,7 +1583,7 @@ describe("CreditLine Test", function () {
 
                 let borrowAmount = toToken(25000);
                 let totalBorrowAmount = borrowAmount;
-                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+                await creditContract.connect(borrower).drawdown(borrowAmount);
 
                 let cr = await creditContract.getCreditRecord(creditHash);
                 await creditContract.connect(borrower).makePayment(borrower.address, cr.nextDue);
@@ -1644,13 +1621,11 @@ describe("CreditLine Test", function () {
 
                 const remainingPeriods = cr.remainingPeriods;
                 const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-                await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
-                )
+                await expect(creditContract.connect(borrower).drawdown(borrowAmount))
                     .to.emit(creditContract, "DrawdownMade")
                     .withArgs(borrower.address, borrowAmount, netBorrowAmount)
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, nextDueDate, totalYieldDue)
+                    .withArgs(creditHash, nextDueDate, totalYieldDue, 0)
                     .to.emit(poolContract, "ProfitDistributed");
                 const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
                 expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
@@ -1676,7 +1651,7 @@ describe("CreditLine Test", function () {
         describe("With commitment", function () {
             async function prepareForDrawdown() {
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(100_000),
@@ -1715,13 +1690,11 @@ describe("CreditLine Test", function () {
                 const poolSafeOldBalance = await mockTokenContract.balanceOf(
                     poolSafeContract.address,
                 );
-                await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
-                )
+                await expect(creditContract.connect(borrower).drawdown(borrowAmount))
                     .to.emit(creditContract, "DrawdownMade")
                     .withArgs(borrower.address, borrowAmount, netBorrowAmount)
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, nextDueDate, yieldDue);
+                    .withArgs(creditHash, nextDueDate, yieldDue, 0);
                 const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
                 const poolSafeNewBalance = await mockTokenContract.balanceOf(
                     poolSafeContract.address,
@@ -1772,13 +1745,11 @@ describe("CreditLine Test", function () {
                 const poolSafeOldBalance = await mockTokenContract.balanceOf(
                     poolSafeContract.address,
                 );
-                await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
-                )
+                await expect(creditContract.connect(borrower).drawdown(borrowAmount))
                     .to.emit(creditContract, "DrawdownMade")
                     .withArgs(borrower.address, borrowAmount, netBorrowAmount)
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, nextDueDate, committed);
+                    .withArgs(creditHash, nextDueDate, committed, 0);
                 const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
                 const poolSafeNewBalance = await mockTokenContract.balanceOf(
                     poolSafeContract.address,
@@ -1837,7 +1808,7 @@ describe("CreditLine Test", function () {
                 let [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days);
                 let totalYieldDue = yieldDue;
 
-                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+                await creditContract.connect(borrower).drawdown(borrowAmount);
 
                 let cr = await creditContract.getCreditRecord(creditHash);
                 checkCreditRecord(
@@ -1876,9 +1847,7 @@ describe("CreditLine Test", function () {
                 totalYieldDue = totalYieldDue.add(yieldDue);
 
                 let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-                await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
-                )
+                await expect(creditContract.connect(borrower).drawdown(borrowAmount))
                     .to.emit(creditContract, "DrawdownMade")
                     .withArgs(borrower.address, borrowAmount, netBorrowAmount)
                     .to.emit(poolContract, "ProfitDistributed");
@@ -1935,7 +1904,7 @@ describe("CreditLine Test", function () {
                 let [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days);
                 let totalYieldDue = yieldDue;
 
-                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+                await creditContract.connect(borrower).drawdown(borrowAmount);
 
                 let cr = await creditContract.getCreditRecord(creditHash);
                 checkCreditRecord(
@@ -1974,9 +1943,7 @@ describe("CreditLine Test", function () {
                 totalYieldDue = totalYieldDue.add(yieldDue);
 
                 let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-                await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
-                )
+                await expect(creditContract.connect(borrower).drawdown(borrowAmount))
                     .to.emit(creditContract, "DrawdownMade")
                     .withArgs(borrower.address, borrowAmount, netBorrowAmount)
                     .to.emit(poolContract, "ProfitDistributed");
@@ -2014,7 +1981,7 @@ describe("CreditLine Test", function () {
                 });
 
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(100_000),
@@ -2067,13 +2034,11 @@ describe("CreditLine Test", function () {
                 const totalDue = yieldDue.add(principalDue);
 
                 const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-                await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
-                )
+                await expect(creditContract.connect(borrower).drawdown(borrowAmount))
                     .to.emit(creditContract, "DrawdownMade")
                     .withArgs(borrower.address, borrowAmount, netBorrowAmount)
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, nextDueDate, totalDue)
+                    .withArgs(creditHash, nextDueDate, totalDue, 0)
                     .to.emit(poolContract, "ProfitDistributed");
                 const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
                 expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
@@ -2116,9 +2081,7 @@ describe("CreditLine Test", function () {
                 );
                 await setNextBlockTimestamp(firstDrawdownDate);
 
-                await creditContract
-                    .connect(borrower)
-                    .drawdown(borrower.address, firstBorrowAmount);
+                await creditContract.connect(borrower).drawdown(firstBorrowAmount);
 
                 const secondBorrowAmount = toToken(50_000);
                 const netBorrowAmount = secondBorrowAmount
@@ -2151,11 +2114,7 @@ describe("CreditLine Test", function () {
                 const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
                 const oldCR = await creditContract.getCreditRecord(creditHash);
                 const oldDD = await creditContract.getDueDetail(creditHash);
-                await expect(
-                    creditContract
-                        .connect(borrower)
-                        .drawdown(borrower.address, secondBorrowAmount),
-                )
+                await expect(creditContract.connect(borrower).drawdown(secondBorrowAmount))
                     .to.emit(creditContract, "DrawdownMade")
                     .withArgs(borrower.address, secondBorrowAmount, netBorrowAmount)
                     .to.emit(poolContract, "ProfitDistributed");
@@ -2205,9 +2164,7 @@ describe("CreditLine Test", function () {
                 ).add(CONSTANTS.SECONDS_IN_A_DAY * 2);
                 await setNextBlockTimestamp(firstDrawdownDate);
 
-                await creditContract
-                    .connect(borrower)
-                    .drawdown(borrower.address, firstBorrowAmount);
+                await creditContract.connect(borrower).drawdown(firstBorrowAmount);
 
                 const secondBorrowAmount = toToken(50_000);
                 const netBorrowAmount = secondBorrowAmount
@@ -2240,11 +2197,7 @@ describe("CreditLine Test", function () {
                 const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
                 const oldCR = await creditContract.getCreditRecord(creditHash);
                 const oldDD = await creditContract.getDueDetail(creditHash);
-                await expect(
-                    creditContract
-                        .connect(borrower)
-                        .drawdown(borrower.address, secondBorrowAmount),
-                )
+                await expect(creditContract.connect(borrower).drawdown(secondBorrowAmount))
                     .to.emit(creditContract, "DrawdownMade")
                     .withArgs(borrower.address, secondBorrowAmount, netBorrowAmount)
                     .to.emit(poolContract, "ProfitDistributed");
@@ -2292,7 +2245,7 @@ describe("CreditLine Test", function () {
 
             committedAmount = toToken(10_000);
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.address,
                     toToken(100_000),
@@ -2333,7 +2286,7 @@ describe("CreditLine Test", function () {
 
                 it("Should not update anything if the credit is closed after approval", async function () {
                     await creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .closeCredit(borrower.getAddress());
 
                     const oldCR = await creditContract.getCreditRecord(creditHash);
@@ -2357,9 +2310,7 @@ describe("CreditLine Test", function () {
                         ),
                     );
                     await prepareForTests();
-                    await creditContract
-                        .connect(borrower)
-                        .drawdown(borrower.address, borrowAmount);
+                    await creditContract.connect(borrower).drawdown(borrowAmount);
                 }
 
                 beforeEach(async function () {
@@ -2410,7 +2361,7 @@ describe("CreditLine Test", function () {
                         defaultGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY;
                     await setNextBlockTimestamp(triggerDefaultDate);
                     await creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .triggerDefault(borrower.getAddress());
                     const expectedCR = await creditContract.getCreditRecord(creditHash);
                     expect(expectedCR.state).to.equal(CreditState.Defaulted);
@@ -2438,7 +2389,7 @@ describe("CreditLine Test", function () {
 
             it("Should update correctly when the credit is delayed by 1 period", async function () {
                 borrowAmount = toToken(20_000);
-                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+                await creditContract.connect(borrower).drawdown(borrowAmount);
 
                 const cr = await creditContract.getCreditRecord(creditHash);
                 const settings = await poolConfigContract.getPoolSettings();
@@ -2466,7 +2417,7 @@ describe("CreditLine Test", function () {
                 expect(nextBillRefreshDate).to.equal(latePaymentDeadline);
                 await expect(creditManagerContract.refreshCredit(borrower.getAddress()))
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, nextDueDate, yieldDue);
+                    .withArgs(creditHash, nextDueDate, yieldDue, totalPastDue);
 
                 const tomorrow = await calendarContract.getStartOfNextDay(nextTime);
                 const actualCR = await creditContract.getCreditRecord(creditHash);
@@ -2496,7 +2447,7 @@ describe("CreditLine Test", function () {
 
             it("Should update correctly again in the same period if the credit state is Delayed", async function () {
                 borrowAmount = toToken(20_000);
-                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+                await creditContract.connect(borrower).drawdown(borrowAmount);
 
                 const cr = await creditContract.getCreditRecord(creditHash);
                 const settings = await poolConfigContract.getPoolSettings();
@@ -2531,7 +2482,7 @@ describe("CreditLine Test", function () {
 
             it("Should update correctly again in the next period if the credit state is Delayed", async function () {
                 borrowAmount = toToken(20_000);
-                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+                await creditContract.connect(borrower).drawdown(borrowAmount);
 
                 let cr = await creditContract.getCreditRecord(creditHash);
                 const settings = await poolConfigContract.getPoolSettings();
@@ -2570,7 +2521,7 @@ describe("CreditLine Test", function () {
                 expect(nextBillRefreshDate).to.equal(cr.nextDueDate);
                 await expect(creditManagerContract.refreshCredit(borrower.address))
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, nextDueDate, nextDue);
+                    .withArgs(creditHash, nextDueDate, nextDue, totalPastDue);
 
                 const actualCR = await creditContract.getCreditRecord(creditHash);
                 checkCreditRecord(
@@ -2591,9 +2542,7 @@ describe("CreditLine Test", function () {
                 // Drawdown and make payment for all dues in the first period.
                 const drawdownDate = await getStartOfNextMonth();
                 await setNextBlockTimestamp(drawdownDate);
-                await creditContract
-                    .connect(borrower)
-                    .drawdown(borrower.getAddress(), borrowAmount);
+                await creditContract.connect(borrower).drawdown(borrowAmount);
                 let oldCR = await creditContract.getCreditRecord(creditHash);
                 const makePaymentDate = drawdownDate + 5 * CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(makePaymentDate);
@@ -2630,7 +2579,7 @@ describe("CreditLine Test", function () {
                 expect(nextBillRefreshDate).to.equal(oldCR.nextDueDate);
                 await expect(creditManagerContract.refreshCredit(borrower.address))
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, nextDueDate, yieldNextDue);
+                    .withArgs(creditHash, nextDueDate, yieldNextDue, 0);
 
                 const actualCR = await creditContract.getCreditRecord(creditHash);
                 const expectedCR = {
@@ -2658,7 +2607,7 @@ describe("CreditLine Test", function () {
                 borrowAmount = toToken(5_000);
                 const drawdownDate = await getFutureBlockTime(2);
                 await setNextBlockTimestamp(drawdownDate);
-                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+                await creditContract.connect(borrower).drawdown(borrowAmount);
 
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
                 let cr = await creditContract.getCreditRecord(creditHash);
@@ -2706,7 +2655,7 @@ describe("CreditLine Test", function () {
                 expect(nextBillRefreshDate).to.equal(latePaymentDeadline);
                 await expect(creditManagerContract.refreshCredit(borrower.address))
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, maturityDate, nextDue);
+                    .withArgs(creditHash, maturityDate, nextDue, totalPastDue);
 
                 cr = await creditContract.getCreditRecord(creditHash);
                 checkCreditRecord(
@@ -2737,7 +2686,7 @@ describe("CreditLine Test", function () {
                 borrowAmount = toToken(20_000);
                 const drawdownDate = await getFutureBlockTime(2);
                 await setNextBlockTimestamp(drawdownDate);
-                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+                await creditContract.connect(borrower).drawdown(borrowAmount);
 
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
                 let cr = await creditContract.getCreditRecord(creditHash);
@@ -2761,6 +2710,18 @@ describe("CreditLine Test", function () {
                 );
                 expect(accruedYieldDue).to.be.gt(committedYieldDue);
                 const expectedNextDue = accruedYieldDue;
+                const daysPassed = await calendarContract.getDaysDiff(
+                    oldCR.nextDueDate,
+                    maturityDate,
+                );
+                const expectedYieldPastDue = calcYield(
+                    borrowAmount,
+                    yieldInBps,
+                    daysPassed.toNumber(),
+                );
+                const expectedTotalPastDue = borrowAmount
+                    .add(oldCR.yieldDue)
+                    .add(expectedYieldPastDue);
                 const latePaymentDeadline =
                     oldCR.nextDueDate.toNumber() +
                     latePaymentGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY;
@@ -2771,18 +2732,14 @@ describe("CreditLine Test", function () {
                 expect(nextBillRefreshDate).to.equal(latePaymentDeadline);
                 await expect(creditManagerContract.refreshCredit(borrower.address))
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, expectedFirstDueDate, expectedNextDue);
+                    .withArgs(
+                        creditHash,
+                        expectedFirstDueDate,
+                        expectedNextDue,
+                        expectedTotalPastDue,
+                    );
 
                 const actualFirstCR = await creditContract.getCreditRecord(creditHash);
-                const daysPassed = await calendarContract.getDaysDiff(
-                    oldCR.nextDueDate,
-                    maturityDate,
-                );
-                const expectedYieldPastDue = calcYield(
-                    borrowAmount,
-                    yieldInBps,
-                    daysPassed.toNumber(),
-                );
                 const expectedFirstLateFeeUpdatedDate =
                     await calendarContract.getStartOfNextDay(firstRefreshDate);
                 const expectedFirstCR = {
@@ -2790,7 +2747,7 @@ describe("CreditLine Test", function () {
                     nextDueDate: expectedFirstDueDate,
                     nextDue: expectedNextDue,
                     yieldDue: accruedYieldDue,
-                    totalPastDue: borrowAmount.add(oldCR.yieldDue).add(expectedYieldPastDue),
+                    totalPastDue: expectedTotalPastDue,
                     missedPeriods: cc.numOfPeriods,
                     remainingPeriods: 0,
                     state: CreditState.Delayed,
@@ -2829,6 +2786,10 @@ describe("CreditLine Test", function () {
                 );
                 expect(secondAccruedYieldDue).to.be.gt(secondCommittedYieldDue);
                 const expectedSecondNextDue = secondAccruedYieldDue;
+                // Add the incremental late fee to past due.
+                const expectedSecondPastDue = actualFirstCR.totalPastDue.add(
+                    actualFirstCR.nextDue,
+                );
 
                 const secondNextBillRefreshDate = await creditContract.getNextBillRefreshDate(
                     borrower.getAddress(),
@@ -2836,7 +2797,12 @@ describe("CreditLine Test", function () {
                 expect(secondNextBillRefreshDate).to.equal(actualFirstCR.nextDueDate);
                 await expect(creditManagerContract.refreshCredit(borrower.address))
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, expectedSecondDueDate, expectedSecondNextDue);
+                    .withArgs(
+                        creditHash,
+                        expectedSecondDueDate,
+                        expectedSecondNextDue,
+                        expectedSecondPastDue,
+                    );
 
                 const actualSecondCR = await creditContract.getCreditRecord(creditHash);
                 const expectedSecondLateFeeUpdatedDate =
@@ -2846,8 +2812,7 @@ describe("CreditLine Test", function () {
                     nextDueDate: expectedSecondDueDate,
                     nextDue: expectedSecondNextDue,
                     yieldDue: expectedSecondNextDue,
-                    // Add the incremental late fee to past due.
-                    totalPastDue: actualFirstCR.totalPastDue.add(actualFirstCR.nextDue),
+                    totalPastDue: expectedSecondPastDue,
                     missedPeriods: actualFirstCR.missedPeriods + 1,
                     remainingPeriods: 0,
                     state: CreditState.Delayed,
@@ -2871,7 +2836,7 @@ describe("CreditLine Test", function () {
                 borrowAmount = toToken(5_000);
                 const drawdownDate = await getFutureBlockTime(2);
                 await setNextBlockTimestamp(drawdownDate);
-                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+                await creditContract.connect(borrower).drawdown(borrowAmount);
 
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
                 let cr = await creditContract.getCreditRecord(creditHash);
@@ -2902,6 +2867,9 @@ describe("CreditLine Test", function () {
                 );
                 expect(accruedYieldDue).to.be.lt(committedYieldDue);
                 const expectedNextDue = committedYieldDue;
+                const expectedTotalPastDue = oldCR.totalPastDue
+                    .add(oldCR.nextDue)
+                    .add(oldCR.unbilledPrincipal);
 
                 const nextBillRefreshDate = await creditContract.getNextBillRefreshDate(
                     borrower.getAddress(),
@@ -2909,7 +2877,12 @@ describe("CreditLine Test", function () {
                 expect(nextBillRefreshDate).to.equal(oldCR.nextDueDate);
                 await expect(creditManagerContract.refreshCredit(borrower.address))
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, expectedNextDueDate, expectedNextDue);
+                    .withArgs(
+                        creditHash,
+                        expectedNextDueDate,
+                        expectedNextDue,
+                        expectedTotalPastDue,
+                    );
 
                 const actualCR = await creditContract.getCreditRecord(creditHash);
                 const expectedCR = {
@@ -2962,7 +2935,7 @@ describe("CreditLine Test", function () {
 
             it("Should update correctly when the credit is delayed by 1 period", async function () {
                 borrowAmount = toToken(5_000);
-                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+                await creditContract.connect(borrower).drawdown(borrowAmount);
 
                 const cr = await creditContract.getCreditRecord(creditHash);
                 const settings = await poolConfigContract.getPoolSettings();
@@ -2987,17 +2960,17 @@ describe("CreditLine Test", function () {
                     1,
                 );
                 const nextDue = committed.add(principalDue);
-
-                await expect(creditManagerContract.refreshCredit(borrower.address))
-                    .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, nextDueDate, nextDue);
-
                 const tomorrow = await calendarContract.getStartOfNextDay(nextTime);
                 const lateFee = calcYield(
                     committedAmount,
                     lateFeeBps,
                     (await calendarContract.getDaysDiff(cr.nextDueDate, tomorrow)).toNumber(),
                 );
+                const totalPastDue = cr.nextDue.add(lateFee);
+
+                await expect(creditManagerContract.refreshCredit(borrower.address))
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(creditHash, nextDueDate, nextDue, totalPastDue);
 
                 const newCreditRecord = await creditContract.getCreditRecord(creditHash);
                 checkCreditRecord(
@@ -3006,7 +2979,7 @@ describe("CreditLine Test", function () {
                     nextDueDate,
                     nextDue,
                     committed,
-                    cr.nextDue.add(lateFee),
+                    totalPastDue,
                     1,
                     cr.remainingPeriods - 1,
                     CreditState.Delayed,
@@ -3031,9 +3004,7 @@ describe("CreditLine Test", function () {
                 // Drawdown and make payment for all dues in the first period.
                 const drawdownDate = await getStartOfNextMonth();
                 await setNextBlockTimestamp(drawdownDate);
-                await creditContract
-                    .connect(borrower)
-                    .drawdown(borrower.getAddress(), borrowAmount);
+                await creditContract.connect(borrower).drawdown(borrowAmount);
                 let oldCR = await creditContract.getCreditRecord(creditHash);
                 const makePaymentDate = drawdownDate + 5 * CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(makePaymentDate);
@@ -3072,7 +3043,7 @@ describe("CreditLine Test", function () {
 
                 await expect(creditManagerContract.refreshCredit(borrower.address))
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, nextDueDate, nextDue);
+                    .withArgs(creditHash, nextDueDate, nextDue, 0);
 
                 const actualCR = await creditContract.getCreditRecord(creditHash);
                 const expectedCR = {
@@ -3101,9 +3072,7 @@ describe("CreditLine Test", function () {
                 // Drawdown and make payment for all dues in the first period.
                 const drawdownDate = await getStartOfNextMonth();
                 await setNextBlockTimestamp(drawdownDate);
-                await creditContract
-                    .connect(borrower)
-                    .drawdown(await borrower.getAddress(), borrowAmount);
+                await creditContract.connect(borrower).drawdown(borrowAmount);
                 let oldCR = await creditContract.getCreditRecord(creditHash);
                 const makePaymentDate = drawdownDate + 5 * CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(makePaymentDate);
@@ -3147,11 +3116,6 @@ describe("CreditLine Test", function () {
                     1,
                 );
                 const nextDue = yieldNextDue.add(oldCR.unbilledPrincipal).sub(principalPastDue);
-
-                await expect(creditManagerContract.refreshCredit(borrower.address))
-                    .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, nextDueDate, nextDue);
-
                 const tomorrow = await calendarContract.getStartOfNextDay(refreshDate);
                 const previousBillDueDate = await calendarContract.getStartDateOfNextPeriod(
                     cc.periodDuration,
@@ -3162,6 +3126,11 @@ describe("CreditLine Test", function () {
                     lateFeeBps,
                     (await calendarContract.getDaysDiff(previousBillDueDate, tomorrow)).toNumber(),
                 );
+                const totalPastDue = yieldPastDue.add(principalPastDue).add(lateFee);
+
+                await expect(creditManagerContract.refreshCredit(borrower.address))
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(creditHash, nextDueDate, nextDue, totalPastDue);
 
                 const actualCR = await creditContract.getCreditRecord(creditHash);
                 const expectedCR = {
@@ -3194,9 +3163,7 @@ describe("CreditLine Test", function () {
                 // Drawdown and make payment for all dues in the first period.
                 const drawdownDate = await getStartOfNextMonth();
                 await setNextBlockTimestamp(drawdownDate);
-                await creditContract
-                    .connect(borrower)
-                    .drawdown(await borrower.getAddress(), borrowAmount);
+                await creditContract.connect(borrower).drawdown(borrowAmount);
                 let oldCR = await creditContract.getCreditRecord(creditHash);
                 const makePaymentDate = drawdownDate + 5 * CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(makePaymentDate);
@@ -3241,10 +3208,6 @@ describe("CreditLine Test", function () {
                     daysOverdue,
                 );
 
-                await expect(creditManagerContract.refreshCredit(borrower.address))
-                    .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, nextDueDate, committedNextDue);
-
                 const tomorrow = await calendarContract.getStartOfNextDay(refreshDate);
                 const lateFee = calcYield(
                     cc.committedAmount,
@@ -3252,6 +3215,11 @@ describe("CreditLine Test", function () {
                     (await calendarContract.getDaysDiff(startDateOfPeriod, tomorrow)).toNumber(),
                 );
                 expect(lateFee).to.be.gt(0);
+                const totalPastDue = committedPastDue.add(lateFee);
+
+                await expect(creditManagerContract.refreshCredit(borrower.address))
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(creditHash, nextDueDate, committedNextDue, totalPastDue);
 
                 const actualCR = await creditContract.getCreditRecord(creditHash);
                 const expectedCR = {
@@ -3259,7 +3227,7 @@ describe("CreditLine Test", function () {
                     nextDueDate: nextDueDate,
                     nextDue: committedNextDue,
                     yieldDue: committedNextDue,
-                    totalPastDue: committedPastDue.add(lateFee),
+                    totalPastDue,
                     missedPeriods: 1,
                     remainingPeriods: oldCR.remainingPeriods - 2,
                     state: CreditState.Delayed,
@@ -3283,7 +3251,7 @@ describe("CreditLine Test", function () {
                 borrowAmount = toToken(20_000);
                 const drawdownDate = await getFutureBlockTime(2);
                 await setNextBlockTimestamp(drawdownDate);
-                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+                await creditContract.connect(borrower).drawdown(borrowAmount);
 
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
                 let cr = await creditContract.getCreditRecord(creditHash);
@@ -3318,17 +3286,17 @@ describe("CreditLine Test", function () {
                 const unbilledPrincipal = cr.unbilledPrincipal.sub(principalPastDue);
                 principalPastDue = principalPastDue.add(cr.nextDue.sub(cr.yieldDue));
                 const nextDue = accruedYieldDue.add(unbilledPrincipal);
-
-                await expect(creditManagerContract.refreshCredit(borrower.address))
-                    .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, maturityDate, nextDue);
-
                 const tomorrow = await calendarContract.getStartOfNextDay(nextTime);
                 const lateFee = calcYield(
                     borrowAmount,
                     lateFeeBps,
                     (await calendarContract.getDaysDiff(cr.nextDueDate, tomorrow)).toNumber(),
                 );
+                const totalPastDue = yieldPastDue.add(principalPastDue).add(lateFee);
+
+                await expect(creditManagerContract.refreshCredit(borrower.address))
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(creditHash, maturityDate, nextDue, totalPastDue);
 
                 const newCreditRecord = await creditContract.getCreditRecord(creditHash);
                 checkCreditRecord(
@@ -3337,7 +3305,7 @@ describe("CreditLine Test", function () {
                     maturityDate,
                     nextDue,
                     accruedYieldDue,
-                    yieldPastDue.add(principalPastDue).add(lateFee),
+                    totalPastDue,
                     cr.remainingPeriods,
                     0,
                     CreditState.Delayed,
@@ -3359,7 +3327,7 @@ describe("CreditLine Test", function () {
 
             it("Should update correctly again in the next period if the credit state is Delayed", async function () {
                 borrowAmount = toToken(20_000);
-                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+                await creditContract.connect(borrower).drawdown(borrowAmount);
 
                 let oldCR = await creditContract.getCreditRecord(creditHash);
                 const settings = await poolConfigContract.getPoolSettings();
@@ -3391,11 +3359,6 @@ describe("CreditLine Test", function () {
                     daysPassed,
                 );
                 const nextDue = accruedYieldDue.add(oldCR.unbilledPrincipal);
-
-                await expect(creditManagerContract.refreshCredit(borrower.address))
-                    .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, expectedNextDueDate, nextDue);
-
                 const expectedLateFeeUpdatedDate =
                     await calendarContract.getStartOfNextDay(secondRefreshDate);
                 const additionalLateFee = calcYield(
@@ -3411,6 +3374,10 @@ describe("CreditLine Test", function () {
                 const expectedTotalPastDue = oldCR.totalPastDue
                     .add(oldCR.nextDue)
                     .add(additionalLateFee);
+
+                await expect(creditManagerContract.refreshCredit(borrower.address))
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(creditHash, expectedNextDueDate, nextDue, expectedTotalPastDue);
 
                 const actualCR = await creditContract.getCreditRecord(creditHash);
                 checkCreditRecord(
@@ -3445,7 +3412,7 @@ describe("CreditLine Test", function () {
                 borrowAmount = toToken(20_000);
                 const drawdownDate = await getFutureBlockTime(2);
                 await setNextBlockTimestamp(drawdownDate);
-                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+                await creditContract.connect(borrower).drawdown(borrowAmount);
 
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
                 let cr = await creditContract.getCreditRecord(creditHash);
@@ -3469,12 +3436,6 @@ describe("CreditLine Test", function () {
                 );
                 expect(accruedYieldDue).to.be.gt(committedYieldDue);
                 const expectedNextDue = accruedYieldDue;
-
-                await expect(creditManagerContract.refreshCredit(borrower.address))
-                    .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, expectedFirstDueDate, expectedNextDue);
-
-                const actualFirstCR = await creditContract.getCreditRecord(creditHash);
                 const daysPassed = await calendarContract.getDaysDiff(
                     oldCR.nextDueDate,
                     maturityDate,
@@ -3496,15 +3457,28 @@ describe("CreditLine Test", function () {
                         )
                     ).toNumber(),
                 );
+                const expectedTotalPastDue = borrowAmount
+                    .add(oldCR.yieldDue)
+                    .add(expectedYieldPastDue)
+                    .add(expectedFirstLateFee);
+
+                await expect(creditManagerContract.refreshCredit(borrower.address))
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(
+                        creditHash,
+                        expectedFirstDueDate,
+                        expectedNextDue,
+                        expectedTotalPastDue,
+                    );
+
+                const actualFirstCR = await creditContract.getCreditRecord(creditHash);
+
                 const expectedFirstCR = {
                     unbilledPrincipal: BN.from(0),
                     nextDueDate: expectedFirstDueDate,
                     nextDue: expectedNextDue,
                     yieldDue: expectedNextDue,
-                    totalPastDue: borrowAmount
-                        .add(oldCR.yieldDue)
-                        .add(expectedYieldPastDue)
-                        .add(expectedFirstLateFee),
+                    totalPastDue: expectedTotalPastDue,
                     missedPeriods: cc.numOfPeriods,
                     remainingPeriods: 0,
                     state: CreditState.Delayed,
@@ -3556,12 +3530,6 @@ describe("CreditLine Test", function () {
                     yieldInBps,
                     2 * CONSTANTS.DAYS_IN_A_MONTH,
                 );
-
-                await expect(creditManagerContract.refreshCredit(borrower.address))
-                    .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, expectedSecondDueDate, expectedSecondNextDue);
-
-                const actualSecondCR = await creditContract.getCreditRecord(creditHash);
                 const expectedSecondLateFeeUpdatedDate =
                     await calendarContract.getStartOfNextDay(secondRefreshDate);
                 const expectedSecondLateFee = calcYield(
@@ -3574,16 +3542,28 @@ describe("CreditLine Test", function () {
                         )
                     ).toNumber(),
                 );
+                const expectedSecondPastDue = actualFirstCR.totalPastDue
+                    .add(actualFirstCR.nextDue)
+                    .add(additionalYieldPastDue)
+                    .sub(expectedFirstLateFee)
+                    .add(expectedSecondLateFee);
+
+                await expect(creditManagerContract.refreshCredit(borrower.address))
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(
+                        creditHash,
+                        expectedSecondDueDate,
+                        expectedSecondNextDue,
+                        expectedSecondPastDue,
+                    );
+
+                const actualSecondCR = await creditContract.getCreditRecord(creditHash);
                 const expectedSecondCR = {
                     unbilledPrincipal: BN.from(0),
                     nextDueDate: expectedSecondDueDate,
                     nextDue: expectedSecondNextDue,
                     yieldDue: expectedSecondNextDue,
-                    totalPastDue: actualFirstCR.totalPastDue
-                        .add(actualFirstCR.nextDue)
-                        .add(additionalYieldPastDue)
-                        .sub(expectedFirstLateFee)
-                        .add(expectedSecondLateFee),
+                    totalPastDue: expectedSecondPastDue,
                     missedPeriods: actualFirstCR.missedPeriods + 3,
                     remainingPeriods: 0,
                     state: CreditState.Delayed,
@@ -3610,7 +3590,7 @@ describe("CreditLine Test", function () {
                 borrowAmount = toToken(20_000);
                 const drawdownDate = await getFutureBlockTime(2);
                 await setNextBlockTimestamp(drawdownDate);
-                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+                await creditContract.connect(borrower).drawdown(borrowAmount);
 
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
                 let cr = await creditContract.getCreditRecord(creditHash);
@@ -3640,12 +3620,6 @@ describe("CreditLine Test", function () {
                 );
                 expect(accruedYieldDue).to.be.gt(committedYieldDue);
                 const expectedNextDue = accruedYieldDue;
-
-                await expect(creditManagerContract.refreshCredit(borrower.address))
-                    .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, expectedFirstDueDate, expectedNextDue);
-
-                const actualFirstCR = await creditContract.getCreditRecord(creditHash);
                 const startOfPeriodForFirstRefreshDate =
                     await calendarContract.getStartDateOfPeriod(
                         cc.periodDuration,
@@ -3672,15 +3646,27 @@ describe("CreditLine Test", function () {
                         )
                     ).toNumber(),
                 );
+                const expectedTotalPastDue = borrowAmount
+                    .add(oldCR.yieldDue)
+                    .add(expectedYieldPastDue)
+                    .add(expectedFirstLateFee);
+
+                await expect(creditManagerContract.refreshCredit(borrower.address))
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(
+                        creditHash,
+                        expectedFirstDueDate,
+                        expectedNextDue,
+                        expectedTotalPastDue,
+                    );
+
+                const actualFirstCR = await creditContract.getCreditRecord(creditHash);
                 const expectedFirstCR = {
                     unbilledPrincipal: BN.from(0),
                     nextDueDate: expectedFirstDueDate,
                     nextDue: expectedNextDue,
                     yieldDue: expectedNextDue,
-                    totalPastDue: borrowAmount
-                        .add(oldCR.yieldDue)
-                        .add(expectedYieldPastDue)
-                        .add(expectedFirstLateFee),
+                    totalPastDue: expectedTotalPastDue,
                     missedPeriods: cc.numOfPeriods + 1,
                     remainingPeriods: 0,
                     state: CreditState.Delayed,
@@ -3705,7 +3691,7 @@ describe("CreditLine Test", function () {
                 borrowAmount = toToken(5_000);
                 const drawdownDate = await getFutureBlockTime(1);
                 await setNextBlockTimestamp(drawdownDate);
-                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+                await creditContract.connect(borrower).drawdown(borrowAmount);
 
                 // First refresh is performed before maturity.
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -3736,12 +3722,6 @@ describe("CreditLine Test", function () {
                 );
                 expect(accruedYieldDue).to.be.lt(committedYieldDue);
                 const expectedNextDue = committedYieldDue;
-
-                await expect(creditManagerContract.refreshCredit(borrower.address))
-                    .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, expectedNextDueDate, expectedNextDue);
-
-                const actualCR = await creditContract.getCreditRecord(creditHash);
                 const expectedLateFeeRefreshDate =
                     await calendarContract.getStartOfNextDay(secondRefreshDate);
                 const daysPassed = await calendarContract.getDaysDiff(
@@ -3753,15 +3733,28 @@ describe("CreditLine Test", function () {
                     lateFeeBps,
                     daysPassed.toNumber(),
                 );
+                const expectedTotalPastDue = oldCR.totalPastDue
+                    .add(oldCR.nextDue)
+                    .add(oldCR.unbilledPrincipal)
+                    .add(additionalLateFee);
+
+                await expect(creditManagerContract.refreshCredit(borrower.address))
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(
+                        creditHash,
+                        expectedNextDueDate,
+                        expectedNextDue,
+                        expectedTotalPastDue,
+                    );
+
+                const actualCR = await creditContract.getCreditRecord(creditHash);
+
                 const expectedCR = {
                     unbilledPrincipal: BN.from(0),
                     nextDueDate: expectedNextDueDate,
                     nextDue: expectedNextDue,
                     yieldDue: expectedNextDue,
-                    totalPastDue: oldCR.totalPastDue
-                        .add(oldCR.nextDue)
-                        .add(oldCR.unbilledPrincipal)
-                        .add(additionalLateFee),
+                    totalPastDue: expectedTotalPastDue,
                     missedPeriods: oldCR.missedPeriods + 1,
                     remainingPeriods: 0,
                     state: CreditState.Delayed,
@@ -3806,7 +3799,7 @@ describe("CreditLine Test", function () {
                 .setPoolSettings({ ...settings, ...{ latePaymentGracePeriodInDays: 5 } });
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(100_000),
@@ -3836,7 +3829,7 @@ describe("CreditLine Test", function () {
             await setNextBlockTimestamp(drawdownDate.unix());
 
             borrowAmount = toToken(50_000);
-            await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+            await creditContract.connect(borrower).drawdown(borrowAmount);
 
             firstDueDate = moment.utc(
                 (
@@ -3854,7 +3847,7 @@ describe("CreditLine Test", function () {
                     creditContract
                         .connect(borrower)
                         .makePayment(borrower.getAddress(), toToken(1)),
-                ).to.be.revertedWithCustomError(creditContract, "BorrowerRequired");
+                ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
             });
         });
 
@@ -5610,7 +5603,7 @@ describe("CreditLine Test", function () {
                             .add(defaultGracePeriodInDays, "days");
                         await setNextBlockTimestamp(triggerDefaultDate.unix());
                         await creditManagerContract
-                            .connect(eaServiceAccount)
+                            .connect(evaluationAgent)
                             .triggerDefault(borrower.getAddress());
                         const cr = await creditContract.getCreditRecord(creditHash);
                         expect(cr.state).to.equal(CreditState.Defaulted);
@@ -7453,7 +7446,7 @@ describe("CreditLine Test", function () {
                 .setPoolSettings({ ...settings, ...{ latePaymentGracePeriodInDays: 5 } });
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(100_000),
@@ -7483,7 +7476,7 @@ describe("CreditLine Test", function () {
             await setNextBlockTimestamp(drawdownDate.unix());
 
             borrowAmount = toToken(50_000);
-            await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+            await creditContract.connect(borrower).drawdown(borrowAmount);
 
             firstDueDate = moment.utc(
                 (
@@ -7498,10 +7491,8 @@ describe("CreditLine Test", function () {
         describe("If the borrower does not have a credit line approved", function () {
             it("Should not allow a borrower to make principal payment", async function () {
                 await expect(
-                    creditContract
-                        .connect(borrower)
-                        .makePrincipalPayment(borrower.getAddress(), toToken(1)),
-                ).to.be.revertedWithCustomError(creditContract, "BorrowerRequired");
+                    creditContract.connect(borrower).makePrincipalPayment(toToken(1)),
+                ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
             });
         });
 
@@ -7512,9 +7503,7 @@ describe("CreditLine Test", function () {
 
             it("Should not allow the borrower to make principal payment", async function () {
                 await expect(
-                    creditContract
-                        .connect(borrower)
-                        .makePrincipalPayment(borrower.getAddress(), toToken(1)),
+                    creditContract.connect(borrower).makePrincipalPayment(toToken(1)),
                 ).to.be.revertedWithCustomError(
                     creditContract,
                     "CreditNotInStateForMakingPrincipalPayment",
@@ -7546,7 +7535,7 @@ describe("CreditLine Test", function () {
                     await expect(
                         creditContract
                             .connect(paymentInitiator)
-                            .makePrincipalPayment(borrower.getAddress(), paymentAmount),
+                            .makePrincipalPayment(paymentAmount),
                     )
                         .to.emit(creditContract, "PrincipalPaymentMade")
                         .withArgs(
@@ -7564,7 +7553,7 @@ describe("CreditLine Test", function () {
                     await expect(
                         creditContract
                             .connect(paymentInitiator)
-                            .makePrincipalPayment(borrower.getAddress(), paymentAmount),
+                            .makePrincipalPayment(paymentAmount),
                     ).not.to.emit(creditContract, "PrincipalPaymentMade");
                 }
                 const borrowerBalanceAfter = await mockTokenContract.balanceOf(
@@ -7682,48 +7671,6 @@ describe("CreditLine Test", function () {
                         borrowAmount,
                         expectedNewCR,
                         expectedNewDD,
-                    );
-                });
-
-                it("Should allow the Sentinel Service to pay for the unbilled principal once in the current billing cycle from the borrower's wallet", async function () {
-                    const cr = await creditContract.getCreditRecord(creditHash);
-                    const dd = await creditContract.getDueDetail(creditHash);
-
-                    makePaymentDate = drawdownDate
-                        .clone()
-                        .add(2, "days")
-                        .add(22, "hours")
-                        .add(14, "seconds");
-                    const nextDueDate = firstDueDate;
-                    const expectedNewCR = {
-                        unbilledPrincipal: 0,
-                        nextDueDate: nextDueDate.unix(),
-                        nextDue: cr.nextDue,
-                        yieldDue: cr.yieldDue,
-                        totalPastDue: BN.from(0),
-                        missedPeriods: 0,
-                        remainingPeriods: cr.remainingPeriods,
-                        state: CreditState.GoodStanding,
-                    };
-                    const expectedNewDD = {
-                        lateFeeUpdatedDate: BN.from(0),
-                        lateFee: BN.from(0),
-                        principalPastDue: BN.from(0),
-                        yieldPastDue: BN.from(0),
-                        committed: dd.committed,
-                        accrued: dd.accrued,
-                        paid: BN.from(0),
-                    };
-                    await testMakePrincipalPayment(
-                        makePaymentDate,
-                        borrowAmount,
-                        borrowAmount,
-                        nextDueDate,
-                        BN.from(0),
-                        borrowAmount,
-                        expectedNewCR,
-                        expectedNewDD,
-                        sentinelServiceAccount,
                     );
                 });
 
@@ -7877,9 +7824,7 @@ describe("CreditLine Test", function () {
                     // Any further attempt to make principal payment will be rejected since the
                     // credit line is closed.
                     await expect(
-                        creditContract
-                            .connect(borrower)
-                            .makePrincipalPayment(borrower.getAddress(), toToken(1)),
+                        creditContract.connect(borrower).makePrincipalPayment(toToken(1)),
                     ).to.be.revertedWithCustomError(
                         creditContract,
                         "CreditNotInStateForMakingPrincipalPayment",
@@ -7889,33 +7834,26 @@ describe("CreditLine Test", function () {
                 it("Should not allow payment when the protocol is paused or pool is not on", async function () {
                     await humaConfigContract.connect(protocolOwner).pause();
                     await expect(
-                        creditContract.makePrincipalPayment(borrower.getAddress(), toToken(1)),
+                        creditContract.makePrincipalPayment(toToken(1)),
                     ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                     await humaConfigContract.connect(protocolOwner).unpause();
 
                     await poolContract.connect(poolOwner).disablePool();
                     await expect(
-                        creditContract.makePrincipalPayment(borrower.getAddress(), toToken(1)),
+                        creditContract.makePrincipalPayment(toToken(1)),
                     ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                     await poolContract.connect(poolOwner).enablePool();
                 });
 
-                it("Should not allow non-borrower or non-Sentinel Service account to make principal payment", async function () {
+                it("Should not allow non-borrowers to make principal payment", async function () {
                     await expect(
-                        creditContract
-                            .connect(borrower2)
-                            .makePrincipalPayment(borrower.getAddress(), toToken(1)),
-                    ).to.be.revertedWithCustomError(
-                        creditContract,
-                        "SentinelServiceAccountRequired",
-                    );
+                        creditContract.connect(borrower2).makePrincipalPayment(toToken(1)),
+                    ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
                 });
 
                 it("Should not allow the borrower to make principal payment with 0 amount", async function () {
                     await expect(
-                        creditContract
-                            .connect(borrower)
-                            .makePrincipalPayment(borrower.getAddress(), 0),
+                        creditContract.connect(borrower).makePrincipalPayment(0),
                     ).to.be.revertedWithCustomError(creditContract, "ZeroAmountProvided");
                 });
 
@@ -7923,9 +7861,7 @@ describe("CreditLine Test", function () {
                     makePaymentDate = drawdownDate.add(2, "months");
                     await setNextBlockTimestamp(makePaymentDate.unix());
                     await expect(
-                        creditContract
-                            .connect(borrower)
-                            .makePrincipalPayment(borrower.getAddress(), toToken(1)),
+                        creditContract.connect(borrower).makePrincipalPayment(toToken(1)),
                     ).to.be.revertedWithCustomError(
                         creditContract,
                         "CreditNotInStateForMakingPrincipalPayment",
@@ -7951,16 +7887,14 @@ describe("CreditLine Test", function () {
                         defaultGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY;
                     await setNextBlockTimestamp(triggerDefaultDate);
                     await creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .triggerDefault(borrower.getAddress());
                     const expectedCR = await creditContract.getCreditRecord(creditHash);
                     expect(expectedCR.state).to.equal(CreditState.Defaulted);
                     const expectedDD = await creditContract.getDueDetail(creditHash);
 
                     await expect(
-                        creditContract
-                            .connect(borrower)
-                            .makePrincipalPayment(borrower.getAddress(), toToken(1)),
+                        creditContract.connect(borrower).makePrincipalPayment(toToken(1)),
                     ).to.be.revertedWithCustomError(
                         creditContract,
                         "CreditNotInStateForMakingPrincipalPayment",
@@ -8194,9 +8128,7 @@ describe("CreditLine Test", function () {
                     );
                     // Further payment attempts will be rejected.
                     await expect(
-                        creditContract
-                            .connect(borrower)
-                            .makePrincipalPayment(borrower.getAddress(), toToken(1)),
+                        creditContract.connect(borrower).makePrincipalPayment(toToken(1)),
                     ).to.be.revertedWithCustomError(
                         creditContract,
                         "CreditNotInStateForMakingPrincipalPayment",
@@ -8207,9 +8139,7 @@ describe("CreditLine Test", function () {
                     makePaymentDate = drawdownDate.add(2, "months");
                     await setNextBlockTimestamp(makePaymentDate.unix());
                     await expect(
-                        creditContract
-                            .connect(borrower)
-                            .makePrincipalPayment(borrower.getAddress(), toToken(1)),
+                        creditContract.connect(borrower).makePrincipalPayment(toToken(1)),
                     ).to.be.revertedWithCustomError(
                         creditContract,
                         "CreditNotInStateForMakingPrincipalPayment",
@@ -8251,9 +8181,9 @@ describe("CreditLine Test", function () {
                 ...{ defaultGracePeriodInDays: defaultGracePeriodInDays },
             });
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(borrower.address, toToken(100_000), 6, 1317, toToken(0), 0, true);
-            await creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount);
+            await creditContract.connect(borrower).drawdown(borrowAmount);
         }
 
         describe("If the default grace period is less than the number of days in a period", function () {
@@ -8334,7 +8264,7 @@ describe("CreditLine Test", function () {
                 lateFeeBps,
             });
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.address,
                     toToken(100_000),
@@ -8352,7 +8282,7 @@ describe("CreditLine Test", function () {
 
         async function testTriggerDefault(drawdownDate: number) {
             await setNextBlockTimestamp(drawdownDate);
-            await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+            await creditContract.connect(borrower).drawdown(borrowAmount);
 
             const oldCR = await creditContract.getCreditRecord(creditHash);
             const cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -8396,7 +8326,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .triggerDefault(borrower.getAddress()),
             )
                 .to.emit(creditManagerContract, "DefaultTriggered")
@@ -8405,7 +8335,7 @@ describe("CreditLine Test", function () {
                     expectedPrincipalLoss,
                     expectedYieldLoss,
                     expectedFeesLoss,
-                    await eaServiceAccount.getAddress(),
+                    await evaluationAgent.getAddress(),
                 )
                 .to.emit(creditContract, "BillRefreshed")
                 .to.emit(poolContract, "ProfitDistributed")
@@ -8417,7 +8347,7 @@ describe("CreditLine Test", function () {
             // Any further attempt to trigger default is disallowed.
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .triggerDefault(borrower.getAddress()),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
@@ -8451,27 +8381,24 @@ describe("CreditLine Test", function () {
         it("Should not allow default to be triggered when the protocol is paused or pool is not on", async function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
-                creditManagerContract.connect(eaServiceAccount).triggerDefault(borrower.address),
+                creditManagerContract.connect(evaluationAgent).triggerDefault(borrower.address),
             ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
             await expect(
-                creditManagerContract.connect(eaServiceAccount).triggerDefault(borrower.address),
+                creditManagerContract.connect(evaluationAgent).triggerDefault(borrower.address),
             ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
         });
 
         it("Should not allow non-EA service account to trigger default", async function () {
             await expect(
                 creditManagerContract.triggerDefault(borrower.address),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentServiceAccountRequired",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
         });
 
         it("Should not allow default to be triggered if the bill is not yet delayed", async function () {
-            await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+            await creditContract.connect(borrower).drawdown(borrowAmount);
 
             const drawdownDate = (await getLatestBlock()).timestamp;
             const triggerDefaultDate = drawdownDate + 100;
@@ -8479,13 +8406,13 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .triggerDefault(borrower.getAddress()),
             ).to.be.revertedWithCustomError(creditManagerContract, "DefaultTriggeredTooEarly");
         });
 
         it("Should not allow default to be triggered if the bill is delayed, but has not passed the default grace period", async function () {
-            await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+            await creditContract.connect(borrower).drawdown(borrowAmount);
 
             const drawdownDate = (await getLatestBlock()).timestamp;
             const cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -8500,7 +8427,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .triggerDefault(borrower.getAddress()),
             ).to.be.revertedWithCustomError(creditManagerContract, "DefaultTriggeredTooEarly");
         });
@@ -8544,7 +8471,7 @@ describe("CreditLine Test", function () {
             ) {
                 creditHash = await borrowerLevelCreditHash(creditContract, borrower);
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveBorrower(
                         borrower.address,
                         toToken(100_000),
@@ -8564,12 +8491,8 @@ describe("CreditLine Test", function () {
                 await expect(
                     creditManagerContract.connect(actor).closeCredit(borrower.getAddress()),
                 )
-                    .to.emit(creditManagerContract, "CreditClosed")
-                    .withArgs(
-                        creditHash,
-                        CreditClosureReason.AdminClosure,
-                        await actor.getAddress(),
-                    );
+                    .to.emit(creditManagerContract, "CreditClosedByAdmin")
+                    .withArgs(creditHash, await actor.getAddress());
 
                 // Make sure relevant fields have been reset.
                 const cr = await creditContract.getCreditRecord(creditHash);
@@ -8618,12 +8541,12 @@ describe("CreditLine Test", function () {
             });
 
             it("Should allow the evaluation agent to close a newly approved credit", async function () {
-                await testCloseCredit(eaServiceAccount);
+                await testCloseCredit(evaluationAgent);
             });
 
             it("Should allow the borrower to close a credit that's fully paid back", async function () {
                 const amount = toToken(1_000);
-                await creditContract.connect(borrower).drawdown(borrower.getAddress(), amount);
+                await creditContract.connect(borrower).drawdown(amount);
                 const cr = await creditContract.getCreditRecord(creditHash);
                 await creditContract
                     .connect(borrower)
@@ -8637,7 +8560,7 @@ describe("CreditLine Test", function () {
                 await approveCredit(1, toToken(100_000));
                 // Make one round of drawdown so that the borrower have a credit record, and then pay off the credit.
                 const amount = toToken(1_000);
-                await creditContract.connect(borrower).drawdown(borrower.getAddress(), amount);
+                await creditContract.connect(borrower).drawdown(amount);
                 const cr = await creditContract.getCreditRecord(creditHash);
                 await creditContract
                     .connect(borrower)
@@ -8654,15 +8577,13 @@ describe("CreditLine Test", function () {
 
             it("Should not allow the borrower to close a credit that has upcoming yield due", async function () {
                 const amount = toToken(1_000);
-                await creditContract.connect(borrower).drawdown(borrower.getAddress(), amount);
+                await creditContract.connect(borrower).drawdown(amount);
                 // Only pay back the total principal outstanding.
                 const oldCR = await creditContract.getCreditRecord(creditHash);
                 const totalPrincipal = oldCR.nextDue
                     .sub(oldCR.yieldDue)
                     .add(oldCR.unbilledPrincipal);
-                await creditContract
-                    .connect(borrower)
-                    .makePrincipalPayment(borrower.getAddress(), totalPrincipal);
+                await creditContract.connect(borrower).makePrincipalPayment(totalPrincipal);
 
                 const newCR = await creditContract.getCreditRecord(creditHash);
                 expect(newCR.yieldDue).to.be.gt(0);
@@ -8673,18 +8594,16 @@ describe("CreditLine Test", function () {
 
             it("Should not allow the borrower to close a credit that has past due only", async function () {
                 const amount = toToken(10_000);
-                await creditContract.connect(borrower).drawdown(borrower.getAddress(), amount);
+                await creditContract.connect(borrower).drawdown(amount);
 
                 const poolSettings = await poolConfigContract.getPoolSettings();
                 const oldCR = await creditContract.getCreditRecord(creditHash);
                 const paymentAmount = oldCR.unbilledPrincipal.add(
                     oldCR.nextDue.sub(oldCR.yieldDue),
                 );
-                await creditContract
-                    .connect(borrower)
-                    .makePrincipalPayment(borrower.getAddress(), paymentAmount);
+                await creditContract.connect(borrower).makePrincipalPayment(paymentAmount);
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .updateYield(borrower.getAddress(), 0);
 
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -8713,7 +8632,7 @@ describe("CreditLine Test", function () {
                 await creditManagerContract.connect(borrower).closeCredit(borrower.getAddress());
                 const amount = toToken(1_000);
                 await approveCredit(3, toToken(100_000));
-                await creditContract.connect(borrower).drawdown(borrower.getAddress(), amount);
+                await creditContract.connect(borrower).drawdown(amount);
                 // Only pay back the yield next due and have principal due outstanding.
                 const oldCR = await creditContract.getCreditRecord(creditHash);
                 await creditContract
@@ -8731,112 +8650,13 @@ describe("CreditLine Test", function () {
                 // Close the approved credit then open a new one with a different committed amount.
                 await creditManagerContract.connect(borrower).closeCredit(borrower.getAddress());
                 await approveCredit(3, toToken(100_000));
-                await creditContract
-                    .connect(borrower)
-                    .drawdown(borrower.getAddress(), toToken(10_000));
+                await creditContract.connect(borrower).drawdown(toToken(10_000));
                 const cr = await creditContract.getCreditRecord(creditHash);
                 await creditContract
                     .connect(borrower)
                     .makePayment(borrower.getAddress(), cr.nextDue.add(cr.unbilledPrincipal));
                 await testCloseCreditReversion(borrower, "CreditHasUnfulfilledCommitment");
             });
-        });
-    });
-
-    describe("pauseCredit and unpauseCredit", function () {
-        let creditHash: string;
-
-        async function approveCredit() {
-            creditHash = await borrowerLevelCreditHash(creditContract, borrower);
-            await creditManagerContract
-                .connect(eaServiceAccount)
-                .approveBorrower(
-                    borrower.address,
-                    toToken(100_000),
-                    1,
-                    1_000,
-                    toToken(0),
-                    0,
-                    true,
-                );
-        }
-
-        beforeEach(async function () {
-            await loadFixture(approveCredit);
-        });
-
-        it("Should allow the EA to pause and unpause a credit", async function () {
-            await creditContract.connect(borrower).drawdown(borrower.getAddress(), toToken(1_000));
-            await expect(
-                creditManagerContract.connect(eaServiceAccount).pauseCredit(borrower.getAddress()),
-            )
-                .to.emit(creditManagerContract, "CreditPaused")
-                .withArgs(creditHash);
-            let cr = await creditContract.getCreditRecord(creditHash);
-            expect(cr.state).to.equal(CreditState.Paused);
-
-            await expect(
-                creditManagerContract
-                    .connect(eaServiceAccount)
-                    .unpauseCredit(borrower.getAddress()),
-            )
-                .to.emit(creditManagerContract, "CreditUnpaused")
-                .withArgs(creditHash);
-            cr = await creditContract.getCreditRecord(creditHash);
-            expect(cr.state).to.equal(CreditState.GoodStanding);
-        });
-
-        it("Should do nothing if the credit line is not in the desired states", async function () {
-            const oldCR = await creditContract.getCreditRecord(creditHash);
-            await expect(
-                creditManagerContract.connect(eaServiceAccount).pauseCredit(borrower.getAddress()),
-            ).to.not.emit(creditManagerContract, "CreditPaused");
-            let newCR = await creditContract.getCreditRecord(creditHash);
-            expect(newCR.state).to.equal(oldCR.state);
-
-            await expect(
-                creditManagerContract
-                    .connect(eaServiceAccount)
-                    .unpauseCredit(borrower.getAddress()),
-            ).to.not.emit(creditManagerContract, "CreditUnpaused");
-            newCR = await creditContract.getCreditRecord(creditHash);
-            expect(newCR.state).to.equal(oldCR.state);
-        });
-
-        it("Should not allow the credit to be paused/unpaused when the protocol is paused or pool is not on", async function () {
-            await humaConfigContract.connect(protocolOwner).pause();
-            await expect(
-                creditManagerContract.connect(eaServiceAccount).pauseCredit(borrower.getAddress()),
-            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
-            await humaConfigContract.connect(protocolOwner).unpause();
-
-            await poolContract.connect(poolOwner).disablePool();
-            await expect(
-                creditManagerContract.connect(eaServiceAccount).pauseCredit(borrower.getAddress()),
-            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
-            await poolContract.connect(poolOwner).enablePool();
-        });
-
-        it("Should not allow non-EA to pause or unpause the credit", async function () {
-            await creditContract.connect(borrower).drawdown(borrower.getAddress(), toToken(1_000));
-            const oldCR = await creditContract.getCreditRecord(creditHash);
-            await expect(
-                creditManagerContract.connect(borrower).pauseCredit(borrower.getAddress()),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentServiceAccountRequired",
-            );
-            let newCR = await creditContract.getCreditRecord(creditHash);
-            expect(newCR.state).to.equal(oldCR.state);
-
-            await expect(
-                creditManagerContract.connect(borrower).unpauseCredit(borrower.getAddress()),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentServiceAccountRequired",
-            );
-            newCR = await creditContract.getCreditRecord(creditHash);
-            expect(newCR.state).to.equal(oldCR.state);
         });
     });
 
@@ -8847,7 +8667,7 @@ describe("CreditLine Test", function () {
         async function approveCredit() {
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.address,
                     toToken(100_000),
@@ -8864,13 +8684,13 @@ describe("CreditLine Test", function () {
         });
 
         it("Should allow the EA to extend the remaining periods of a credit line", async function () {
-            await creditContract.connect(borrower).drawdown(borrower.address, toToken(5_000));
+            await creditContract.connect(borrower).drawdown(toToken(5_000));
 
             const oldCR = await creditContract.getCreditRecord(creditHash);
             const newRemainingPeriods = oldCR.remainingPeriods + numOfPeriods;
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .extendRemainingPeriod(borrower.getAddress(), numOfPeriods),
             )
                 .to.emit(creditManagerContract, "RemainingPeriodsExtended")
@@ -8878,7 +8698,7 @@ describe("CreditLine Test", function () {
                     creditHash,
                     oldCR.remainingPeriods,
                     newRemainingPeriods,
-                    await eaServiceAccount.getAddress(),
+                    await evaluationAgent.getAddress(),
                 );
             const newCR = await creditContract.getCreditRecord(creditHash);
             expect(newCR.remainingPeriods).to.equal(newRemainingPeriods);
@@ -8888,7 +8708,7 @@ describe("CreditLine Test", function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .extendRemainingPeriod(borrower.getAddress(), numOfPeriods),
             ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
@@ -8896,7 +8716,7 @@ describe("CreditLine Test", function () {
             await poolContract.connect(poolOwner).disablePool();
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .extendRemainingPeriod(borrower.getAddress(), numOfPeriods),
             ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
             await poolContract.connect(poolOwner).enablePool();
@@ -8907,10 +8727,7 @@ describe("CreditLine Test", function () {
                 creditManagerContract
                     .connect(borrower)
                     .extendRemainingPeriod(borrower.getAddress(), numOfPeriods),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentServiceAccountRequired",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
         });
 
         it("Should not allow extension on a newly approved credit line", async function () {
@@ -8919,13 +8736,13 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .extendRemainingPeriod(borrower.getAddress(), 1),
             ).to.be.revertedWithCustomError(creditManagerContract, "CreditNotInStateForUpdate");
         });
 
         it("Should not allow extension on a delayed credit line", async function () {
-            await creditContract.connect(borrower).drawdown(borrower.address, toToken(5_000));
+            await creditContract.connect(borrower).drawdown(toToken(5_000));
 
             const oldCR = await creditContract.getCreditRecord(creditHash);
             const settings = await poolConfigContract.getPoolSettings();
@@ -8941,13 +8758,13 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .extendRemainingPeriod(borrower.getAddress(), 1),
             ).to.be.revertedWithCustomError(creditManagerContract, "CreditNotInStateForUpdate");
         });
 
         it("Should not allow extension on a credit line that becomes delayed after refresh", async function () {
-            await creditContract.connect(borrower).drawdown(borrower.address, toToken(5_000));
+            await creditContract.connect(borrower).drawdown(toToken(5_000));
             const oldCR = await creditContract.getCreditRecord(creditHash);
             // All principal and yield is due in the first period since there is only 1 period,
             // so pay slightly less than the amount next due so that the bill can become past due
@@ -8963,13 +8780,13 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .extendRemainingPeriod(borrower.getAddress(), 1),
             ).to.be.revertedWithCustomError(creditManagerContract, "CreditNotInStateForUpdate");
         });
 
         it("Should not allow extension on a defaulted credit line", async function () {
-            await creditContract.connect(borrower).drawdown(borrower.address, toToken(5_000));
+            await creditContract.connect(borrower).drawdown(toToken(5_000));
 
             const oldCR = await creditContract.getCreditRecord(creditHash);
             const settings = await poolConfigContract.getPoolSettings();
@@ -8981,14 +8798,14 @@ describe("CreditLine Test", function () {
             await setNextBlockTimestamp(refreshDate);
             await creditManagerContract.refreshCredit(borrower.getAddress());
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .triggerDefault(borrower.getAddress());
             const newCR = await creditContract.getCreditRecord(creditHash);
             expect(newCR.state).to.equal(CreditState.Defaulted);
 
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .extendRemainingPeriod(borrower.getAddress(), 1),
             ).to.be.revertedWithCustomError(creditManagerContract, "CreditNotInStateForUpdate");
         });
@@ -9004,7 +8821,7 @@ describe("CreditLine Test", function () {
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     await borrower.getAddress(),
                     toToken(100_000),
@@ -9019,7 +8836,7 @@ describe("CreditLine Test", function () {
         async function drawdown() {
             drawdownDate = await getStartOfNextMonth();
             await setNextBlockTimestamp(drawdownDate);
-            await creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount);
+            await creditContract.connect(borrower).drawdown(borrowAmount);
         }
 
         async function makePayment(paymentAmount: BN) {
@@ -9030,19 +8847,14 @@ describe("CreditLine Test", function () {
                 .makePayment(borrower.getAddress(), paymentAmount);
         }
 
-        async function testUpdate(
-            oldYieldDue: BN,
-            newYieldDue: BN,
-            expectedNextDue: BN,
-            expectedYieldDue: BN,
-        ) {
+        async function testUpdate() {
             const updateDate: number = drawdownDate + CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(updateDate);
             const oldCR = await creditContract.getCreditRecord(creditHash);
             const oldDD = await creditContract.getDueDetail(creditHash);
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .updateYield(borrower.getAddress(), newYieldInBps),
             )
                 .to.emit(creditManagerContract, "YieldUpdated")
@@ -9050,538 +8862,132 @@ describe("CreditLine Test", function () {
                     creditHash,
                     yieldInBps,
                     newYieldInBps,
-                    oldYieldDue,
-                    (actualNewYieldDue: BN) =>
-                        isCloseTo(actualNewYieldDue, newYieldDue, BN.from(1)),
-                    await eaServiceAccount.getAddress(),
+                    await evaluationAgent.getAddress(),
                 );
 
             const cc = await creditManagerContract.getCreditConfig(creditHash);
             expect(cc.yieldInBps).to.equal(newYieldInBps);
             const actualCR = await creditContract.getCreditRecord(creditHash);
-            const expectedCR = {
-                ...oldCR,
-                ...{
-                    nextDue: expectedNextDue,
-                    yieldDue: expectedYieldDue,
-                },
-            };
-            checkCreditRecordsMatch(actualCR, expectedCR, BN.from(1));
+            checkCreditRecordsMatch(actualCR, oldCR);
             const actualDD = await creditContract.getDueDetail(creditHash);
-            const expectedAccruedYield = calcYield(borrowAmount, yieldInBps, 2).add(
-                calcYield(borrowAmount, newYieldInBps, CONSTANTS.DAYS_IN_A_MONTH - 2),
-            );
-            const expectedCommittedYield = calcYield(committedAmount, yieldInBps, 2).add(
-                calcYield(committedAmount, newYieldInBps, CONSTANTS.DAYS_IN_A_MONTH - 2),
-            );
-            const expectedDD = {
-                ...oldDD,
-                ...{
-                    accrued: expectedAccruedYield,
-                    committed: expectedCommittedYield,
-                },
-            };
-            checkDueDetailsMatch(actualDD, expectedDD, BN.from(1));
+            checkDueDetailsMatch(actualDD, oldDD);
         }
 
-        describe("If the borrow amount is greater than the committed amount", function () {
+        beforeEach(async function () {
+            borrowAmount = toToken(50_000);
+            committedAmount = toToken(40_000);
+            await loadFixture(approveCredit);
+        });
+
+        describe("If the yield is updated to a higher value", function () {
             beforeEach(async function () {
-                borrowAmount = toToken(50_000);
-                committedAmount = toToken(40_000);
-                await loadFixture(approveCredit);
+                newYieldInBps = 1517;
             });
 
-            describe("If the yield is updated to a higher value", function () {
-                beforeEach(async function () {
-                    newYieldInBps = 1517;
-                });
-
-                describe("If the yield hasn't been paid yet", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        const expectedAccruedYield = calcYield(borrowAmount, yieldInBps, 2).add(
-                            calcYield(borrowAmount, newYieldInBps, CONSTANTS.DAYS_IN_A_MONTH - 2),
-                        );
-                        await testUpdate(
-                            oldDD.accrued,
-                            expectedAccruedYield,
-                            oldCR.nextDue.sub(oldCR.yieldDue).add(expectedAccruedYield),
-                            expectedAccruedYield,
-                        );
-                    });
-
-                    it("Should allow more than one update within a period", async function () {
-                        await drawdown();
-
-                        // First update.
-                        const firstYieldInBps = 1517;
-                        const firstUpdateDate = drawdownDate + CONSTANTS.SECONDS_IN_A_DAY;
-                        await setNextBlockTimestamp(firstUpdateDate);
-                        await creditManagerContract
-                            .connect(eaServiceAccount)
-                            .updateYield(borrower.getAddress(), firstYieldInBps);
-
-                        // Second update.
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        const secondYieldInBps = 1717;
-                        const secondUpdateDate = firstUpdateDate + 12 * CONSTANTS.SECONDS_IN_A_DAY;
-                        await setNextBlockTimestamp(secondUpdateDate);
-                        const expectedAccruedYield = calcYield(borrowAmount, yieldInBps, 2)
-                            .add(calcYield(borrowAmount, firstYieldInBps, 12))
-                            .add(calcYield(borrowAmount, secondYieldInBps, 16));
-                        await expect(
-                            creditManagerContract
-                                .connect(eaServiceAccount)
-                                .updateYield(borrower.getAddress(), secondYieldInBps),
-                        )
-                            .to.emit(creditManagerContract, "YieldUpdated")
-                            .withArgs(
-                                creditHash,
-                                firstYieldInBps,
-                                secondYieldInBps,
-                                oldCR.yieldDue,
-                                expectedAccruedYield,
-                                await eaServiceAccount.getAddress(),
-                            );
-
-                        const cc = await creditManagerContract.getCreditConfig(creditHash);
-                        expect(cc.yieldInBps).to.equal(secondYieldInBps);
-                        const actualCR = await creditContract.getCreditRecord(creditHash);
-                        const expectedCR = {
-                            ...oldCR,
-                            ...{
-                                nextDue: oldCR.nextDue
-                                    .sub(oldCR.yieldDue)
-                                    .add(expectedAccruedYield),
-                                yieldDue: expectedAccruedYield,
-                            },
-                        };
-                        checkCreditRecordsMatch(actualCR, expectedCR);
-                        const actualDD = await creditContract.getDueDetail(creditHash);
-                        const expectedCommittedYield = calcYield(committedAmount, yieldInBps, 2)
-                            .add(calcYield(committedAmount, firstYieldInBps, 12))
-                            .add(calcYield(committedAmount, secondYieldInBps, 16));
-                        const expectedDD = {
-                            ...oldDD,
-                            ...{
-                                accrued: expectedAccruedYield,
-                                committed: expectedCommittedYield,
-                            },
-                        };
-                        checkDueDetailsMatch(actualDD, expectedDD, BN.from(1));
-                    });
-                });
-
-                describe("If the yield has been partially paid", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-                        // Make partial payment towards the yield due.
-                        const yieldDue = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue.div(2));
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.be.gt(0);
-                        const expectedAccruedYield = calcYield(borrowAmount, yieldInBps, 2).add(
-                            calcYield(borrowAmount, newYieldInBps, CONSTANTS.DAYS_IN_A_MONTH - 2),
-                        );
-                        await testUpdate(
-                            oldDD.accrued.sub(oldDD.paid),
-                            expectedAccruedYield.sub(oldDD.paid),
-                            oldCR.nextDue
-                                .sub(oldCR.yieldDue)
-                                .add(expectedAccruedYield)
-                                .sub(oldDD.paid),
-                            expectedAccruedYield.sub(oldDD.paid),
-                        );
-                    });
-                });
-
-                describe("If the yield has been paid off", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-                        // Make full payment towards the yield due.
-                        const yieldDue = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue);
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.equal(yieldDue);
-                        const expectedAccruedYield = calcYield(borrowAmount, yieldInBps, 2).add(
-                            calcYield(borrowAmount, newYieldInBps, CONSTANTS.DAYS_IN_A_MONTH - 2),
-                        );
-                        await testUpdate(
-                            toToken(0),
-                            expectedAccruedYield.sub(oldDD.paid),
-                            oldCR.nextDue
-                                .sub(oldCR.yieldDue)
-                                .add(expectedAccruedYield)
-                                .sub(oldDD.paid),
-                            expectedAccruedYield.sub(oldDD.paid),
-                        );
-                    });
-                });
+            it("Should update the yield due", async function () {
+                await drawdown();
+                await testUpdate();
             });
 
-            describe("If the yield is updated to a lower value", function () {
-                beforeEach(async function () {
-                    newYieldInBps = 1117;
-                });
+            it("Should allow more than one update within a period", async function () {
+                await drawdown();
 
-                describe("If the yield hasn't been paid yet", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        const expectedAccruedYield = calcYield(borrowAmount, yieldInBps, 2).add(
-                            calcYield(borrowAmount, newYieldInBps, CONSTANTS.DAYS_IN_A_MONTH - 2),
-                        );
-                        await testUpdate(
-                            oldDD.accrued,
-                            expectedAccruedYield,
-                            oldCR.nextDue.sub(oldCR.yieldDue).add(expectedAccruedYield),
-                            expectedAccruedYield,
-                        );
-                    });
-                });
-
-                describe("If the yield has been partially paid", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-                        // Make partial payment towards the yield due.
-                        const yieldDue = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue.div(2));
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.be.gt(0);
-                        const expectedAccruedYield = calcYield(borrowAmount, yieldInBps, 2).add(
-                            calcYield(borrowAmount, newYieldInBps, CONSTANTS.DAYS_IN_A_MONTH - 2),
-                        );
-                        await testUpdate(
-                            oldDD.accrued.sub(oldDD.paid),
-                            expectedAccruedYield.sub(oldDD.paid),
-                            oldCR.nextDue
-                                .sub(oldCR.yieldDue)
-                                .add(expectedAccruedYield)
-                                .sub(oldDD.paid),
-                            expectedAccruedYield.sub(oldDD.paid),
-                        );
-                    });
-                });
-
-                describe("If the yield has been paid off", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-                        // Make full payment towards the yield due.
-                        const yieldDue = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue);
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.equal(yieldDue);
-                        await testUpdate(
-                            oldDD.accrued.sub(oldDD.paid),
-                            toToken(0),
-                            oldCR.nextDue,
-                            toToken(0),
-                        );
-                    });
-                });
-            });
-
-            it("Should not allow update when the protocol is paused or pool is not on", async function () {
-                await humaConfigContract.connect(protocolOwner).pause();
-                await expect(
-                    creditManagerContract
-                        .connect(eaServiceAccount)
-                        .updateYield(await borrower.getAddress(), 1517),
-                ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
-                await humaConfigContract.connect(protocolOwner).unpause();
-
-                await poolContract.connect(poolOwner).disablePool();
-                await expect(
-                    creditManagerContract
-                        .connect(eaServiceAccount)
-                        .updateYield(await borrower.getAddress(), 1517),
-                ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
-                await poolContract.connect(poolOwner).enablePool();
-            });
-
-            it("Should not allow non-EAs to perform the update", async function () {
-                await expect(
-                    creditManagerContract.updateYield(await borrower.getAddress(), 1517),
-                ).to.be.revertedWithCustomError(
-                    creditManagerContract,
-                    "EvaluationAgentServiceAccountRequired",
-                );
-            });
-
-            it("Should not allow the EA to update the yield if the credit is newly approved", async function () {
-                const cr = await creditContract.getCreditRecord(creditHash);
-                expect(cr.state).to.eq(CreditState.Approved);
-
-                await expect(
-                    creditManagerContract
-                        .connect(eaServiceAccount)
-                        .updateYield(borrower.getAddress(), 1517),
-                ).to.be.revertedWithCustomError(
-                    creditManagerContract,
-                    "CreditNotInStateForUpdate",
-                );
-            });
-
-            it("Should not allow the EA to update the yield if the credit is closed", async function () {
+                // First update.
+                const firstYieldInBps = 1517;
+                const firstUpdateDate = drawdownDate + CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(firstUpdateDate);
                 await creditManagerContract
-                    .connect(eaServiceAccount)
-                    .closeCredit(borrower.getAddress());
-                const cr = await creditContract.getCreditRecord(creditHash);
-                expect(cr.state).to.eq(CreditState.Deleted);
+                    .connect(evaluationAgent)
+                    .updateYield(borrower.getAddress(), firstYieldInBps);
+
+                // Second update.
+                const oldCR = await creditContract.getCreditRecord(creditHash);
+                const oldDD = await creditContract.getDueDetail(creditHash);
+                const secondYieldInBps = 1717;
+                const secondUpdateDate = firstUpdateDate + 12 * CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(secondUpdateDate);
 
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
-                        .updateYield(borrower.getAddress(), 1517),
-                ).to.be.revertedWithCustomError(
-                    creditManagerContract,
-                    "CreditNotInStateForUpdate",
-                );
+                        .connect(evaluationAgent)
+                        .updateYield(borrower.getAddress(), secondYieldInBps),
+                )
+                    .to.emit(creditManagerContract, "YieldUpdated")
+                    .withArgs(
+                        creditHash,
+                        firstYieldInBps,
+                        secondYieldInBps,
+                        await evaluationAgent.getAddress(),
+                    );
+
+                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                expect(cc.yieldInBps).to.equal(secondYieldInBps);
+                const actualCR = await creditContract.getCreditRecord(creditHash);
+                checkCreditRecordsMatch(actualCR, oldCR);
+                const actualDD = await creditContract.getDueDetail(creditHash);
+                checkDueDetailsMatch(actualDD, oldDD);
             });
         });
 
-        describe("If the borrow amount is less than the committed amount", function () {
+        describe("If the yield is updated to a lower value", function () {
             beforeEach(async function () {
-                borrowAmount = toToken(40_000);
-                committedAmount = toToken(50_000);
-                await loadFixture(approveCredit);
+                newYieldInBps = 1117;
             });
 
-            describe("If the yield is updated to a higher value", function () {
-                beforeEach(async function () {
-                    newYieldInBps = 1517;
-                });
+            it("Should update the yield due", async function () {
+                await drawdown();
 
-                describe("If the yield hasn't been paid yet", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        const expectedCommittedYield = calcYield(
-                            committedAmount,
-                            yieldInBps,
-                            2,
-                        ).add(
-                            calcYield(
-                                committedAmount,
-                                newYieldInBps,
-                                CONSTANTS.DAYS_IN_A_MONTH - 2,
-                            ),
-                        );
-                        await testUpdate(
-                            oldDD.committed,
-                            expectedCommittedYield,
-                            oldCR.nextDue.sub(oldCR.yieldDue).add(expectedCommittedYield),
-                            expectedCommittedYield,
-                        );
-                    });
-                });
-
-                describe("If the yield has been partially paid", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-                        // Make partial payment towards the yield due.
-                        const yieldDue = calcYield(
-                            committedAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue.div(2));
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.be.gt(0);
-                        const expectedCommittedYield = calcYield(
-                            committedAmount,
-                            yieldInBps,
-                            2,
-                        ).add(
-                            calcYield(
-                                committedAmount,
-                                newYieldInBps,
-                                CONSTANTS.DAYS_IN_A_MONTH - 2,
-                            ),
-                        );
-                        await testUpdate(
-                            oldDD.committed.sub(oldDD.paid),
-                            expectedCommittedYield.sub(oldDD.paid),
-                            oldCR.nextDue
-                                .sub(oldCR.yieldDue)
-                                .add(expectedCommittedYield)
-                                .sub(oldDD.paid),
-                            expectedCommittedYield.sub(oldDD.paid),
-                        );
-                    });
-                });
-
-                describe("If the yield has been paid off", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-                        // Make full payment towards the yield due.
-                        const yieldDue = calcYield(
-                            committedAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue);
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.equal(yieldDue);
-                        const expectedCommittedYield = calcYield(
-                            committedAmount,
-                            yieldInBps,
-                            2,
-                        ).add(
-                            calcYield(
-                                committedAmount,
-                                newYieldInBps,
-                                CONSTANTS.DAYS_IN_A_MONTH - 2,
-                            ),
-                        );
-                        await testUpdate(
-                            toToken(0),
-                            expectedCommittedYield.sub(oldDD.paid),
-                            oldCR.nextDue
-                                .sub(oldCR.yieldDue)
-                                .add(expectedCommittedYield)
-                                .sub(oldDD.paid),
-                            expectedCommittedYield.sub(oldDD.paid),
-                        );
-                    });
-                });
+                await testUpdate();
             });
+        });
 
-            describe("If the yield is updated to a lower value", function () {
-                beforeEach(async function () {
-                    newYieldInBps = 1117;
-                });
+        it("Should not allow update when the protocol is paused or pool is not on", async function () {
+            await humaConfigContract.connect(protocolOwner).pause();
+            await expect(
+                creditManagerContract
+                    .connect(evaluationAgent)
+                    .updateYield(await borrower.getAddress(), 1517),
+            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
+            await humaConfigContract.connect(protocolOwner).unpause();
 
-                describe("If the yield hasn't been paid yet", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
+            await poolContract.connect(poolOwner).disablePool();
+            await expect(
+                creditManagerContract
+                    .connect(evaluationAgent)
+                    .updateYield(await borrower.getAddress(), 1517),
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
+            await poolContract.connect(poolOwner).enablePool();
+        });
 
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        const expectedCommittedYield = calcYield(
-                            committedAmount,
-                            yieldInBps,
-                            2,
-                        ).add(
-                            calcYield(
-                                committedAmount,
-                                newYieldInBps,
-                                CONSTANTS.DAYS_IN_A_MONTH - 2,
-                            ),
-                        );
-                        await testUpdate(
-                            oldDD.committed,
-                            expectedCommittedYield,
-                            oldCR.nextDue.sub(oldCR.yieldDue).add(expectedCommittedYield),
-                            expectedCommittedYield,
-                        );
-                    });
-                });
+        it("Should not allow non-EAs to perform the update", async function () {
+            await expect(
+                creditManagerContract.updateYield(await borrower.getAddress(), 1517),
+            ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
+        });
 
-                describe("If the yield has been partially paid", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-                        // Make partial payment towards the yield due.
-                        const yieldDue = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue.div(2));
+        it("Should not allow the EA to update the yield if the credit is newly approved", async function () {
+            const cr = await creditContract.getCreditRecord(creditHash);
+            expect(cr.state).to.eq(CreditState.Approved);
 
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.be.gt(0);
-                        const expectedCommittedYield = calcYield(
-                            committedAmount,
-                            yieldInBps,
-                            2,
-                        ).add(
-                            calcYield(
-                                committedAmount,
-                                newYieldInBps,
-                                CONSTANTS.DAYS_IN_A_MONTH - 2,
-                            ),
-                        );
-                        await testUpdate(
-                            oldDD.committed.sub(oldDD.paid),
-                            expectedCommittedYield.sub(oldDD.paid),
-                            oldCR.nextDue
-                                .sub(oldCR.yieldDue)
-                                .add(expectedCommittedYield)
-                                .sub(oldDD.paid),
-                            expectedCommittedYield.sub(oldDD.paid),
-                        );
-                    });
-                });
+            await expect(
+                creditManagerContract
+                    .connect(evaluationAgent)
+                    .updateYield(borrower.getAddress(), 1517),
+            ).to.be.revertedWithCustomError(creditManagerContract, "CreditNotInStateForUpdate");
+        });
 
-                describe("If the yield has been paid off", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-                        // Make full payment towards the yield due.
-                        const yieldDue = calcYield(
-                            committedAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue);
+        it("Should not allow the EA to update the yield if the credit is closed", async function () {
+            await creditManagerContract
+                .connect(evaluationAgent)
+                .closeCredit(borrower.getAddress());
+            const cr = await creditContract.getCreditRecord(creditHash);
+            expect(cr.state).to.eq(CreditState.Deleted);
 
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.equal(yieldDue);
-                        await testUpdate(
-                            oldDD.committed.sub(oldDD.paid),
-                            toToken(0),
-                            oldCR.nextDue,
-                            toToken(0),
-                        );
-                    });
-                });
-            });
+            await expect(
+                creditManagerContract
+                    .connect(evaluationAgent)
+                    .updateYield(borrower.getAddress(), 1517),
+            ).to.be.revertedWithCustomError(creditManagerContract, "CreditNotInStateForUpdate");
         });
     });
 
@@ -9596,7 +9002,7 @@ describe("CreditLine Test", function () {
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.address,
                     creditLimit,
@@ -9612,7 +9018,7 @@ describe("CreditLine Test", function () {
             borrowAmount = toToken(50_000);
             drawdownDate = await getStartOfNextMonth();
             await setNextBlockTimestamp(drawdownDate);
-            await creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount);
+            await creditContract.connect(borrower).drawdown(borrowAmount);
         }
 
         async function makePayment(paymentAmount: BN) {
@@ -9623,19 +9029,14 @@ describe("CreditLine Test", function () {
                 .makePayment(borrower.getAddress(), paymentAmount);
         }
 
-        async function testUpdate(
-            oldYieldDue: BN,
-            newYieldDue: BN,
-            expectedNextDue: BN,
-            expectedYieldDue: BN,
-        ) {
+        async function testUpdate() {
             const updateDate = drawdownDate + CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(updateDate);
             const oldCR = await creditContract.getCreditRecord(creditHash);
             const oldDD = await creditContract.getDueDetail(creditHash);
             await expect(
                 creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .updateLimitAndCommitment(
                         borrower.getAddress(),
                         creditLimit,
@@ -9649,34 +9050,16 @@ describe("CreditLine Test", function () {
                     creditLimit,
                     committedAmount,
                     newCommittedAmount,
-                    oldYieldDue,
-                    newYieldDue,
-                    await eaServiceAccount.getAddress(),
+                    await evaluationAgent.getAddress(),
                 );
 
             const cc = await creditManagerContract.getCreditConfig(creditHash);
             expect(cc.creditLimit).to.equal(creditLimit);
             expect(cc.committedAmount).to.equal(newCommittedAmount);
             const actualCR = await creditContract.getCreditRecord(creditHash);
-            const expectedCR = {
-                ...oldCR,
-                ...{
-                    nextDue: expectedNextDue,
-                    yieldDue: expectedYieldDue,
-                },
-            };
-            checkCreditRecordsMatch(actualCR, expectedCR);
+            checkCreditRecordsMatch(actualCR, oldCR);
             const actualDD = await creditContract.getDueDetail(creditHash);
-            const expectedCommittedYield = calcYield(committedAmount, yieldInBps, 2).add(
-                calcYield(newCommittedAmount, yieldInBps, CONSTANTS.DAYS_IN_A_MONTH - 2),
-            );
-            const expectedDD = {
-                ...oldDD,
-                ...{
-                    committed: expectedCommittedYield,
-                },
-            };
-            checkDueDetailsMatch(actualDD, expectedDD);
+            checkDueDetailsMatch(actualDD, oldDD);
         }
 
         describe("Without drawdown", function () {
@@ -9692,7 +9075,7 @@ describe("CreditLine Test", function () {
 
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .updateLimitAndCommitment(
                             await borrower.getAddress(),
                             toToken(200_000),
@@ -9706,14 +9089,14 @@ describe("CreditLine Test", function () {
 
             it("Should not allow the EA to update the credit limit and commitment if the credit is closed", async function () {
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .closeCredit(borrower.getAddress());
                 const cr = await creditContract.getCreditRecord(creditHash);
                 expect(cr.state).to.equal(CreditState.Deleted);
 
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .updateLimitAndCommitment(
                             await borrower.getAddress(),
                             toToken(200_000),
@@ -9737,15 +9120,7 @@ describe("CreditLine Test", function () {
                 });
 
                 it("Should allow a non-zero committed amount", async function () {
-                    const oldCR = await creditContract.getCreditRecord(creditHash);
-                    const oldDD = await creditContract.getDueDetail(creditHash);
-
-                    await testUpdate(
-                        oldDD.committed,
-                        oldDD.committed,
-                        oldCR.nextDue,
-                        oldCR.yieldDue,
-                    );
+                    await testUpdate();
                 });
             });
 
@@ -9757,58 +9132,8 @@ describe("CreditLine Test", function () {
                     await loadFixture(drawdown);
                 });
 
-                describe("If the yield hasn't been paid yet", function () {
-                    it("Should update the committed amount but not the yield due", async function () {
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        await testUpdate(
-                            oldDD.accrued,
-                            oldDD.accrued,
-                            oldCR.nextDue,
-                            oldCR.yieldDue,
-                        );
-                    });
-                });
-
-                describe("If the yield has been partially paid", function () {
-                    it("Should update the committed amount but not the yield due", async function () {
-                        // Make partial payment towards the yield due.
-                        const yieldDue = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue.div(2));
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.be.gt(0);
-                        await testUpdate(
-                            oldDD.accrued.sub(oldDD.paid),
-                            oldDD.accrued.sub(oldDD.paid),
-                            oldCR.nextDue,
-                            oldCR.yieldDue,
-                        );
-                    });
-                });
-
-                describe("If the yield has been paid off", function () {
-                    it("Should update the committed amount but not the yield due", async function () {
-                        // Make full payment towards the yield due.
-                        const yieldDue = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue);
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.equal(yieldDue);
-                        await testUpdate(toToken(0), toToken(0), oldCR.nextDue, oldCR.yieldDue);
-                    });
+                it("Should update the committed amount but not the yield due", async function () {
+                    await testUpdate();
                 });
             });
 
@@ -9820,91 +9145,15 @@ describe("CreditLine Test", function () {
                     await loadFixture(drawdown);
                 });
 
-                describe("If the yield hasn't been paid yet", function () {
-                    it("Should update the committed amount and the yield due", async function () {
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        const expectedCommittedYield = calcYield(
-                            newCommittedAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH - 2,
-                        );
-                        await testUpdate(
-                            oldDD.accrued,
-                            expectedCommittedYield,
-                            oldCR.nextDue.sub(oldCR.yieldDue).add(expectedCommittedYield),
-                            expectedCommittedYield,
-                        );
-                    });
-                });
-
-                describe("If the yield has been partially paid", function () {
-                    it("Should update the committed amount and the yield due", async function () {
-                        // Make partial payment towards the yield due.
-                        const yieldDue = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue.div(2));
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        const expectedCommittedYield = calcYield(
-                            newCommittedAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH - 2,
-                        );
-                        expect(oldDD.paid).to.be.gt(0);
-                        await testUpdate(
-                            oldDD.accrued.sub(oldDD.paid),
-                            expectedCommittedYield.sub(oldDD.paid),
-                            oldCR.nextDue
-                                .sub(oldCR.yieldDue)
-                                .add(expectedCommittedYield)
-                                .sub(oldDD.paid),
-                            expectedCommittedYield.sub(oldDD.paid),
-                        );
-                    });
-                });
-
-                describe("If the yield has been paid off", function () {
-                    it("Should update the committed amount and the yield due", async function () {
-                        // Make full payment towards the yield due.
-                        const yieldDue = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue);
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        const expectedCommittedYield = calcYield(
-                            newCommittedAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH - 2,
-                        );
-                        expect(oldDD.paid).to.equal(yieldDue);
-                        await testUpdate(
-                            toToken(0),
-                            expectedCommittedYield.sub(oldDD.paid),
-                            oldCR.nextDue
-                                .sub(oldCR.yieldDue)
-                                .add(expectedCommittedYield)
-                                .sub(oldDD.paid),
-                            expectedCommittedYield.sub(oldDD.paid),
-                        );
-                    });
+                it("Should update the committed amount and the yield due", async function () {
+                    await testUpdate();
                 });
 
                 it("Should not allow update when the protocol is paused or pool is not on", async function () {
                     await humaConfigContract.connect(protocolOwner).pause();
                     await expect(
                         creditManagerContract
-                            .connect(eaServiceAccount)
+                            .connect(evaluationAgent)
                             .updateLimitAndCommitment(
                                 await borrower.getAddress(),
                                 toToken(200_000),
@@ -9916,7 +9165,7 @@ describe("CreditLine Test", function () {
                     await poolContract.connect(poolOwner).disablePool();
                     await expect(
                         creditManagerContract
-                            .connect(eaServiceAccount)
+                            .connect(evaluationAgent)
                             .updateLimitAndCommitment(
                                 await borrower.getAddress(),
                                 toToken(200_000),
@@ -9935,14 +9184,14 @@ describe("CreditLine Test", function () {
                         ),
                     ).to.be.revertedWithCustomError(
                         creditManagerContract,
-                        "EvaluationAgentServiceAccountRequired",
+                        "EvaluationAgentRequired",
                     );
                 });
 
                 it("Should not allow the updated committed amount to exceed the credit limit", async function () {
                     await expect(
                         creditManagerContract
-                            .connect(eaServiceAccount)
+                            .connect(evaluationAgent)
                             .updateLimitAndCommitment(
                                 await borrower.getAddress(),
                                 toToken(100_000),
@@ -9966,7 +9215,7 @@ describe("CreditLine Test", function () {
 
                     await expect(
                         creditManagerContract
-                            .connect(eaServiceAccount)
+                            .connect(evaluationAgent)
                             .updateLimitAndCommitment(
                                 await borrower.getAddress(),
                                 maxCreditLine.add(toToken(1)),
@@ -9984,71 +9233,8 @@ describe("CreditLine Test", function () {
                     await loadFixture(drawdown);
                 });
 
-                describe("If the yield hasn't been paid yet", function () {
-                    it("Should update the committed amount and the yield due", async function () {
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        const expectedAccruedYield = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        await testUpdate(
-                            oldDD.committed,
-                            expectedAccruedYield,
-                            oldCR.nextDue.sub(oldCR.yieldDue).add(expectedAccruedYield),
-                            expectedAccruedYield,
-                        );
-                    });
-                });
-
-                describe("If the yield has been partially paid", function () {
-                    it("Should update the committed amount and the yield due", async function () {
-                        // Make partial payment towards the yield due.
-                        const yieldDue = calcYield(
-                            committedAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue.div(2));
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        const expectedAccruedYield = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(oldDD.paid).to.be.gt(0);
-                        await testUpdate(
-                            oldDD.committed.sub(oldDD.paid),
-                            expectedAccruedYield.sub(oldDD.paid),
-                            oldCR.nextDue
-                                .sub(oldCR.yieldDue)
-                                .add(expectedAccruedYield)
-                                .sub(oldDD.paid),
-                            expectedAccruedYield.sub(oldDD.paid),
-                        );
-                    });
-                });
-
-                describe("If the yield has been paid off", function () {
-                    it("Should update the committed amount and the yield due", async function () {
-                        // Make full payment towards the yield due.
-                        const yieldDue = calcYield(
-                            committedAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue);
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.equal(yieldDue);
-                        await testUpdate(toToken(0), toToken(0), oldCR.nextDue, toToken(0));
-                    });
+                it("Should update the committed amount and the yield due", async function () {
+                    await testUpdate();
                 });
             });
         });
@@ -10077,7 +9263,7 @@ describe("CreditLine Test", function () {
             borrowAmount = toToken(50_000);
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.address,
                     toToken(100_000),
@@ -10092,7 +9278,7 @@ describe("CreditLine Test", function () {
         async function drawDownAndRefresh() {
             drawdownDate = await getStartOfNextMonth();
             await setNextBlockTimestamp(drawdownDate);
-            await creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount);
+            await creditContract.connect(borrower).drawdown(borrowAmount);
 
             const cc = await creditManagerContract.getCreditConfig(creditHash);
             const refreshDate =
@@ -10118,7 +9304,7 @@ describe("CreditLine Test", function () {
                 expect(cr.state).to.eq(CreditState.Approved);
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .waiveLateFee(borrower.getAddress(), toToken(1)),
                 ).to.be.revertedWithCustomError(
                     creditManagerContract,
@@ -10128,13 +9314,13 @@ describe("CreditLine Test", function () {
 
             it("Should not allow the EA to waive late if the credit is closed", async function () {
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .closeCredit(borrower.getAddress());
                 const cr = await creditContract.getCreditRecord(creditHash);
                 expect(cr.state).to.eq(CreditState.Deleted);
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .waiveLateFee(borrower.getAddress(), toToken(1)),
                 ).to.be.revertedWithCustomError(
                     creditManagerContract,
@@ -10160,7 +9346,7 @@ describe("CreditLine Test", function () {
                 expect(oldDD.lateFee).to.be.gt(0);
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .waiveLateFee(borrower.getAddress(), waivedAmount),
                 )
                     .to.emit(creditManagerContract, "LateFeeWaived")
@@ -10168,7 +9354,7 @@ describe("CreditLine Test", function () {
                         creditHash,
                         oldDD.lateFee,
                         expectedNewLateFee,
-                        await eaServiceAccount.getAddress(),
+                        await evaluationAgent.getAddress(),
                     );
 
                 const actualCR = await creditContract.getCreditRecord(creditHash);
@@ -10209,7 +9395,7 @@ describe("CreditLine Test", function () {
                 await humaConfigContract.connect(protocolOwner).pause();
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .waiveLateFee(borrower.getAddress(), toToken(1)),
                 ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
@@ -10217,7 +9403,7 @@ describe("CreditLine Test", function () {
                 await poolContract.connect(poolOwner).disablePool();
                 await expect(
                     creditManagerContract
-                        .connect(eaServiceAccount)
+                        .connect(evaluationAgent)
                         .waiveLateFee(borrower.getAddress(), toToken(1)),
                 ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
@@ -10226,10 +9412,7 @@ describe("CreditLine Test", function () {
             it("Should not allow non-EAs to waive the late fee", async function () {
                 await expect(
                     creditManagerContract.waiveLateFee(borrower.getAddress(), toToken(1)),
-                ).to.be.revertedWithCustomError(
-                    creditManagerContract,
-                    "EvaluationAgentServiceAccountRequired",
-                );
+                ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
             });
         });
     });

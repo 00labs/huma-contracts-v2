@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {PoolConfig, FirstLossCoverConfig} from "../common/PoolConfig.sol";
 import {PoolConfigCache} from "../common/PoolConfigCache.sol";
@@ -27,10 +27,10 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
 
         // Distributes profits to the senior tranche first.
         uint256 remainingProfit;
-        (
-            profitsForTrancheVault[SENIOR_TRANCHE],
-            remainingProfit
-        ) = _distributeProfitForSeniorTranche(profit, assets);
+        (profitsForTrancheVault[SENIOR_TRANCHE], remainingProfit) = _calcProfitForSeniorTranche(
+            profit,
+            assets
+        );
 
         // Then distribute the remainder to the junior tranche and first loss covers.
         if (remainingProfit > 0) {
@@ -39,8 +39,6 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
                 profitsForFirstLossCover
             ) = _calcProfitForFirstLossCovers(remainingProfit, assets[JUNIOR_TRANCHE]);
         }
-
-        return (profitsForTrancheVault, profitsForFirstLossCover);
     }
 
     /// @inheritdoc ITranchesPolicy
@@ -53,13 +51,13 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
         return _firstLossCovers;
     }
 
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.pool();
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
+        address addr = poolConfig_.pool();
         assert(addr != address(0));
         pool = addr;
 
         delete _firstLossCovers;
-        address[16] memory covers = _poolConfig.getFirstLossCovers();
+        address[16] memory covers = poolConfig_.getFirstLossCovers();
         for (uint256 i = 0; i < covers.length; i++) {
             if (covers[i] != address(0)) {
                 _firstLossCovers.push(IFirstLossCover(covers[i]));
@@ -75,13 +73,13 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
      * @return seniorProfit The amount of profit that should be distributed to the senior tranche.
      * @return remainingProfit The remaining amount of profit that should be distributed to other parties.
      */
-    function _distributeProfitForSeniorTranche(
+    function _calcProfitForSeniorTranche(
         uint256 profit,
         uint96[2] memory assets
     ) internal virtual returns (uint256 seniorProfit, uint256 remainingProfit);
 
     /**
-     * @notice Internal function that calculates the profit distribution between the junior trnache and
+     * @notice Internal function that calculates the profit distribution between the junior tranche and
      * first loss covers (FLCs).
      * @dev There is a risk multiplier assigned to each first loss cover. To compute the profit
      * for each FLCs, we first get the product of the asset amount of each FLC and the risk
@@ -123,6 +121,5 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
             // it is guaranteed that juniorProfit will not be negative.
             juniorProfit -= profitsForFirstLossCovers[i];
         }
-        return (juniorProfit, profitsForFirstLossCovers);
     }
 }

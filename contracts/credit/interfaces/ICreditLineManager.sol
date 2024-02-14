@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 interface ICreditLineManager {
     /**
@@ -63,20 +63,6 @@ interface ICreditLineManager {
     function closeCredit(address borrower) external;
 
     /**
-     * @notice Pauses the credit. No drawdown is allowed for paused credit.
-     * @param borrower The address of the borrower.
-     * @custom:access Only the EA can call this function
-     */
-    function pauseCredit(address borrower) external;
-
-    /**
-     * @notice Unpauses the credit to return the credit to normal.
-     * @param borrower The address of the borrower.
-     * @custom:access Only the EA can call this function.
-     */
-    function unpauseCredit(address borrower) external;
-
-    /**
      * @notice Updates the yield for the credit.
      * @param borrower The address of the borrower.
      * @param yieldInBps The new yield expressed in basis points.
@@ -113,5 +99,8 @@ interface ICreditLineManager {
      * this value and the actual amount of late fee due.
      * @custom:access Only the EA can call this function.
      */
-    function waiveLateFee(address borrower, uint256 waivedAmount) external;
+    function waiveLateFee(
+        address borrower,
+        uint256 waivedAmount
+    ) external returns (uint256 amountWaived);
 }

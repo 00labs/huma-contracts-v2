@@ -7,7 +7,6 @@ import {
     CreditDueManager,
     CreditLineManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
@@ -22,6 +21,8 @@ import {
 } from "../../../typechain-types";
 import {
     deployAndSetupPoolContracts,
+    deployFactory,
+    deployImplementationContracts,
     deployProtocolContracts,
     deployProxyContract,
 } from "../../BaseTest";
@@ -29,7 +30,6 @@ import {
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     pdsServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -37,9 +37,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress,
     lender: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -62,7 +60,6 @@ describe("Upgradeability Test", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             pdsServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -73,10 +70,9 @@ describe("Upgradeability Test", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             pdsServiceAccount,
             poolOwner,
         );
@@ -100,13 +96,13 @@ describe("Upgradeability Test", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
             "CreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender],
@@ -136,7 +132,7 @@ describe("Upgradeability Test", function () {
         await poolConfigNewImpl.deployed();
         await expect(
             poolConfigContract.connect(poolOwner).upgradeTo(poolConfigNewImpl.address),
-        ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+        ).to.be.revertedWithCustomError(poolConfigContract, "HumaOwnerRequired");
     });
 
     // A test that checks upgradeability of a Pool contract
@@ -156,7 +152,7 @@ describe("Upgradeability Test", function () {
         await poolNewImpl.deployed();
         await expect(
             poolContract.connect(poolOwner).upgradeTo(poolNewImpl.address),
-        ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+        ).to.be.revertedWithCustomError(poolConfigContract, "HumaOwnerRequired");
     });
 
     // A test that checks upgradeability of the TranchedVault contract
@@ -180,7 +176,7 @@ describe("Upgradeability Test", function () {
         await trancheVaultNewImpl.deployed();
         await expect(
             seniorTrancheVaultContract.connect(poolOwner).upgradeTo(trancheVaultNewImpl.address),
-        ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+        ).to.be.revertedWithCustomError(poolConfigContract, "HumaOwnerRequired");
     });
 
     // A test that checks upgradeability of the Receivable contract
@@ -203,6 +199,74 @@ describe("Upgradeability Test", function () {
         ).to.be.revertedWith(/AccessControl: account .* is missing role .*/);
     });
 
+    it("PoolFactory upgrade test", async function () {
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+            protocolOwner,
+            treasury,
+            pdsServiceAccount,
+            poolOwner,
+        );
+
+        const [
+            poolConfigImpl,
+            poolFeeManagerImpl,
+            poolSafeImpl,
+            firstLossCoverImpl,
+            riskAdjustedTranchesPolicyImpl,
+            fixedSeniorYieldTranchePolicyImpl,
+            poolImpl,
+            epochManagerImpl,
+            TrancheVaultImpl,
+            creditLineImpl,
+            receivableBackedCreditLineImpl,
+            receivableFactoringCreditImpl,
+            creditDueManagerImpl,
+            borrowerLevelCreditManagerImpl,
+            receivableBackedCreditLineManagerImpl,
+            receivableLevelCreditManagerImpl,
+            receivableImpl,
+        ] = await deployImplementationContracts();
+
+        const Calendar = await ethers.getContractFactory("Calendar");
+        const calendarContract = (await Calendar.deploy()) as Calendar;
+        await calendarContract.deployed();
+
+        const poolFactoryContract = await deployFactory(
+            defaultDeployer,
+            humaConfigContract,
+            calendarContract,
+            poolConfigImpl,
+            poolFeeManagerImpl,
+            poolSafeImpl,
+            firstLossCoverImpl,
+            riskAdjustedTranchesPolicyImpl,
+            fixedSeniorYieldTranchePolicyImpl,
+            poolImpl,
+            epochManagerImpl,
+            TrancheVaultImpl,
+            creditLineImpl,
+            receivableBackedCreditLineImpl,
+            receivableFactoringCreditImpl,
+            creditDueManagerImpl,
+            borrowerLevelCreditManagerImpl,
+            receivableBackedCreditLineManagerImpl,
+            receivableLevelCreditManagerImpl,
+            receivableImpl,
+        );
+
+        const LibTimelockController = await ethers.getContractFactory("LibTimelockController");
+        const libTimelockControllerContract = await LibTimelockController.deploy();
+        await libTimelockControllerContract.deployed();
+        const PoolFactory = await ethers.getContractFactory("PoolFactory", {
+            libraries: { LibTimelockController: libTimelockControllerContract.address },
+        });
+        const poolFactoryNewImpl = await PoolFactory.deploy();
+        await poolFactoryNewImpl.deployed();
+        await expect(poolFactoryContract.upgradeTo(poolFactoryNewImpl.address))
+            .to.emit(poolFactoryContract, "Upgraded")
+            .withArgs(poolFactoryNewImpl.address);
+    });
+
     //Accounts other than factory admin tries to upgrade PoolFactory contract
     it("PoolFactory upgrade test - non factory admin", async function () {
         const LibTimelockController = await ethers.getContractFactory("LibTimelockController");
@@ -216,6 +280,6 @@ describe("Upgradeability Test", function () {
         await poolFactoryNewImpl.deployed();
         await expect(
             poolFactoryContract.connect(lender).upgradeTo(poolFactoryNewImpl.address),
-        ).to.be.revertedWithCustomError(poolFactoryContract, "AdminRequired");
+        ).to.be.revertedWithCustomError(poolFactoryContract, "HumaOwnerRequired");
     });
 });

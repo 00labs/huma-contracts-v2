@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
@@ -99,9 +99,7 @@ contract Receivable is
         _tokenIdCounter.increment();
     }
 
-    /**
-     * @inheritdoc IReceivable
-     */
+    /// @inheritdoc IReceivable
     function declarePayment(uint256 tokenId, uint96 paymentAmount) external {
         if (paymentAmount == 0) revert Errors.ZeroAmountProvided();
         ReceivableInfo memory receivableInfo = receivableInfoMap[tokenId];
@@ -247,6 +245,9 @@ contract Receivable is
     function _burn(
         uint256 tokenId
     ) internal override(ERC721Upgradeable, ERC721URIStorageUpgradeable) {
+        // Technically, the `availableCredit` should be adjusted lower when an approved receivable is not used
+        // for drawdown and gets burned. We decided not to do so because of the limited impact and complexities
+        // involved. The EA can adjust the credit limit to address any issues if needed.
         super._burn(tokenId);
     }
 }

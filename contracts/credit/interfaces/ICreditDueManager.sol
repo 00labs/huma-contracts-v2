@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {CreditConfig, CreditRecord, DueDetail} from "../CreditStructs.sol";
 import {PayPeriodDuration} from "../../common/SharedDefs.sol";
@@ -23,10 +23,10 @@ interface ICreditDueManager {
 
     /**
      * @notice Computes the front loading fee, which is also known as origination fee.
-     * @param _amount the borrowing amount.
+     * @param amount The borrowing amount.
      * @return fees The amount of fees to be charged for this borrowing.
      */
-    function calcFrontLoadingFee(uint256 _amount) external view returns (uint256 fees);
+    function calcFrontLoadingFee(uint256 amount) external view returns (uint256 fees);
 
     /**
      * @notice Returns the date the bill should be refreshed.
@@ -39,8 +39,8 @@ interface ICreditDueManager {
 
     /**
      * @notice Returns the updated late fee for a bill that's late.
-     * @param _cr The CreditRecord associated with the account.
-     * @param _dd The DueDetail associated with the account.
+     * @param cr The CreditRecord associated with the account.
+     * @param dd The DueDetail associated with the account.
      * @param periodDuration The pay period duration.
      * @param committedAmount The committed amount of the credit.
      * @param timestamp The timestamp until when the late fee should be calculated.
@@ -49,8 +49,8 @@ interface ICreditDueManager {
      * @return lateFee The updated late fee.
      */
     function refreshLateFee(
-        CreditRecord memory _cr,
-        DueDetail memory _dd,
+        CreditRecord memory cr,
+        DueDetail memory dd,
         PayPeriodDuration periodDuration,
         uint256 committedAmount,
         uint256 timestamp
@@ -100,38 +100,4 @@ interface ICreditDueManager {
         uint256 nextDueDate,
         uint256 yieldInBps
     ) external view returns (uint256 additionalYieldAccrued, uint256 additionalPrincipalDue);
-
-    /**
-     * @notice Re-computes the yield due after the change in the APY.
-     * @param nextDueDate The next due date of the bill.
-     * @param oldYieldDue The old amount of yield due prior to the update.
-     * @param oldYieldInBps The old APY expressed in basis points prior to the update.
-     * @param newYieldInBps The new APY expressed in bases points after the update.
-     * @param principal The principal or committed amount that the yield computation will be based on.
-     * @return updatedYield The updated yield due.
-     */
-    function recomputeYieldDue(
-        uint256 nextDueDate,
-        uint256 oldYieldDue,
-        uint256 oldYieldInBps,
-        uint256 newYieldInBps,
-        uint256 principal
-    ) external view returns (uint256 updatedYield);
-
-    /**
-     * @notice Re-computes the yield due after the change in the committed amount.
-     * @param nextDueDate The next due date of the bill.
-     * @param oldCommittedYieldDue The old amount of committed yield due prior to the update.
-     * @param oldCommittedAmount The old old committed amount prior to the update.
-     * @param newCommittedAmount The new committed amount after the update.
-     * @param yieldInBps The APY expressed in basis points that the yield computation will be based on.
-     * @return updatedYield The updated yield due.
-     */
-    function recomputeCommittedYieldDueAfterCommitmentChange(
-        uint256 nextDueDate,
-        uint256 oldCommittedYieldDue,
-        uint256 oldCommittedAmount,
-        uint256 newCommittedAmount,
-        uint256 yieldInBps
-    ) external view returns (uint256 updatedYield);
 }
