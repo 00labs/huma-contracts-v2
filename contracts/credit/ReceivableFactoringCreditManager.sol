@@ -79,7 +79,7 @@ contract ReceivableFactoringCreditManager is
         uint16 yieldInBps
     ) external virtual {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
+        _onlyEvaluationAgent();
         if (creditLimit > receivableInput.receivableAmount)
             revert Errors.InsufficientReceivableAmount();
         if (receivableInput.receivableId == 0) revert Errors.ZeroReceivableIdProvided();
@@ -121,7 +121,7 @@ contract ReceivableFactoringCreditManager is
         uint256 receivableId
     ) external virtual returns (uint256 principalLoss, uint256 yieldLoss, uint256 feesLoss) {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
+        _onlyEvaluationAgent();
 
         bytes32 creditHash = getCreditHash(receivableId);
         return _triggerDefault(creditHash);
@@ -130,7 +130,7 @@ contract ReceivableFactoringCreditManager is
     /// @inheritdoc IReceivableFactoringCreditManager
     function closeCredit(address borrower, uint256 receivableId) external virtual {
         poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != borrower && msg.sender != humaConfig.eaServiceAccount())
+        if (msg.sender != borrower && msg.sender != poolConfig.evaluationAgent())
             revert Errors.BorrowerOrEARequired();
 
         bytes32 creditHash = getCreditHash(receivableId);
@@ -141,7 +141,7 @@ contract ReceivableFactoringCreditManager is
     /// @inheritdoc IReceivableFactoringCreditManager
     function updateYield(uint256 receivableId, uint256 yieldInBps) external virtual {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
+        _onlyEvaluationAgent();
 
         bytes32 creditHash = getCreditHash(receivableId);
         _updateYield(creditHash, yieldInBps);
@@ -150,7 +150,7 @@ contract ReceivableFactoringCreditManager is
     /// @inheritdoc IReceivableFactoringCreditManager
     function extendRemainingPeriod(uint256 receivableId, uint256 numOfPeriods) external virtual {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
+        _onlyEvaluationAgent();
 
         bytes32 creditHash = getCreditHash(receivableId);
         _extendRemainingPeriod(creditHash, numOfPeriods);
@@ -159,7 +159,7 @@ contract ReceivableFactoringCreditManager is
     /// @inheritdoc IReceivableFactoringCreditManager
     function waiveLateFee(uint256 receivableId, uint256 waivedAmount) external virtual {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
+        _onlyEvaluationAgent();
 
         bytes32 creditHash = getCreditHash(receivableId);
         _waiveLateFee(creditHash, waivedAmount);

@@ -47,7 +47,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
         bool revolving
     ) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
+        _onlyEvaluationAgent();
 
         bytes32 creditHash = getCreditHash(borrower);
         _approveCredit(
@@ -101,7 +101,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
         returns (uint256 principalLoss, uint256 yieldLoss, uint256 feesLoss)
     {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
+        _onlyEvaluationAgent();
 
         bytes32 creditHash = getCreditHash(borrower);
         return _triggerDefault(creditHash);
@@ -110,7 +110,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
     /// @inheritdoc ICreditLineManager
     function closeCredit(address borrower) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != borrower && msg.sender != humaConfig.eaServiceAccount())
+        if (msg.sender != borrower && msg.sender != poolConfig.evaluationAgent())
             revert Errors.BorrowerOrEARequired();
 
         bytes32 creditHash = getCreditHash(borrower);
@@ -121,7 +121,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
     /// @inheritdoc ICreditLineManager
     function updateYield(address borrower, uint256 yieldInBps) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
+        _onlyEvaluationAgent();
 
         bytes32 creditHash = getCreditHash(borrower);
         _updateYield(creditHash, yieldInBps);
@@ -133,7 +133,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
         uint256 numOfPeriods
     ) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
+        _onlyEvaluationAgent();
 
         bytes32 creditHash = getCreditHash(borrower);
         _extendRemainingPeriod(creditHash, numOfPeriods);
@@ -146,7 +146,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
         uint256 committedAmount
     ) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
+        _onlyEvaluationAgent();
 
         _updateLimitAndCommitment(getCreditHash(borrower), creditLimit, committedAmount);
     }
@@ -154,7 +154,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
     /// @inheritdoc ICreditLineManager
     function waiveLateFee(address borrower, uint256 amount) external {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
+        _onlyEvaluationAgent();
 
         _waiveLateFee(getCreditHash(borrower), amount);
     }

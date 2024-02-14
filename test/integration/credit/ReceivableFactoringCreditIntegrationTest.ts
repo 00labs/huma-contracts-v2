@@ -7,7 +7,6 @@ import {
     Calendar,
     CreditDueManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockNFT,
@@ -44,7 +43,6 @@ import { CONSTANTS } from "../../constants";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -52,9 +50,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress;
 let lender: SignerWithAddress, borrower: SignerWithAddress, payer: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -77,7 +73,6 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -90,10 +85,9 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -116,7 +110,6 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
@@ -202,7 +195,7 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
 
         it("Approves borrower credit", async function () {
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveReceivable(
                     borrower.address,
                     { receivableAmount: creditLimit, receivableId: tokenId },
