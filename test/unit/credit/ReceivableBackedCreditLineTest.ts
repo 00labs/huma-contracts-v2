@@ -173,11 +173,9 @@ describe("ReceivableBackedCreditLine Tests", function () {
             await expect(
                 receivableContract
                     .connect(borrower)
-                    ["safeTransferFrom(address,address,uint256)"](
-                        borrower.getAddress(),
-                        creditContract.address,
-                        receivableId,
-                    ),
+                    [
+                        "safeTransferFrom(address,address,uint256)"
+                    ](borrower.getAddress(), creditContract.address, receivableId),
             ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
@@ -185,11 +183,9 @@ describe("ReceivableBackedCreditLine Tests", function () {
             await expect(
                 receivableContract
                     .connect(borrower)
-                    ["safeTransferFrom(address,address,uint256)"](
-                        borrower.getAddress(),
-                        creditContract.address,
-                        receivableId,
-                    ),
+                    [
+                        "safeTransferFrom(address,address,uint256)"
+                    ](borrower.getAddress(), creditContract.address, receivableId),
             ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
             await poolContract.connect(poolOwner).enablePool();
         });

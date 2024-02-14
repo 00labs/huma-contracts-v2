@@ -113,11 +113,14 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                     // monthly pay period, `cr.nextDueDate` is Feb 1, and `timestamp` is May 15, then March and April
                     // were "skipped", and we need to compute the yield and principal due that were supposed to happen
                     // in those two months and add the amounts to past due.
+                    uint256 yieldBasis = Math.max(
+                        cr.unbilledPrincipal + cr.nextDue - cr.yieldDue + dd.principalPastDue,
+                        cc.committedAmount
+                    );
                     newDD.yieldPastDue += uint96(
-                        _computeYieldNextDue(
+                        _computeYield(
+                            yieldBasis,
                             cc.yieldInBps,
-                            cr.unbilledPrincipal + cr.nextDue - cr.yieldDue + dd.principalPastDue,
-                            cc.committedAmount,
                             periodsPassed * totalDaysInFullPeriod
                         )
                     );
@@ -234,7 +237,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         uint256 daysRemaining = calendar.getDaysRemainingInPeriod(nextDueDate);
         // It's important to note that the yield calculation includes the day of the drawdown. For instance,
         // if the borrower draws down at 11:59 PM on October 30th, the yield for October 30th must be paid.
-        additionalYieldAccrued = _computeYieldDue(borrowAmount, yieldInBps, daysRemaining);
+        additionalYieldAccrued = _computeYield(borrowAmount, yieldInBps, daysRemaining);
         FeeStructure memory fees = poolConfig.getFeeStructure();
         if (fees.minPrincipalRateInBps > 0) {
             additionalPrincipalDue = _computePrincipalDueForPartialPeriod(
@@ -386,27 +389,17 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             (HUNDRED_PERCENT_IN_BPS * totalDaysInFullPeriod);
     }
 
-    function _computeYieldNextDue(
-        uint256 yieldInBps,
-        uint256 principal,
-        uint256 committedAmount,
-        uint256 daysPassed
-    ) internal pure returns (uint256 maxYieldDue) {
-        uint256 yieldBasis = Math.max(principal, committedAmount);
-        return _computeYieldDue(yieldBasis, yieldInBps, daysPassed);
-    }
-
     function _computeAccruedAndCommittedYieldDue(
         uint256 yieldInBps,
         uint256 principal,
         uint256 committedAmount,
         uint256 daysPassed
     ) internal pure returns (uint96 accrued, uint96 committed) {
-        accrued = _computeYieldDue(principal, yieldInBps, daysPassed);
-        committed = _computeYieldDue(committedAmount, yieldInBps, daysPassed);
+        accrued = _computeYield(principal, yieldInBps, daysPassed);
+        committed = _computeYield(committedAmount, yieldInBps, daysPassed);
     }
 
-    function _computeYieldDue(
+    function _computeYield(
         uint256 principal,
         uint256 yieldInBps,
         uint256 numDays

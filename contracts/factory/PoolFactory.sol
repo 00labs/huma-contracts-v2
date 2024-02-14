@@ -80,7 +80,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     address public receivableImpl;
 
     /// poolId => PoolRecord
-    mapping(uint256 => PoolRecord) private pools;
+    mapping(uint256 => PoolRecord) private _pools;
 
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new
@@ -452,7 +452,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             advanceRateInBps: advanceRateInBps,
             receivableAutoApproval: receivableAutoApproval
         });
-        PoolConfig(pools[_poolId].poolConfigAddress).setPoolSettings(settings);
+        PoolConfig(_pools[_poolId].poolConfigAddress).setPoolSettings(settings);
     }
 
     /// After deploying a new pool, the deployer needs to set LP configuration parameters using this function.
@@ -472,7 +472,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             tranchesRiskAdjustmentInBps: tranchesRiskAdjustmentInBps,
             withdrawalLockoutPeriodInDays: withdrawalLockoutPeriodInDays
         });
-        PoolConfig(pools[_poolId].poolConfigAddress).setLPConfig(lpConfig);
+        PoolConfig(_pools[_poolId].poolConfigAddress).setLPConfig(lpConfig);
     }
 
     /// After deploying a new pool, the deployer needs to set the fee structure using this function.
@@ -493,7 +493,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             frontLoadingFeeFlat: frontLoadingFeeFlat,
             frontLoadingFeeBps: frontLoadingFeeBps
         });
-        PoolConfig poolConfig = PoolConfig(pools[_poolId].poolConfigAddress);
+        PoolConfig poolConfig = PoolConfig(_pools[_poolId].poolConfigAddress);
         poolConfig.setFrontLoadingFees(frontLoadingFees);
         FeeStructure memory fees = FeeStructure({
             yieldInBps: yieldInBps,
@@ -513,7 +513,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     function addPoolOperator(uint256 _poolId, address poolOperator) external {
         _onlyDeployer(msg.sender);
         _notZeroAddress(poolOperator);
-        PoolConfig poolConfig = PoolConfig(pools[_poolId].poolConfigAddress);
+        PoolConfig poolConfig = PoolConfig(_pools[_poolId].poolConfigAddress);
         poolConfig.grantRole(poolConfig.POOL_OPERATOR_ROLE(), poolOperator);
     }
 
@@ -531,12 +531,12 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             address(0)
         );
 
-        PoolConfig poolConfig = PoolConfig(pools[_poolId].poolConfigAddress);
+        PoolConfig poolConfig = PoolConfig(_pools[_poolId].poolConfigAddress);
         poolConfig.grantRole(poolConfig.DEFAULT_ADMIN_ROLE(), timelockAddress);
         poolConfig.renounceRole(poolConfig.DEFAULT_ADMIN_ROLE(), address(this));
 
-        emit TimelockAddedToPool(_poolId, pools[_poolId].poolAddress, timelockAddress);
-        pools[_poolId].poolTimelock = timelockAddress;
+        emit TimelockAddedToPool(_poolId, _pools[_poolId].poolAddress, timelockAddress);
+        _pools[_poolId].poolTimelock = timelockAddress;
     }
 
     /**
@@ -548,12 +548,12 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _validPoolId(_poolId);
         emit PoolStatusUpdated(
             _poolId,
-            pools[_poolId].poolAddress,
-            pools[_poolId].poolName,
-            pools[_poolId].poolStatus,
+            _pools[_poolId].poolAddress,
+            _pools[_poolId].poolName,
+            _pools[_poolId].poolStatus,
             newStatus
         );
-        pools[_poolId].poolStatus = newStatus;
+        _pools[_poolId].poolStatus = newStatus;
     }
 
     /**
@@ -575,7 +575,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     /// Returns the corresponding poolRecord for the `poolId`.
     function checkPool(uint256 _poolId) external view returns (PoolRecord memory) {
         _validPoolId(_poolId);
-        return pools[_poolId];
+        return _pools[_poolId];
     }
 
     function _validPoolId(uint256 _poolId) internal view {
@@ -613,7 +613,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         address _poolTimelockAddress
     ) private {
         poolId = poolId + 1;
-        pools[poolId] = PoolRecord(
+        _pools[poolId] = PoolRecord(
             poolId,
             _poolAddress,
             _poolName,

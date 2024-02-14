@@ -10,7 +10,6 @@ import {IPoolFeeManager} from "../liquidity/interfaces/IPoolFeeManager.sol";
 import {IPool} from "../liquidity/interfaces/IPool.sol";
 import {IFirstLossCover} from "../liquidity/interfaces/IFirstLossCover.sol";
 import {ITranchesPolicy} from "../liquidity/interfaces/ITranchesPolicy.sol";
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ADMIN_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS, PayPeriodDuration} from "./SharedDefs.sol";
 import {HumaConfig} from "./HumaConfig.sol";
 import {Errors} from "./Errors.sol";
@@ -65,16 +64,16 @@ struct LPConfig {
 }
 
 struct FrontLoadingFeesStructure {
-    // Part of platform fee, charged as a flat amount when a borrow happens
+    // Part of platform fee, charged as a flat amount when borrowing occurs.
     uint96 frontLoadingFeeFlat;
-    // Part of platform fee, charged as a % of the borrowing amount when a borrow happens
+    // Part of platform fee, charged as a % of the borrowing amount when borrowing occurs.
     uint16 frontLoadingFeeBps;
 }
 
 struct FeeStructure {
-    // Expected yield in basis points
+    // Expected yield in basis points.
     uint16 yieldInBps;
-    // The min % of the outstanding principal to be paid in the statement for each each period
+    // The min % of the outstanding principal to be paid in the statement for each period.
     uint16 minPrincipalRateInBps;
     // The late fee rate expressed in bps. The late fee is the additional charge on top of the yield
     // when a payment is late, and is calculated as a % of the total outstanding balance.
