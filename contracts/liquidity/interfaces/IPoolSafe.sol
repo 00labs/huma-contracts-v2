@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 /**
  * @title IPoolSafe
@@ -50,4 +50,8 @@ interface IPoolSafe {
      * @notice Gets the available balance of the PoolSafe that can be used to pay for admin fees.
      */
     function getAvailableBalanceForFees() external view returns (uint256 availableBalance);
+
+    function unprocessedTrancheProfit(
+        address tranche
+    ) external view returns (uint256 unprocessedProfit);
 }

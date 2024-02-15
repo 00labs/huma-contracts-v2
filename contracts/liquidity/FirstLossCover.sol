@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {Errors} from "../common/Errors.sol";
 import {FirstLossCoverStorage} from "./FirstLossCoverStorage.sol";
@@ -13,6 +13,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title FirstLossCover
@@ -27,7 +28,7 @@ contract FirstLossCover is
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /// The maximum number of cover providers that can supply assets to the first loss cover.
-    uint256 private constant MAX_ALLOWED_NUM_PROVIDERS = 100;
+    uint256 private constant _MAX_ALLOWED_NUM_PROVIDERS = 100;
 
     /**
      * @notice A cover provider has been added.
@@ -44,15 +45,15 @@ contract FirstLossCover is
      * @notice Loss has been covered by the first loss cover.
      * @param covered The amount covered by the first loss cover.
      * @param remaining The remaining amount of loss that the first loss cover was not able to cover.
-     * @param coveredLoss The cumulative amount of loss covered so far.
+     * @param cumulativeLossCovered The cumulative amount of loss covered so far.
      */
-    event LossCovered(uint256 covered, uint256 remaining, uint256 coveredLoss);
+    event LossCovered(uint256 covered, uint256 remaining, uint256 cumulativeLossCovered);
     /**
      * @notice Loss recovery has been distributed to the first loss cover.
      * @param recovered The amount of loss recovery distributed.
-     * @param coveredLoss The cumulative amount of loss covered after the recovery was applied.
+     * @param cumulativeLossCovered The cumulative amount of loss covered after the recovery was applied.
      */
-    event LossRecovered(uint256 recovered, uint256 coveredLoss);
+    event LossRecovered(uint256 recovered, uint256 cumulativeLossCovered);
 
     /**
      * @notice A cover provider has deposited assets into the first loss cover.
@@ -62,7 +63,7 @@ contract FirstLossCover is
      */
     event CoverDeposited(address indexed account, uint256 assets, uint256 shares);
     /**
-     * @notice Assets has been redeemed and withdrawn from the first loss cover.
+     * @notice Assets have been redeemed and withdrawn from the first loss cover.
      * @param by The address that initiated the redemption.
      * @param receiver The receiver of the redeemed assets.
      * @param shares The number of shares burned by the redeemer.
@@ -75,33 +76,40 @@ contract FirstLossCover is
         uint256 assets
     );
     /**
-     * @notice Assets has been added to the first loss cover.
+     * @notice Assets have been added to the first loss cover.
      * @param assets The amount of assets added.
      */
     event AssetsAdded(uint256 assets);
 
     /**
-     * @notice Yield has been paid out to the cover providers.
+     * @notice Yield has been paid out to the cover provider.
      * @param account The address of the cover provider that received the yield.
      * @param yields The amount of yield paid out to the cover provider.
      */
     event YieldPaidOut(address indexed account, uint256 yields);
 
+    /**
+     * @notice Yield payout to the cover provider has failed.
+     * @param account The address of the cover provider that should have received the yield.
+     * @param yields The amount of yield that should have been paid out to the cover provider.
+     */
+    event YieldPayoutFailed(address indexed account, uint256 yields);
+
     function initialize(
         string memory name,
         string memory symbol,
-        PoolConfig _poolConfig
+        PoolConfig poolConfig_
     ) external initializer {
         __ERC20_init(name, symbol);
         __UUPSUpgradeable_init();
-        _initialize(_poolConfig);
+        _initialize(poolConfig_);
     }
 
     function addCoverProvider(address account) external {
         poolConfig.onlyPoolOwner(msg.sender);
         if (account == address(0)) revert Errors.ZeroAddressProvided();
 
-        if (_coverProviders.length() >= MAX_ALLOWED_NUM_PROVIDERS) {
+        if (_coverProviders.length() >= _MAX_ALLOWED_NUM_PROVIDERS) {
             revert Errors.TooManyProviders();
         }
         bool newlyAdded = _coverProviders.add(account);
@@ -134,6 +142,10 @@ contract FirstLossCover is
     function depositCover(uint256 assets) external returns (uint256 shares) {
         if (assets == 0) revert Errors.ZeroAmountProvided();
         _onlyCoverProvider(msg.sender);
+        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
+        if (assets < poolSettings.minDepositAmount) {
+            revert Errors.DepositAmountTooLow();
+        }
 
         // Note: we have to mint the shares first by calling _deposit() before transferring the assets.
         // Transferring assets first would increase the total cover assets without increasing the supply, resulting in
@@ -145,7 +157,7 @@ contract FirstLossCover is
     /// @inheritdoc IFirstLossCover
     function depositCoverFor(uint256 assets, address receiver) external returns (uint256 shares) {
         if (assets == 0) revert Errors.ZeroAmountProvided();
-        if (receiver == address(0)) revert Errors.ZeroAddressProvided();
+        _onlyCoverProvider(receiver);
         _onlyPoolFeeManager(msg.sender);
 
         // Note: we have to mint the shares first by calling _deposit() before transferring the assets.
@@ -167,22 +179,11 @@ contract FirstLossCover is
     function redeemCover(uint256 shares, address receiver) external returns (uint256 assets) {
         if (shares == 0) revert Errors.ZeroAmountProvided();
         if (receiver == address(0)) revert Errors.ZeroAddressProvided();
-
-        uint256 minLiquidity = getMinLiquidity();
-        uint256 currTotalAssets = totalAssets();
-
-        bool ready = pool.readyForFirstLossCoverWithdrawal();
-        // If ready, all assets can be withdrawn. Otherwise, only the excessive assets over the minimum
-        // liquidity requirement can be withdrawn.
-        if (!ready && currTotalAssets <= minLiquidity)
+        if (!pool.readyForFirstLossCoverWithdrawal())
             revert Errors.PoolIsNotReadyForFirstLossCoverWithdrawal();
-
         if (shares > balanceOf(msg.sender)) revert Errors.InsufficientSharesForRequest();
-        assets = convertToAssets(shares);
-        // Revert if the pool is not ready and the assets to be withdrawn is more than the available value.
-        if (!ready && assets > currTotalAssets - minLiquidity)
-            revert Errors.InsufficientAmountForRequest();
 
+        assets = convertToAssets(shares);
         ERC20Upgradeable._burn(msg.sender, shares);
         underlyingToken.safeTransfer(receiver, assets);
         emit CoverRedeemed(msg.sender, receiver, shares, assets);
@@ -210,11 +211,11 @@ contract FirstLossCover is
     function recoverLoss(uint256 recovery) external returns (uint256 remainingRecovery) {
         poolConfig.onlyPool(msg.sender);
 
-        uint256 recoveredAmount;
-        (remainingRecovery, recoveredAmount) = _calcLossRecovery(coveredLoss, recovery);
+        uint256 currCoveredLoss = coveredLoss;
+        uint256 recoveredAmount = Math.min(currCoveredLoss, recovery);
+        remainingRecovery = recovery - recoveredAmount;
 
         if (recoveredAmount > 0) {
-            uint256 currCoveredLoss = coveredLoss;
             currCoveredLoss -= recoveredAmount;
             coveredLoss = currCoveredLoss;
 
@@ -229,6 +230,8 @@ contract FirstLossCover is
      * @notice Yield payout is expected to be handled by a cron-like mechanism like autotask.
      */
     function payoutYield() external {
+        poolConfig.onlyProtocolAndPoolOn();
+
         uint256 maxLiquidity = getMaxLiquidity();
         uint256 assets = totalAssets();
         if (assets <= maxLiquidity) return;
@@ -244,13 +247,34 @@ contract FirstLossCover is
 
             uint256 payout = (yield * shares) / totalShares;
             remainingShares -= shares;
-            underlyingToken.safeTransfer(provider, payout);
-            emit YieldPaidOut(provider, payout);
+
+            // The underlying asset of the pool may incorporate a blocklist feature that prevents the provider
+            // from receiving yield if they are subject to sanctions, and consequently the `transfer` call
+            // would fail for the lender. We bypass the yield of this provider so that other
+            // providers can still get their yield paid out as normal.
+            // Note that we are calling the special-purpose `safeTransfer()` defined below with `this` so that
+            // it's an external function call and can be wrapped by `try/catch`.
+            try this.safeTransfer(provider, payout) {
+                emit YieldPaidOut(provider, payout);
+            } catch {
+                emit YieldPayoutFailed(provider, payout);
+            }
         }
 
         // We expect all yield to be paid out in one go. It's technically impossible for remainingShares
         // to be non-zero, but adding an assertion here just to be safe.
         assert(remainingShares == 0);
+    }
+
+    /**
+     * @notice This function exists purely for the purpose of being able to wrap `underlyingToken.safeTransfer`,
+     * which is an internal function from the `SafeERC20` library, in `try/catch`, which can wrap around external
+     * function calls only.
+     * @custom:access Only this contract can call given its special purpose.
+     */
+    function safeTransfer(address to, uint256 amount) external {
+        if (msg.sender != address(this)) revert Errors.AuthorizedContractCallerRequired();
+        underlyingToken.safeTransfer(to, amount);
     }
 
     function isSufficient() external view returns (bool sufficient) {
@@ -266,9 +290,20 @@ contract FirstLossCover is
     }
 
     /**
-     * @notice Disables the transfer function so that first loss cover tokens cannot be transferred.
+     * @notice Disallows first loss cover tokens to be transferred.
      */
     function transfer(address, uint256) public virtual override returns (bool) {
+        revert Errors.UnsupportedFunction();
+    }
+
+    /**
+     * @notice Disallows first loss cover tokens to be transferred.
+     */
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) public virtual override returns (bool) {
         revert Errors.UnsupportedFunction();
     }
 
@@ -313,22 +348,26 @@ contract FirstLossCover is
         return config.minLiquidity;
     }
 
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
         address oldUnderlyingToken = address(underlyingToken);
-        address newUnderlyingToken = _poolConfig.underlyingToken();
+        address newUnderlyingToken = poolConfig_.underlyingToken();
         assert(newUnderlyingToken != address(0));
         underlyingToken = IERC20(newUnderlyingToken);
         _decimals = IERC20MetadataUpgradeable(newUnderlyingToken).decimals();
 
         address oldPoolSafe = address(poolSafe);
-        address addr = _poolConfig.poolSafe();
+        address addr = poolConfig_.poolSafe();
         assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
         _resetPoolSafeAllowance(oldPoolSafe, addr, oldUnderlyingToken, newUnderlyingToken);
 
-        addr = _poolConfig.pool();
+        addr = poolConfig_.pool();
         assert(addr != address(0));
         pool = IPool(addr);
+
+        addr = poolConfig_.poolFeeManager();
+        assert(addr != address(0));
+        poolFeeManager = addr;
     }
 
     /**
@@ -359,10 +398,6 @@ contract FirstLossCover is
     }
 
     function _deposit(uint256 assets, address account) internal returns (uint256 shares) {
-        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
-        if (assets < poolSettings.minDepositAmount) {
-            revert Errors.DepositAmountTooLow();
-        }
         if (assets > getAvailableCap()) {
             revert Errors.FirstLossCoverLiquidityCapExceeded();
         }
@@ -410,15 +445,6 @@ contract FirstLossCover is
     }
 
     function _onlyPoolFeeManager(address account) internal view {
-        if (account != poolConfig.poolFeeManager())
-            revert Errors.AuthorizedContractCallerRequired();
-    }
-
-    function _calcLossRecovery(
-        uint256 coveredLoss,
-        uint256 recoveryAmount
-    ) internal pure returns (uint256 remainingRecovery, uint256 recoveredAmount) {
-        recoveredAmount = coveredLoss < recoveryAmount ? coveredLoss : recoveryAmount;
-        remainingRecovery = recoveryAmount - recoveredAmount;
+        if (account != poolFeeManager) revert Errors.AuthorizedContractCallerRequired();
     }
 }

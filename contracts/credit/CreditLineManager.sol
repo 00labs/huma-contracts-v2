@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {ICreditLineManager} from "./interfaces/ICreditLineManager.sol";
 import {CreditManager} from "./CreditManager.sol";
@@ -47,7 +47,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
         bool revolving
     ) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
+        _onlyEvaluationAgent();
 
         bytes32 creditHash = getCreditHash(borrower);
         _approveCredit(
@@ -101,7 +101,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
         returns (uint256 principalLoss, uint256 yieldLoss, uint256 feesLoss)
     {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
+        _onlyEvaluationAgent();
 
         bytes32 creditHash = getCreditHash(borrower);
         return _triggerDefault(creditHash);
@@ -110,7 +110,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
     /// @inheritdoc ICreditLineManager
     function closeCredit(address borrower) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != borrower && msg.sender != humaConfig.eaServiceAccount())
+        if (msg.sender != borrower && msg.sender != poolConfig.evaluationAgent())
             revert Errors.BorrowerOrEARequired();
 
         bytes32 creditHash = getCreditHash(borrower);
@@ -119,27 +119,9 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
     }
 
     /// @inheritdoc ICreditLineManager
-    function pauseCredit(address borrower) external virtual override {
-        poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
-
-        bytes32 creditHash = getCreditHash(borrower);
-        _pauseCredit(creditHash);
-    }
-
-    /// @inheritdoc ICreditLineManager
-    function unpauseCredit(address borrower) external virtual override {
-        poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
-
-        bytes32 creditHash = getCreditHash(borrower);
-        _unpauseCredit(creditHash);
-    }
-
-    /// @inheritdoc ICreditLineManager
     function updateYield(address borrower, uint256 yieldInBps) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
+        _onlyEvaluationAgent();
 
         bytes32 creditHash = getCreditHash(borrower);
         _updateYield(creditHash, yieldInBps);
@@ -151,7 +133,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
         uint256 numOfPeriods
     ) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
+        _onlyEvaluationAgent();
 
         bytes32 creditHash = getCreditHash(borrower);
         _extendRemainingPeriod(creditHash, numOfPeriods);
@@ -164,20 +146,23 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
         uint256 committedAmount
     ) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
+        _onlyEvaluationAgent();
 
         _updateLimitAndCommitment(getCreditHash(borrower), creditLimit, committedAmount);
     }
 
     /// @inheritdoc ICreditLineManager
-    function waiveLateFee(address borrower, uint256 amount) external {
+    function waiveLateFee(
+        address borrower,
+        uint256 amount
+    ) external returns (uint256 amountWaived) {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
+        _onlyEvaluationAgent();
 
-        _waiveLateFee(getCreditHash(borrower), amount);
+        return _waiveLateFee(getCreditHash(borrower), amount);
     }
 
-    function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
+    function getCreditHash(address borrower) public view virtual returns (bytes32 creditHash) {
         return keccak256(abi.encode(address(credit), borrower));
     }
 }

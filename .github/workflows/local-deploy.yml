@@ -3,7 +3,7 @@ name: Local Deploy Tests
 on:
   pull_request:
     types: [opened, reopened, edited, synchronize]
-    branches: ["main", "develop", "release*"]
+    branches: ["main", "develop", "release*", "spearbit*"]
 
 jobs:
   test-local-deploy:

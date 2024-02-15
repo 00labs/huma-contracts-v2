@@ -78,7 +78,6 @@ task(
         const paybackAndDrawdownTx = await receivableCreditContract
             .connect(borrowerActive)
             .makePrincipalPaymentAndDrawdownWithReceivable(
-                borrowerActive.address,
                 payableReceivableTokenId,
                 borrowAmount,
                 drawdownReceivableTokenId,

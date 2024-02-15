@@ -7,7 +7,6 @@ import {
     Calendar,
     CreditDueManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
@@ -30,7 +29,6 @@ import { CONSTANTS } from "../../constants";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -38,9 +36,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress;
 let lender: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -61,7 +57,6 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -72,10 +67,9 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -97,26 +91,22 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
             "CreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender],
         );
 
         const juniorDepositAmount = toToken(100_000);
-        await juniorTrancheVaultContract
-            .connect(lender)
-            .deposit(juniorDepositAmount, lender.address);
+        await juniorTrancheVaultContract.connect(lender).deposit(juniorDepositAmount);
         const seniorDepositAmount = toToken(300_000);
-        await seniorTrancheVaultContract
-            .connect(lender)
-            .deposit(seniorDepositAmount, lender.address);
+        await seniorTrancheVaultContract.connect(lender).deposit(seniorDepositAmount);
     }
 
     beforeEach(async function () {

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {Errors} from "../common/Errors.sol";
 import {PoolConfig} from "../common/PoolConfig.sol";
@@ -20,6 +20,10 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     IERC20 public underlyingToken;
     IPool public pool;
     IPoolFeeManager public poolFeeManager;
+
+    address public seniorTranche;
+    address public juniorTranche;
+    address public credit;
 
     /**
      * Maps tranche addresses to unprocessed profits.
@@ -51,14 +55,13 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     /// @inheritdoc IPoolSafe
     function addUnprocessedProfit(address tranche, uint256 profit) external {
         if (msg.sender != address(pool)) revert Errors.AuthorizedContractCallerRequired();
-        if (tranche != poolConfig.seniorTranche() && tranche != poolConfig.juniorTranche())
-            revert Errors.TrancheRequired();
+        if (tranche != seniorTranche && tranche != juniorTranche) revert Errors.TrancheRequired();
         unprocessedTrancheProfit[tranche] += profit;
     }
 
     /// @inheritdoc IPoolSafe
     function resetUnprocessedProfit() external {
-        if (msg.sender != poolConfig.seniorTranche() && msg.sender != poolConfig.juniorTranche())
+        if (msg.sender != seniorTranche && msg.sender != juniorTranche)
             revert Errors.AuthorizedContractCallerRequired();
         unprocessedTrancheProfit[msg.sender] = 0;
     }
@@ -73,8 +76,8 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         // Deducts balance reserved for unprocessed yield and balance reserved for admin fees.
         uint256 reserved = poolFeeManager.getTotalAvailableFees();
         reserved +=
-            unprocessedTrancheProfit[poolConfig.seniorTranche()] +
-            unprocessedTrancheProfit[poolConfig.juniorTranche()];
+            unprocessedTrancheProfit[seniorTranche] +
+            unprocessedTrancheProfit[juniorTranche];
         uint256 balance = underlyingToken.balanceOf(address(this));
         availableBalance = balance > reserved ? balance - reserved : 0;
     }
@@ -87,25 +90,37 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     /// @inheritdoc IPoolSafe
     function getAvailableBalanceForFees() external view returns (uint256 availableBalance) {
         // Deducts balance reserved for unprocessed yield.
-        uint256 reserved = unprocessedTrancheProfit[poolConfig.seniorTranche()] +
-            unprocessedTrancheProfit[poolConfig.juniorTranche()];
+        uint256 reserved = unprocessedTrancheProfit[seniorTranche] +
+            unprocessedTrancheProfit[juniorTranche];
         uint256 balance = underlyingToken.balanceOf(address(this));
         availableBalance = balance > reserved ? balance - reserved : 0;
     }
 
     /// Utility function to cache the dependent contract addresses.
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.underlyingToken();
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
+        address addr = poolConfig_.underlyingToken();
         assert(addr != address(0));
         underlyingToken = IERC20(addr);
 
-        addr = _poolConfig.poolFeeManager();
+        addr = poolConfig_.poolFeeManager();
         assert(addr != address(0));
         poolFeeManager = IPoolFeeManager(addr);
 
-        addr = _poolConfig.pool();
+        addr = poolConfig_.pool();
         assert(addr != address(0));
         pool = IPool(addr);
+
+        addr = poolConfig_.seniorTranche();
+        assert(addr != address(0));
+        seniorTranche = addr;
+
+        addr = poolConfig_.juniorTranche();
+        assert(addr != address(0));
+        juniorTranche = addr;
+
+        addr = poolConfig_.credit();
+        assert(addr != address(0));
+        credit = addr;
     }
 
     /**
@@ -115,10 +130,10 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
      */
     function _onlySystemMoneyMover(address account) internal view {
         if (
-            account != poolConfig.seniorTranche() &&
-            account != poolConfig.juniorTranche() &&
-            account != poolConfig.credit() &&
-            account != poolConfig.poolFeeManager() &&
+            account != seniorTranche &&
+            account != juniorTranche &&
+            account != credit &&
+            account != address(poolFeeManager) &&
             !poolConfig.isFirstLossCover(account)
         ) revert Errors.AuthorizedContractCallerRequired();
     }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 interface IEpochManager {
     /**
@@ -15,6 +15,12 @@ interface IEpochManager {
      * close an epoch prematurely.
      */
     function closeEpoch() external;
+
+    /**
+     * @notice Processes all pending redemption requests in the epoch after the pool is closed so that lenders
+     * can withdraw all their assets.
+     */
+    function processEpochAfterPoolClosure() external;
 
     /**
      * @notice Returns the ID of the current epoch.
