@@ -50,7 +50,6 @@ async function deployFactory(humaConfigAddress) {
 }
 
 async function deployProtocolContracts() {
-    await deploy(network, "EvaluationAgentNFT", "EANFT");
     await deploy(network, "Calendar", "Calendar");
     const humaConfig = await deploy(network, "HumaConfig", "HumaConfig");
     await deploy(network, "TimelockController", "HumaConfigTimelock", [

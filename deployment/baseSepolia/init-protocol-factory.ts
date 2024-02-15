@@ -7,11 +7,10 @@ import {
 } from "../deployUtils.ts";
 
 const network = "baseSepolia";
-let deployer, eaService;
+let deployer;
 let deployedContracts;
 const HUMA_TREASURY_ACCOUNT = "0x18A00C3cdb71491eF7c3b890f9df37CB5Ec11D2A";
-const EA_SERVICE_ACCOUNT = "0x18A00C3cdb71491eF7c3b890f9df37CB5Ec11D2A";
-const SENTINEL_ACCOUNT = "0xD8F15c96825e1724B18dd477583E0DcCE3DfF0b1";
+const SENTINEL_ACCOUNT = "0xafc977D392CDA4c0F6D9927236255aE8e5C7d419";
 const contracts = [
     "PoolConfig",
     "PoolFeeManager",
@@ -81,10 +80,6 @@ async function initHumaConfig() {
     const humaConfig = HumaConfig.attach(deployedContracts["HumaConfig"]);
 
     await sendTransaction("HumaConfig", humaConfig, "setHumaTreasury", [HUMA_TREASURY_ACCOUNT]);
-    await sendTransaction("HumaConfig", humaConfig, "setEAServiceAccount", [EA_SERVICE_ACCOUNT]);
-    await sendTransaction("HumaConfig", humaConfig, "setEANFTContractAddress", [
-        deployedContracts["EANFT"],
-    ]);
     await sendTransaction("HumaConfig", humaConfig, "setSentinelServiceAccount", [
         SENTINEL_ACCOUNT,
     ]);
