@@ -506,6 +506,18 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     }
 
     /**
+     * @notice Sets EA for the pool after deployment.
+     * @notice If the deployer has the details of pool EA, the deployer can set it using this function.
+     * Otherwise, the pool owner can set them later.
+     */
+    function setPoolEvaluationAgent(uint256 poolId_, address evaluationAgent) external {
+        _onlyDeployer(msg.sender);
+        _notZeroAddress(evaluationAgent);
+        PoolConfig poolConfig = PoolConfig(_pools[poolId_].poolConfigAddress);
+        poolConfig.setEvaluationAgent(evaluationAgent);
+    }
+
+    /**
      * @notice Adds pool operators after pool deployment.
      * @notice If the deployer has the details of pool operators, the deployer can set them using this function.
      * Otherwise, the pool owner can set them later.
