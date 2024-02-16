@@ -68,10 +68,6 @@ async function initHumaConfig() {
         throw new Error("HumaConfig not deployed yet!");
     }
 
-    if (!deployedContracts["EANFT"]) {
-        throw new Error("EANFT not deployed yet!");
-    }
-
     if (!deployedContracts["MockToken"]) {
         throw new Error("MockToken not deployed yet!");
     }
