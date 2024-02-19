@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {BaseInvariants, PoolDeployParameters} from "./BaseInvariants.sol";
 import {LiquidityHandler} from "./handlers/LiquidityHandler.sol";
@@ -103,7 +103,6 @@ contract ReceivableBackedCreditLineInvariants is BaseInvariants {
             address(creditManager)
         );
         uint256 len = borrowers.length;
-        uint256 timestamp = block.timestamp;
         for (uint256 i = 0; i < len; ++i) {
             address borrower = borrowers[i];
             string memory borrowerStr = string.concat(vm.toString(i), ", ", vm.toString(borrower));

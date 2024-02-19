@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {BaseTest} from "./BaseTest.sol";
 import {EpochManager} from "contracts/liquidity/EpochManager.sol";
@@ -20,7 +20,8 @@ struct PoolDeployParameters {
     string creditType;
 }
 
-contract BaseInvariants is BaseTest {
+contract BaseInvariants is 
+BaseTest {
     uint256 minReinvestFees;
 
     bytes4[] selectors;

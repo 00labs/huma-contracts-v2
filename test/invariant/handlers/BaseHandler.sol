@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {Utils} from "../Utils.sol";
 import {BaseInvariants} from "../BaseInvariants.sol";
@@ -32,7 +32,6 @@ contract BaseHandler is Test, Utils {
     address protocolOwner;
     address poolOwnerTreasury;
     address evaluationAgent;
-    address eaServiceAccount;
     address poolOwner;
 
     modifier logCall(bytes4 selector) {
@@ -78,7 +77,6 @@ contract BaseHandler is Test, Utils {
         protocolOwner = poolConfig.humaConfig().owner();
         poolOwnerTreasury = poolConfig.poolOwnerTreasury();
         evaluationAgent = poolConfig.evaluationAgent();
-        eaServiceAccount = poolConfig.humaConfig().eaServiceAccount();
 
         decimals = mockToken.decimals();
     }

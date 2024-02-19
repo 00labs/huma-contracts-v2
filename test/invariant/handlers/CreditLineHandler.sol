@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {CreditHandler} from "./CreditHandler.sol";
 import {CreditLine} from "contracts/credit/CreditLine.sol";
@@ -18,7 +18,7 @@ contract CreditLineHandler is CreditHandler {
     }
 
     function approveBorrowers(uint256 creditLimit, uint256 yieldBps) public {
-        vm.startPrank(eaServiceAccount);
+        vm.startPrank(evaluationAgent);
         for (uint256 i; i < borrowers.length; i++) {
             address borrower = borrowers[i];
             uint256 rand = uint256(keccak256(abi.encodePacked(vm.unixTime(), i)));
@@ -61,7 +61,7 @@ contract CreditLineHandler is CreditHandler {
         console.log("valid drawdown - borrower: %s, drawdownAmount: %s", borrower, drawdownAmount);
         baseInvariants.increaseValidCalls(this.drawdown.selector);
         vm.startPrank(borrower);
-        creditLine.drawdown(borrower, drawdownAmount);
+        creditLine.drawdown(drawdownAmount);
         vm.stopPrank();
         if (!borrowerBorrowed[borrower]) {
             borrowedBorrowers.push(borrower);

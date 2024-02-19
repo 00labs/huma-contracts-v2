@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {CreditHandler} from "./CreditHandler.sol";
 import {ReceivableBackedCreditLine} from "contracts/credit/ReceivableBackedCreditLine.sol";
@@ -29,7 +29,7 @@ contract ReceivableBackedCreditLineHandler is CreditHandler {
         for (uint256 i; i < len; ++i) {
             address borrower = borrowers[i];
             uint256 rand = uint256(keccak256(abi.encodePacked(vm.unixTime(), i)));
-            vm.startPrank(eaServiceAccount);
+            vm.startPrank(evaluationAgent);
             rbCreditLineManager.approveBorrower(
                 borrower,
                 uint96(creditLimit),
@@ -87,7 +87,7 @@ contract ReceivableBackedCreditLineHandler is CreditHandler {
             drawdownAmount,
             receivableId
         );
-        rbCreditLine.drawdownWithReceivable(borrower, receivableId, drawdownAmount);
+        rbCreditLine.drawdownWithReceivable(receivableId, drawdownAmount);
         vm.stopPrank();
         if (!borrowerBorrowed[borrower]) {
             borrowedBorrowers.push(borrower);
@@ -161,7 +161,6 @@ contract ReceivableBackedCreditLineHandler is CreditHandler {
             receivableId
         );
         (, bool paidoff) = rbCreditLine.makePrincipalPaymentWithReceivable(
-            borrower,
             receivableId,
             paymentAmount
         );
@@ -244,7 +243,6 @@ contract ReceivableBackedCreditLineHandler is CreditHandler {
             paymentReceivableId
         );
         (, , bool paidoff) = rbCreditLine.makePrincipalPaymentAndDrawdownWithReceivable(
-            borrower,
             paymentReceivableId,
             paymentAmount,
             drawdownReceivableId,

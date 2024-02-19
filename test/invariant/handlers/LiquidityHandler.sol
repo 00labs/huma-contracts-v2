@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {BaseHandler} from "./BaseHandler.sol";
 import {PoolConfig} from "contracts/common/PoolConfig.sol";
@@ -62,7 +62,7 @@ contract LiquidityHandler is BaseHandler {
         vm.startPrank(lender);
         mockToken.mint(lender, depositAmount);
         mockToken.approve(address(poolSafe), depositAmount);
-        tranche.deposit(depositAmount, lender);
+        tranche.deposit(depositAmount);
         vm.stopPrank();
         if (tranche.balanceOf(lender) >= minRedemptionShares) {
             investedLendersByTranche[trancheIndex].push(lender);

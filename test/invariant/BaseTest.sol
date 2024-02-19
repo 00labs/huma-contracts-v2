@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {Utils} from "./Utils.sol";
 import {MockToken} from "contracts/common/mock/MockToken.sol";
 import {HumaConfig} from "contracts/common/HumaConfig.sol";
-import {EvaluationAgentNFT} from "contracts/common/EvaluationAgentNFT.sol";
 import {PoolFactory} from "contracts/factory/PoolFactory.sol";
 import {PoolFactoryForTest} from "./PoolFactoryForTest.sol";
-import {PoolConfig, AdminRnR, LPConfig, FirstLossCoverConfig} from "contracts/common/PoolConfig.sol";
+import {PoolConfig, AdminRnR, LPConfig, FirstLossCoverConfig, PoolSettings} from "contracts/common/PoolConfig.sol";
 import {PoolFeeManager} from "contracts/liquidity/PoolFeeManager.sol";
 import {PoolSafe} from "contracts/liquidity/PoolSafe.sol";
 import {FirstLossCover} from "contracts/liquidity/FirstLossCover.sol";
@@ -30,8 +29,6 @@ import {BORROWER_LOSS_COVER_INDEX, ADMIN_LOSS_COVER_INDEX} from "contracts/commo
 import {CreditRecord, DueDetail} from "contracts/credit/CreditStructs.sol";
 import {ICreditManager} from "contracts/credit/interfaces/ICreditManager.sol";
 
-import {LiquidityHandler} from "./handlers/LiquidityHandler.sol";
-
 import {Test, Vm} from "forge-std/Test.sol";
 import "forge-std/console.sol";
 
@@ -50,7 +47,6 @@ contract BaseTest is Test, Utils {
 
     address treasury;
     address protocolOwner;
-    address eaServiceAccount;
     address sentinelServiceAccount;
     address public poolOwner;
     address poolOperator;
@@ -64,7 +60,6 @@ contract BaseTest is Test, Utils {
 
     MockToken mockToken;
     HumaConfig humaConfig;
-    EvaluationAgentNFT evaluationAgentNFT;
 
     PoolFactoryForTest poolFactory;
     Receivable receivable;
@@ -98,7 +93,6 @@ contract BaseTest is Test, Utils {
     function _createAccounts() internal {
         protocolOwner = makeAddr("protocolOwner");
         treasury = makeAddr("treasury");
-        eaServiceAccount = makeAddr("eaServiceAccount");
         sentinelServiceAccount = makeAddr("sentinelServiceAccount");
         poolOwner = makeAddr("poolOwner");
         poolOperator = makeAddr("poolOperator");
@@ -110,13 +104,10 @@ contract BaseTest is Test, Utils {
 
     function _deployProtocolContracts() internal {
         humaConfig = new HumaConfig();
-        evaluationAgentNFT = new EvaluationAgentNFT();
         mockToken = new MockToken();
         decimals = mockToken.decimals();
 
         humaConfig.setHumaTreasury(treasury);
-        humaConfig.setEANFTContractAddress(address(evaluationAgentNFT));
-        humaConfig.setEAServiceAccount(eaServiceAccount);
         humaConfig.setSentinelServiceAccount(sentinelServiceAccount);
         humaConfig.addPauser(protocolOwner);
         humaConfig.addPauser(poolOwner);
@@ -212,17 +203,7 @@ contract BaseTest is Test, Utils {
     function _enablePool() internal {
         vm.startPrank(poolOwner);
         poolConfig.setPoolOwnerTreasury(poolOwnerTreasury);
-        vm.recordLogs();
-        evaluationAgentNFT.mintNFT(evaluationAgent);
-        Vm.Log[] memory entries = vm.getRecordedLogs();
-        uint256 eaNFTTokenId;
-        for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == keccak256("NFTGenerated(uint256,address)")) {
-                (eaNFTTokenId, ) = abi.decode(entries[i].data, (uint256, address));
-                break;
-            }
-        }
-        poolConfig.setEvaluationAgent(eaNFTTokenId, evaluationAgent);
+        poolConfig.setEvaluationAgent(evaluationAgent);
 
         adminFLC.addCoverProvider(poolOwnerTreasury);
         adminFLC.addCoverProvider(evaluationAgent);
@@ -248,6 +229,10 @@ contract BaseTest is Test, Utils {
         amount = flcConfig.minLiquidity / 2;
         mockToken.mint(poolOwnerTreasury, amount);
         adminFLC.depositCover(amount);
+        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
+        amount = poolSettings.minDepositAmount;
+        mockToken.mint(poolOwnerTreasury, amount);
+        seniorTranche.makeInitialDeposit(amount);
         vm.stopPrank();
 
         vm.startPrank(evaluationAgent);
@@ -263,8 +248,8 @@ contract BaseTest is Test, Utils {
         vm.stopPrank();
 
         vm.startPrank(poolOperator);
-        juniorTranche.setReinvestYield(poolOwnerTreasury, true);
-        juniorTranche.setReinvestYield(evaluationAgent, true);
+        juniorTranche.addApprovedLender(poolOwnerTreasury, true);
+        juniorTranche.addApprovedLender(evaluationAgent, true);
         vm.stopPrank();
 
         vm.startPrank(initBorrower);
@@ -286,7 +271,7 @@ contract BaseTest is Test, Utils {
         vm.startPrank(initLender);
         mockToken.approve(address(poolSafe), type(uint256).max);
         mockToken.mint(initLender, _toToken(100_000));
-        seniorTranche.deposit(_toToken(100_000), initLender);
+        seniorTranche.deposit(_toToken(100_000));
         seniorInitialShares += seniorTranche.balanceOf(initLender);
         vm.stopPrank();
 
