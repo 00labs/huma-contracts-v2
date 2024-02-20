@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity 0.8.23;
 
-import {ReceivableHandler} from "./handler/ReceivableHandler.sol";
+import {ReceivableHandler} from "./handlers/ReceivableHandler.sol";
 import {Test} from "forge-std/Test.sol";
 import {StdInvariant} from "forge-std/StdInvariant.sol";
 import "forge-std/console.sol";
 
-contract ReceivableTest is StdInvariant, Test {
+contract ReceivableInvariants is StdInvariant, Test {
     ReceivableHandler receivableHandler;
 
     function setUp() public {
@@ -19,7 +19,7 @@ contract ReceivableTest is StdInvariant, Test {
         assertEq(receivableHandler.receivable().totalSupply(), 1);
     }
 
-    function invariant_supplyEqualsHandlerCount() public {
+    function invariant_Receivable_supplyEqualsHandlerCount() public {
         assertEq(
             receivableHandler.receivable().totalSupply(),
             receivableHandler.receivableCount()
