@@ -29,7 +29,7 @@ contract BaseHandler is Test, Utils {
     PoolSafe poolSafe;
 
     address sentinelServiceAccount;
-    address protocolOwner;
+    address humaTreasury;
     address poolOwnerTreasury;
     address evaluationAgent;
     address poolOwner;
@@ -74,7 +74,7 @@ contract BaseHandler is Test, Utils {
         poolSafe = PoolSafe(poolConfig.poolSafe());
 
         sentinelServiceAccount = poolConfig.humaConfig().sentinelServiceAccount();
-        protocolOwner = poolConfig.humaConfig().owner();
+        humaTreasury = poolConfig.humaConfig().humaTreasury();
         poolOwnerTreasury = poolConfig.poolOwnerTreasury();
         evaluationAgent = poolConfig.evaluationAgent();
 

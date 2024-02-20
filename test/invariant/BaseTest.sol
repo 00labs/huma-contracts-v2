@@ -10,7 +10,7 @@ import {PoolConfig, AdminRnR, LPConfig, FirstLossCoverConfig, PoolSettings} from
 import {PoolFeeManager} from "contracts/liquidity/PoolFeeManager.sol";
 import {PoolSafe} from "contracts/liquidity/PoolSafe.sol";
 import {FirstLossCover} from "contracts/liquidity/FirstLossCover.sol";
-import {FixedSeniorYieldTranchePolicy} from "contracts/liquidity/FixedSeniorYieldTranchesPolicy.sol";
+import {FixedSeniorYieldTranchePolicyForTest} from "./FixedSeniorYieldTranchesPolicyForTest.sol";
 import {RiskAdjustedTranchesPolicy} from "contracts/liquidity/RiskAdjustedTranchesPolicy.sol";
 import {Pool} from "contracts/liquidity/Pool.sol";
 import {EpochManager} from "contracts/liquidity/EpochManager.sol";
@@ -87,7 +87,7 @@ contract BaseTest is Test, Utils {
         _deployProtocolContracts();
         _deployFactory();
         _deployReceivableWithFactory();
-        vm.warp(1704067800); // 2024-1-1 00:10:00 UTC
+        vm.warp(1717200600); // 2024-6-1 00:10:00 UTC
     }
 
     function _createAccounts() internal {
@@ -140,7 +140,7 @@ contract BaseTest is Test, Utils {
             address(new RiskAdjustedTranchesPolicy())
         );
         poolFactory.setFixedSeniorYieldTranchesPolicyImplAddress(
-            address(new FixedSeniorYieldTranchePolicy())
+            address(new FixedSeniorYieldTranchePolicyForTest())
         );
 
         poolFactory.setCreditDueManagerImplAddress(address(new CreditDueManager()));
@@ -225,7 +225,6 @@ contract BaseTest is Test, Utils {
         uint256 amount = (lpConfig.liquidityCap * adminRnR.liquidityRateInBpsByPoolOwner) / 10000;
         mockToken.mint(poolOwnerTreasury, amount);
         juniorTranche.makeInitialDeposit(amount);
-        juniorInitialShares += juniorTranche.balanceOf(poolOwnerTreasury);
         amount = flcConfig.minLiquidity / 2;
         mockToken.mint(poolOwnerTreasury, amount);
         adminFLC.depositCover(amount);
@@ -241,7 +240,6 @@ contract BaseTest is Test, Utils {
         amount = (lpConfig.liquidityCap * adminRnR.liquidityRateInBpsByEA) / 10000;
         mockToken.mint(evaluationAgent, amount);
         juniorTranche.makeInitialDeposit(amount);
-        juniorInitialShares += juniorTranche.balanceOf(evaluationAgent);
         amount = flcConfig.minLiquidity / 2;
         mockToken.mint(evaluationAgent, amount);
         adminFLC.depositCover(amount);
@@ -272,8 +270,10 @@ contract BaseTest is Test, Utils {
         mockToken.approve(address(poolSafe), type(uint256).max);
         mockToken.mint(initLender, _toToken(100_000));
         seniorTranche.deposit(_toToken(100_000));
-        seniorInitialShares += seniorTranche.balanceOf(initLender);
         vm.stopPrank();
+
+        seniorInitialShares = seniorTranche.totalSupply();
+        juniorInitialShares = juniorTranche.totalSupply();
 
         // console.log(
         //     "_enablePool - block.timestamp: %s, block.number: %s",

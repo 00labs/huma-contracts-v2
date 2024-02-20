@@ -192,13 +192,12 @@ contract LiquidityHandler is BaseHandler {
         uint256 trancheSeed,
         uint256 timeSeed
     ) public logCall(this.processYieldForLenders.selector) advanceTimestamp(timeSeed) {
-        if (!baseInvariants.hasProfit()) return;
         uint256 trancheIndex = _boundNew(trancheSeed, 0, tranches.length - 1);
         TrancheVault tranche = tranches[trancheIndex];
+        if (poolSafe.unprocessedTrancheProfit(address(tranche)) <= 0) return;
         console.log("valid processYieldForLenders - trancheIndex: %s", trancheIndex);
         baseInvariants.increaseValidCalls(this.processYieldForLenders.selector);
         tranche.processYieldForLenders();
-        baseInvariants.setHasProfit(false);
     }
 
     function withdrawProtocolFee(
@@ -212,7 +211,7 @@ contract LiquidityHandler is BaseHandler {
         uint256 withdrawalAmount = _boundNew(amountSeed, minFeeWithdrawalAmount, withdrawable);
         console.log("valid withdrawProtocolFee - amountSeed: %s", amountSeed);
         baseInvariants.increaseValidCalls(this.withdrawProtocolFee.selector);
-        vm.startPrank(protocolOwner);
+        vm.startPrank(humaTreasury);
         poolFeeManager.withdrawProtocolFee(withdrawalAmount);
         vm.stopPrank();
     }

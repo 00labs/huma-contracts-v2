@@ -20,8 +20,7 @@ struct PoolDeployParameters {
     string creditType;
 }
 
-contract BaseInvariants is 
-BaseTest {
+contract BaseInvariants is BaseTest {
     uint256 minReinvestFees;
 
     bytes4[] selectors;
@@ -180,8 +179,12 @@ BaseTest {
         console.log("closeEpoch starts...");
         if (hasProfit) {
             console.log("processYieldForLenders starts...");
-            seniorTranche.processYieldForLenders();
-            juniorTranche.processYieldForLenders();
+            if (poolSafe.unprocessedTrancheProfit(address(seniorTranche)) > 0) {
+                seniorTranche.processYieldForLenders();
+            }
+            if (poolSafe.unprocessedTrancheProfit(address(juniorTranche)) > 0) {
+                juniorTranche.processYieldForLenders();
+            }
             console.log("processYieldForLenders done.");
         }
         uint256 seniorAssetsBefore = mockToken.balanceOf(address(seniorTranche));
