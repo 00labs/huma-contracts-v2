@@ -1,4 +1,4 @@
-import hre from "hardhat";
+import hre, { network } from "hardhat";
 import {
     getDeployedContracts,
     getInitilizedContract,
@@ -6,7 +6,7 @@ import {
     updateInitializedContract,
 } from "../deployUtils.ts";
 
-const network = "baseSepolia";
+const networkName = "baseSepolia";
 let deployer;
 let deployedContracts;
 const HUMA_TREASURY_ACCOUNT = "0x18A00C3cdb71491eF7c3b890f9df37CB5Ec11D2A";
@@ -58,7 +58,7 @@ async function transferOwnershipToTL(contractName, contractKey, timeLockKey) {
 }
 
 async function initHumaConfig() {
-    const initilized = await getInitilizedContract("HumaConfig", network);
+    const initilized = await getInitilizedContract("HumaConfig", networkName);
     if (initilized) {
         console.log("HumaConfig is already initialized!");
         return;
@@ -84,11 +84,11 @@ async function initHumaConfig() {
     ]);
     // await transferOwnershipToTL("HumaConfig", "HumaConfig", "HumaConfigTimelock")
 
-    await updateInitializedContract("HumaConfig", network);
+    await updateInitializedContract("HumaConfig", networkName);
 }
 
 async function initPoolFactory() {
-    const initilized = await getInitilizedContract("PoolFactory", network);
+    const initilized = await getInitilizedContract("PoolFactory", networkName);
     if (initilized) {
         console.log("PoolFactory is already initialized!");
         return;
@@ -121,18 +121,19 @@ async function initPoolFactory() {
 
     // await transferOwnershipToTL("HumaConfig", "HumaConfig", "HumaConfigTimelock")
 
-    await updateInitializedContract("PoolFactory", network);
+    await updateInitializedContract("PoolFactory", networkName);
 }
 
 async function initContracts() {
-    // const network = (await hre.ethers.provider.getNetwork()).name;
-    console.log("network : ", network);
+    // const networkName = (await hre.ethers.provider.getNetworkName()).name;
+    const networkName = network.name;
+    console.log("networkName : ", networkName);
     const accounts = await hre.ethers.getSigners();
     [deployer] = await accounts;
     console.log("deployer address: " + deployer.address);
     // console.log("ea address: " + eaService.address);
 
-    deployedContracts = await getDeployedContracts(network);
+    deployedContracts = await getDeployedContracts(networkName);
     console.log(deployedContracts);
     await initHumaConfig();
     await initPoolFactory();
