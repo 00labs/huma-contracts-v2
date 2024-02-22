@@ -509,7 +509,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
      * @notice Sets EA for the pool after deployment.
      * @notice If the deployer has the details of the pool EA,
      * the deployer can set it using this function.
-     * Otherwise, the pool owner can set them later.
+     * Otherwise, the pool owner can set it later.
      */
     function setPoolEvaluationAgent(uint256 poolId_, address evaluationAgent) external {
         _onlyDeployer(msg.sender);
@@ -522,7 +522,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
      * @notice Sets pool owner treasury for the pool after deployment.
      * @notice If the deployer has the details of the pool owner treasury,
      * the deployer can set it using this function.
-     * Otherwise, the pool owner can set them later.
+     * Otherwise, the pool owner can set it later.
      */
     function setPoolOwnerTreasury(uint256 poolId_, address poolOwnerTreasury) external {
         _onlyDeployer(msg.sender);
