@@ -15,6 +15,7 @@ import {ICreditManager} from "./interfaces/ICreditManager.sol";
 import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
 import {BORROWER_LOSS_COVER_INDEX} from "../common/SharedDefs.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import "hardhat/console.sol";
 
 /**
  * @notice Credit is the core borrowing concept in Huma Protocol. This abstract contract operates at the
@@ -469,6 +470,9 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         // unbilled principal.
         uint256 totalPrincipal = principalDue + cr.unbilledPrincipal;
         uint256 amountToCollect = amount < totalPrincipal ? amount : totalPrincipal;
+        if (amountToCollect == 0) {
+            return (0, cr.nextDue == 0 && cr.unbilledPrincipal == 0);
+        }
 
         // Pay principal due first, then unbilled principal.
         uint256 principalDuePaid = 0;
