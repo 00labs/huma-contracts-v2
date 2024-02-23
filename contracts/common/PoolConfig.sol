@@ -34,6 +34,8 @@ struct PoolSettings {
     // Specifies whether receivables should be automatically approved during initial drawdown. If `false`, then
     // receivables need to be approved prior to the first drawdown.
     bool receivableAutoApproval;
+    // Specifies whether the `makePrincipalPayment()` functionality is allowed.
+    bool principalOnlyPaymentAllowed;
 }
 
 /**
@@ -185,6 +187,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         uint16 defaultGracePeriodInDays,
         uint16 advanceRateInBps,
         bool receivableAutoApproval,
+        bool principalOnlyPaymentAllowed,
         address by
     );
 
@@ -525,6 +528,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
             settings.defaultGracePeriodInDays,
             settings.advanceRateInBps,
             settings.receivableAutoApproval,
+            settings.principalOnlyPaymentAllowed,
             msg.sender
         );
     }

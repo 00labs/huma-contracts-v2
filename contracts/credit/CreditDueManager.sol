@@ -221,6 +221,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         }
     }
 
+    /// @inheritdoc ICreditDueManager
     function getPayoffAmount(
         CreditRecord memory cr
     ) external view virtual override returns (uint256 payoffAmount) {
@@ -250,6 +251,19 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         return (additionalYieldAccrued, additionalPrincipalDue);
     }
 
+    /// @inheritdoc ICreditDueManager
+    function computeAccruedYield(
+        uint256 principal,
+        uint256 nextDueDate,
+        uint256 yieldInBps
+    ) external view returns (uint256 accruedYield) {
+        uint256 daysRemaining = calendar.getDaysRemainingInPeriod(nextDueDate);
+        // It's important to note that the yield calculation includes the day of the drawdown. For instance,
+        // if the borrower draws down at 11:59 PM on October 30th, the yield for October 30th must be paid.
+        return _computeYield(principal, yieldInBps, daysRemaining);
+    }
+
+    /// @inheritdoc ICreditDueManager
     function getNextBillRefreshDate(
         CreditRecord memory cr
     ) public view returns (uint256 refreshDate) {
@@ -271,6 +285,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         if (frontLoadingFeeBps > 0) fees += (amount * frontLoadingFeeBps) / HUNDRED_PERCENT_IN_BPS;
     }
 
+    /// @inheritdoc ICreditDueManager
     function refreshLateFee(
         CreditRecord memory cr,
         DueDetail memory dd,

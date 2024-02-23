@@ -440,7 +440,8 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         uint8 latePaymentGracePeriodInDays,
         uint16 defaultGracePeriodInDays,
         uint16 advanceRateInBps,
-        bool receivableAutoApproval
+        bool receivableAutoApproval,
+        bool principalOnlyPaymentAllowed
     ) external {
         _onlyDeployer(msg.sender);
         PoolSettings memory settings = PoolSettings({
@@ -450,7 +451,8 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
             defaultGracePeriodInDays: defaultGracePeriodInDays,
             advanceRateInBps: advanceRateInBps,
-            receivableAutoApproval: receivableAutoApproval
+            receivableAutoApproval: receivableAutoApproval,
+            principalOnlyPaymentAllowed: principalOnlyPaymentAllowed
         });
         PoolConfig(_pools[poolId_].poolConfigAddress).setPoolSettings(settings);
     }
