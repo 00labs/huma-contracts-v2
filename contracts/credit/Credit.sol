@@ -492,15 +492,16 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         // then reduce the yield due to 0. Any excessive yield already paid won't be refunded.
         // Do nothing if the bill is already in the late payment grace period.
         if (block.timestamp <= cr.nextDueDate) {
-            uint256 accruedYieldToReduce = dueManager.computeAccruedYield(
-                principalDuePaid + unbilledPrincipalPaid,
+            uint256 accruedYieldToReduce = dueManager.computeYieldForRemainingDaysInPeriod(
+                amountToCollect,
                 cr.nextDueDate,
                 cc.yieldInBps
             );
             // The amount to reduce may exceed the amount of yield accrued since `yieldInBps` may have been
             // updated after the previous drawdown but before the payment is made here, hence the `min` check.
-            // For simplicity, we compute the amount to reduce using the current `yieldInBps` instead of
-            // proportionally reducing the amount of yield due.
+            // Technically, proportionally reducing the amount of yield due for the period based on the number
+            // of days remaining can yield more accurate result, but it is too complicated. Given that this is a
+            // corner case of a corner case, we simply compute the amount to reduce using the current `yieldInBps`.
             dd.accrued -= uint96(Math.min(dd.accrued, accruedYieldToReduce));
             // Use the higher of the new accrued yield and committed yield as the new total yield due.
             if (dd.accrued > dd.committed) {

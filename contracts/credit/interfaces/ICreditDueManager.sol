@@ -102,13 +102,13 @@ interface ICreditDueManager {
     ) external view returns (uint256 additionalYieldAccrued, uint256 additionalPrincipalDue);
 
     /**
-     * @notice Returns the amount of accrued yield corresponding to the amount of principal.
+     * @notice Returns the amount of accrued yield for the remainder of the period.
      * @param principal The amount of principal.
      * @param nextDueDate The next due date of the bill.
      * @param yieldInBps The APY expressed in BPs.
      * @return accruedYield The amount of accrued yield for the principal.
      */
-    function computeAccruedYield(
+    function computeYieldForRemainingDaysInPeriod(
         uint256 principal,
         uint256 nextDueDate,
         uint256 yieldInBps

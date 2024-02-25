@@ -252,7 +252,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     }
 
     /// @inheritdoc ICreditDueManager
-    function computeAccruedYield(
+    function computeYieldForRemainingDaysInPeriod(
         uint256 principal,
         uint256 nextDueDate,
         uint256 yieldInBps
