@@ -89,9 +89,6 @@ async function verifyContracts() {
         throw new Error("Accounts not set!");
     }
 
-    const verifyEvaluationAgentNFT = await verifyContract("EvaluationAgentNFT");
-    console.log(`Verify EvaluationAgentNFT result: ${verifyEvaluationAgentNFT}`);
-
     const verifyHumaConfig = await verifyContract("HumaConfig");
     console.log(`Verify HumaConfig result: ${verifyHumaConfig}`);
 

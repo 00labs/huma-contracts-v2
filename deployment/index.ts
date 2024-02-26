@@ -491,6 +491,12 @@ export async function setupPoolContracts(
             .div(CONSTANTS.BP_FACTOR);
         await awaitTx(
             await juniorTrancheVaultContract
+                .connect(poolOperator)
+                .addApprovedLender(evaluationAgent.getAddress(), true),
+            "Approved lender added to juniorTrancheVault for evaluation agent",
+        );
+        await awaitTx(
+            await juniorTrancheVaultContract
                 .connect(evaluationAgent)
                 .makeInitialDeposit(evaluationAgentLiquidity),
             "Evaluation agent liquidity deposited",
@@ -512,46 +518,29 @@ export async function setupPoolContracts(
     await awaitTx(
         await adminFirstLossCoverContract
             .connect(poolOwner)
+            .addCoverProvider(humaTreasury.getAddress()),
+        "humaTreasury setCoverProvider",
+    );
+    await awaitTx(
+        await adminFirstLossCoverContract
+            .connect(poolOwner)
             .addCoverProvider(poolOwnerTreasury.getAddress()),
-        "AffiliateFirstLossCover setCoverProvider",
+        "poolOwnerTreasury setCoverProvider",
     );
     await awaitTx(
         await adminFirstLossCoverContract
             .connect(poolOwner)
             .addCoverProvider(evaluationAgent.getAddress()),
-        "AffiliateFirstLossCover setCoverProvider",
-    );
-
-    role = await poolConfigContract.POOL_OPERATOR_ROLE();
-    await awaitTx(
-        await poolConfigContract.connect(poolOwner).grantRole(role, poolOwner.getAddress()),
-        "poolOwner granted role",
-    );
-    await awaitTx(
-        await poolConfigContract.connect(poolOwner).grantRole(role, poolOperator.getAddress()),
-        "poolOperator granted role",
-    );
-
-    await awaitTx(
-        await juniorTrancheVaultContract
-            .connect(poolOperator)
-            .setReinvestYield(poolOwnerTreasury.address, true),
-        "Reinvest yield set",
-    );
-    await awaitTx(
-        await juniorTrancheVaultContract
-            .connect(poolOperator)
-            .setReinvestYield(evaluationAgent.address, true),
-        "Reinvest yield set",
+        "evaluationAgent setCoverProvider",
     );
 
     await awaitTx(
         await adminFirstLossCoverContract.connect(poolOwnerTreasury).depositCover(toToken(10_000)),
-        "AffiliateFirstLossCover depositCover",
+        "poolOwnerTreasury depositCover",
     );
     await awaitTx(
         await adminFirstLossCoverContract.connect(evaluationAgent).depositCover(toToken(10_000)),
-        "AffiliateFirstLossCover depositCover",
+        "evaluationAgent depositCover",
     );
     await awaitTx(
         await poolContract.connect(poolOwner).setReadyForFirstLossCoverWithdrawal(true),
@@ -633,13 +622,13 @@ export async function setupPoolContracts(
 export async function deployAndSetupPoolContracts(
     humaConfigContract: HumaConfig,
     mockTokenContract: MockToken,
-    eaNFTContract: EvaluationAgentNFT,
     tranchesPolicyContractName: TranchesPolicyContractName,
     deployer: SignerWithAddress,
     poolOwner: SignerWithAddress,
     creditContractName: CreditContractName,
     creditManagerContractName: CreditManagerContractName,
     evaluationAgent: SignerWithAddress,
+    humaTreasury: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     poolOperator: SignerWithAddress,
     accounts: SignerWithAddress[],
@@ -673,7 +662,6 @@ export async function deployAndSetupPoolContracts(
 
     await setupPoolContracts(
         poolConfigContract,
-        eaNFTContract,
         mockTokenContract,
         borrowerFirstLossCoverContract,
         adminFirstLossCoverContract,
@@ -685,6 +673,7 @@ export async function deployAndSetupPoolContracts(
         receivableContract,
         poolOwner,
         evaluationAgent,
+        humaTreasury,
         poolOwnerTreasury,
         poolOperator,
         accounts,
@@ -719,8 +708,7 @@ export async function deployContracts(
         defaultDeployer,
         protocolOwner,
         treasury,
-        eaServiceAccount,
-        pdsServiceAccount,
+        sentinelServiceAccount,
         poolOwner,
         poolOwnerTreasury,
         evaluationAgent,
@@ -729,24 +717,23 @@ export async function deployContracts(
         juniorLender,
     ] = await ethers.getSigners();
 
-    const [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+    const [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
         protocolOwner,
         treasury,
-        eaServiceAccount,
-        pdsServiceAccount,
+        sentinelServiceAccount,
         poolOwner,
     );
 
     await deployAndSetupPoolContracts(
         humaConfigContract,
         mockTokenContract,
-        eaNFTContract,
         "FixedSeniorYieldTranchePolicy",
         defaultDeployer,
         poolOwner,
         creditContractName,
         creditManagerContractName,
         evaluationAgent,
+        treasury,
         poolOwnerTreasury,
         poolOperator,
         [seniorLender, juniorLender],

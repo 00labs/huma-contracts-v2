@@ -22,7 +22,7 @@ const defaultDeployer = process.env["DEPLOYER"];
 const protocolOwner = process.env["PROTOCOL_OWNER"];
 const treasury = process.env["TREASURY"];
 const eaServiceAccount = process.env["EA_SERVICE"];
-const pdsServiceAccount = process.env["PDS_SERVICE"];
+const sentinelServiceAccount = process.env["PDS_SERVICE"];
 const poolOwner = process.env["POOL_OWNER"];
 const poolOwnerTreasury = process.env["BASE_CREDIT_POOL_OWNER_TREASURY"];
 const evaluationAgent = process.env["EA"];
@@ -41,8 +41,7 @@ const config: HardhatUserConfig = {
                 defaultDeployer!,
                 protocolOwner!,
                 treasury!,
-                eaServiceAccount!,
-                pdsServiceAccount!,
+                sentinelServiceAccount!,
                 poolOwner!,
                 poolOwnerTreasury!,
                 evaluationAgent!,
@@ -57,8 +56,7 @@ const config: HardhatUserConfig = {
                 defaultDeployer!,
                 protocolOwner!,
                 treasury!,
-                eaServiceAccount!,
-                pdsServiceAccount!,
+                sentinelServiceAccount!,
                 poolOwner!,
                 poolOwnerTreasury!,
                 evaluationAgent!,

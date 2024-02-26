@@ -1,5 +1,4 @@
 {
-  "EvaluationAgentNFT": "Done",
   "HumaConfig": "Done",
   "MockToken": "Done",
   "PoolConfigImpl": "Done",
@@ -23,12 +22,10 @@
   "JuniorTrancheVaultImpl": "Done",
   "JuniorTrancheVault": "Done",
   "Calendar": "Done",
-  "ReceivableBackedCreditLineImpl": "Done",
-  "ReceivableBackedCreditLine": "Done",
+  "CreditLineImpl": "Done",
+  "CreditLine": "Done",
   "CreditDueManagerImpl": "Done",
   "CreditDueManager": "Done",
-  "ReceivableBackedCreditLineManagerImpl": "Done",
-  "ReceivableBackedCreditLineManager": "Done",
   "ReceivableImpl": "Done",
   "Receivable": "Done"
 }
