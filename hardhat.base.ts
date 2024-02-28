@@ -22,6 +22,11 @@ const config: HardhatUserConfig = {
     networks: {
         hardhat: {
             chainId: Number(process.env.LOCALHOST_CHAIN_ID ?? 31337),
+            accounts: process.env.LOCALHOST_MNEMONIC_PHRASE
+                ? {
+                      mnemonic: process.env.LOCALHOST_MNEMONIC_PHRASE,
+                  }
+                : undefined,
         },
         sepolia: {
             url: sepoliaUrl,
