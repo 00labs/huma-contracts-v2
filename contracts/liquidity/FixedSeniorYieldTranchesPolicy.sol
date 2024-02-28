@@ -8,10 +8,10 @@ import {SENIOR_TRANCHE, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS} from "../common/
 import {ICalendar} from "../common/interfaces/ICalendar.sol";
 
 /**
- * @notice Tranche policy where the yield for the senior tranche is fixed as long as
+ * @notice A tranches policy where the yield for the senior tranche is fixed as long as
  * the risk loss does not make it impossible.
  */
-contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
+contract FixedSeniorYieldTranchesPolicy is BaseTranchesPolicy {
     /**
      * @notice Tracks the amount of assets and unpaid yield for the senior tranche.
      * @param totalAssets The total assets in the senior tranche.
