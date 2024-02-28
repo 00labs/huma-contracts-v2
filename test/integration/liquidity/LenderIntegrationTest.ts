@@ -12,7 +12,7 @@ import {
     CreditLineManager,
     EpochManager,
     FirstLossCover,
-    FixedSeniorYieldTranchePolicy,
+    FixedSeniorYieldTranchesPolicy,
     HumaConfig,
     MockToken,
     Pool,
@@ -2117,7 +2117,7 @@ describe("Multi-tranche Test", function () {
 
     describe("With FixedYieldTranchesPolicy", function () {
         const FIXED_SENIOR_YIELD_IN_BPS = 500;
-        let tranchesPolicyContract: FixedSeniorYieldTranchePolicy;
+        let tranchesPolicyContract: FixedSeniorYieldTranchesPolicy;
         let tracker: SeniorYieldTracker;
 
         async function prepare() {
@@ -2146,7 +2146,7 @@ describe("Multi-tranche Test", function () {
             ] = await deployPoolContracts(
                 humaConfigContract,
                 mockTokenContract,
-                "FixedSeniorYieldTranchePolicy",
+                "FixedSeniorYieldTranchesPolicy",
                 defaultDeployer,
                 poolOwner,
                 "CreditLine",
@@ -3697,7 +3697,7 @@ describe("Uni-tranche Test", function () {
 
     let sId: unknown;
     const jLenderInitialAmounts = [JLENDER1_INITIAL_AMOUNT, JLENDER2_INITIAL_AMOUNT];
-    let tranchesPolicyContract: FixedSeniorYieldTranchePolicy;
+    let tranchesPolicyContract: FixedSeniorYieldTranchesPolicy;
     let tracker: SeniorYieldTracker;
 
     async function prepare() {
@@ -3726,7 +3726,7 @@ describe("Uni-tranche Test", function () {
         ] = await deployPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            "FixedSeniorYieldTranchePolicy",
+            "FixedSeniorYieldTranchesPolicy",
             defaultDeployer,
             poolOwner,
             "CreditLine",
