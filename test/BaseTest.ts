@@ -626,7 +626,10 @@ export async function setupPoolContracts(
     const settings = await poolConfigContract.getPoolSettings();
     await poolConfigContract
         .connect(poolOwner)
-        .setPoolSettings({ ...settings, ...{ maxCreditLine: toToken(10_000_000) } });
+        .setPoolSettings({
+            ...settings,
+            ...{ maxCreditLine: toToken(10_000_000), principalOnlyPaymentAllowed: true },
+        });
     const lpConfig = await poolConfigContract.getLPConfig();
     await poolConfigContract
         .connect(poolOwner)
@@ -1956,7 +1959,7 @@ export function calcPrincipalDueForPartialPeriod(
         .div(CONSTANTS.BP_FACTOR.mul(totalDaysInFullPeriod));
 }
 
-export function calcYield(principal: BN, yieldInBps: number, days: number): BN {
+export function calcYield(principal: BN, yieldInBps: BigNumberish, days: number): BN {
     return principal
         .mul(yieldInBps)
         .mul(days)
