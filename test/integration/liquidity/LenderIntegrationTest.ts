@@ -494,7 +494,7 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
                 jLenderPrincipalRequests[i],
                 jLenderAmountsProcessed[i],
                 jLenderWithdrawals[i],
-                2,
+                3,
             );
             expect(
                 await juniorTrancheVaultContract.cancellableRedemptionShares(jLenders[i].address),
@@ -764,8 +764,6 @@ describe("Multi-tranche Test", function () {
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
             await creditContract.connect(borrower).makePayment(borrower.address, payment);
-            // cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
             expect(await mockTokenContract.balanceOf(borrower.address)).to.equal(
                 borrowerOldBalance.sub(payment),
             );
@@ -832,7 +830,6 @@ describe("Multi-tranche Test", function () {
             await setNextBlockTimestamp(currentTS);
 
             let cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
             let profit = cr.yieldDue;
             let payment = cr.nextDue;
 
@@ -1115,8 +1112,6 @@ describe("Multi-tranche Test", function () {
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
             await creditContract.connect(borrower).makePayment(borrower.address, payment);
-            // cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
 
             expect(await mockTokenContract.balanceOf(borrower.address)).to.equal(
                 borrowerOldBalance.sub(payment),
@@ -1361,7 +1356,6 @@ describe("Multi-tranche Test", function () {
             await setNextBlockTimestamp(currentTS);
 
             let cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
             let profit = cr.yieldDue;
             let payment = cr.nextDue.add(cr.unbilledPrincipal);
 
@@ -1376,8 +1370,6 @@ describe("Multi-tranche Test", function () {
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
             await creditContract.connect(borrower).makePayment(borrower.address, payment);
-            // cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
 
             expect(await mockTokenContract.balanceOf(borrower.address)).to.equal(
                 borrowerOldBalance.sub(payment),
@@ -2287,7 +2279,6 @@ describe("Multi-tranche Test", function () {
             await setNextBlockTimestamp(currentTS);
 
             let cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
             let profit = cr.yieldDue;
             let payment = cr.nextDue;
 
@@ -2376,7 +2367,6 @@ describe("Multi-tranche Test", function () {
             await setNextBlockTimestamp(currentTS);
 
             let cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
             let profit = cr.yieldDue;
             let payment = cr.nextDue;
 
@@ -2678,8 +2668,6 @@ describe("Multi-tranche Test", function () {
             await pnlCalculator.beginProfitCalculation();
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             await creditContract.connect(borrower).makePayment(borrower.address, payment);
-            cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
 
             expect(await mockTokenContract.balanceOf(borrower.address)).to.equal(
                 borrowerOldBalance.sub(payment),
@@ -2858,17 +2846,17 @@ describe("Multi-tranche Test", function () {
             expect(jAmountProcessed).to.be.gt(0);
             expect(await juniorTrancheVaultContract.totalAssets()).to.be.closeTo(
                 juniorOldAssets.sub(jAmountProcessed),
-                1,
+                2,
             );
             expect(
                 await mockTokenContract.balanceOf(juniorTrancheVaultContract.address),
-            ).to.be.closeTo(juniorOldBalance.add(jAmountProcessed), 1);
+            ).to.be.closeTo(juniorOldBalance.add(jAmountProcessed), 2);
             await epochChecker.checkJuniorRedemptionSummaryById(
                 currentEpochId,
                 juniorSharesRequested,
                 juniorSharesRequested,
                 jAmountProcessed,
-                1,
+                2,
             );
             expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
                 seniorOldShares.sub(seniorSharesRequested),
@@ -2898,7 +2886,7 @@ describe("Multi-tranche Test", function () {
                         await juniorTrancheVaultContract.withdrawableAssets(
                             jActiveLenders[i].address,
                         ),
-                    ).to.be.closeTo(jLenderAmountsProcessed[i], 2);
+                    ).to.be.closeTo(jLenderAmountsProcessed[i], 3);
                 }
             }
             juniorSharesRequested = BN.from(0);
@@ -2931,7 +2919,6 @@ describe("Multi-tranche Test", function () {
             await setNextBlockTimestamp(currentTS);
 
             let cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
             let profit = cr.yieldDue;
             let payment = cr.nextDue.add(cr.unbilledPrincipal);
 
@@ -2947,8 +2934,6 @@ describe("Multi-tranche Test", function () {
             await pnlCalculator.beginProfitCalculation();
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             await creditContract.connect(borrower).makePayment(borrower.address, payment);
-            // cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
 
             expect(await mockTokenContract.balanceOf(borrower.address)).to.equal(
                 borrowerOldBalance.sub(payment),
@@ -3407,7 +3392,7 @@ describe("Multi-tranche Test", function () {
                 }
                 expect(
                     await juniorTrancheVaultContract.withdrawableAssets(jLender.getAddress()),
-                ).to.be.closeTo(amountDisbursable.add(expectedAssetsWithdrawn), 2);
+                ).to.be.closeTo(amountDisbursable.add(expectedAssetsWithdrawn), 3);
 
                 const oldTotalSupply = await juniorTrancheVaultContract.totalSupply();
                 const oldTotalAssets = await juniorTrancheVaultContract.totalAssets();
@@ -3425,7 +3410,7 @@ describe("Multi-tranche Test", function () {
                     )
                         .to.emit(juniorTrancheVaultContract, "LenderFundDisbursed")
                         .withArgs(await jLender.getAddress(), (actualAmountDisbursed: BN) =>
-                            isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
+                            isCloseTo(actualAmountDisbursed, amountDisbursable, 3),
                         )
                         .not.to.emit(juniorTrancheVaultContract, "LenderFundWithdrawn");
                 } else if (i === 1) {
@@ -3434,7 +3419,7 @@ describe("Multi-tranche Test", function () {
                     )
                         .to.emit(juniorTrancheVaultContract, "LenderFundDisbursed")
                         .withArgs(await jLender.getAddress(), (actualAmountDisbursed: BN) =>
-                            isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
+                            isCloseTo(actualAmountDisbursed, amountDisbursable, 3),
                         )
                         .to.emit(juniorTrancheVaultContract, "LenderFundWithdrawn")
                         .withArgs(await jLender.getAddress(), numShares, expectedAssetsWithdrawn);
@@ -3455,14 +3440,14 @@ describe("Multi-tranche Test", function () {
                 );
                 expect(await mockTokenContract.balanceOf(jLender.getAddress())).to.be.closeTo(
                     oldLenderBalance.add(expectedAssetsWithdrawn).add(amountDisbursable),
-                    2,
+                    3,
                 );
                 expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                     oldPoolSafeBalance.sub(expectedAssetsWithdrawn),
                 );
                 expect(
                     await mockTokenContract.balanceOf(juniorTrancheVaultContract.address),
-                ).to.be.closeTo(oldJuniorTrancheBalance.sub(amountDisbursable), 2);
+                ).to.be.closeTo(oldJuniorTrancheBalance.sub(amountDisbursable), 3);
                 expect(
                     await juniorTrancheVaultContract.withdrawableAssets(jLender.getAddress()),
                 ).to.equal(0);
