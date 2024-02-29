@@ -6,7 +6,7 @@ import {
     updateInitializedContract,
 } from "../deployUtils.ts";
 
-const networkName = "baseSepolia";
+let networkName;
 let deployer;
 let deployedContracts;
 const HUMA_TREASURY_ACCOUNT = "0x18A00C3cdb71491eF7c3b890f9df37CB5Ec11D2A";
@@ -126,7 +126,7 @@ async function initPoolFactory() {
 
 async function initContracts() {
     // const networkName = (await hre.ethers.provider.getNetworkName()).name;
-    const networkName = network.name;
+    networkName = network.name;
     console.log("networkName : ", networkName);
     const accounts = await hre.ethers.getSigners();
     [deployer] = await accounts;
