@@ -3,7 +3,7 @@ pragma solidity 0.8.23;
 
 import {Errors} from "../common/Errors.sol";
 import {HumaConfig} from "../common/HumaConfig.sol";
-import {PoolConfig} from "../common/PoolConfig.sol";
+import {PoolConfig, PoolSettings} from "../common/PoolConfig.sol";
 import {IPool} from "../liquidity/interfaces/IPool.sol";
 import {PoolConfigCache} from "../common/PoolConfigCache.sol";
 import {CreditStorage} from "./CreditStorage.sol";
@@ -14,6 +14,7 @@ import {ICredit} from "./interfaces/ICredit.sol";
 import {ICreditManager} from "./interfaces/ICreditManager.sol";
 import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
 import {BORROWER_LOSS_COVER_INDEX} from "../common/SharedDefs.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @notice Credit is the core borrowing concept in Huma Protocol. This abstract contract operates at the
@@ -446,14 +447,16 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         uint256 amount
     ) internal returns (uint256 amountPaid, bool paidoff) {
         if (amount == 0) revert Errors.ZeroAmountProvided();
+        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
+        if (!poolSettings.principalOnlyPaymentAllowed) revert Errors.UnsupportedFunction();
 
         CreditRecord memory cr = getCreditRecord(creditHash);
         DueDetail memory dd = getDueDetail(creditHash);
         if (cr.state != CreditState.GoodStanding) {
             revert Errors.CreditNotInStateForMakingPrincipalPayment();
         }
+        CreditConfig memory cc = _getCreditConfig(creditHash);
         if (block.timestamp > cr.nextDueDate) {
-            CreditConfig memory cc = _getCreditConfig(creditHash);
             (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
             if (cr.state != CreditState.GoodStanding) {
                 revert Errors.CreditNotInStateForMakingPrincipalPayment();
@@ -466,9 +469,12 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         // unbilled principal.
         uint256 totalPrincipal = principalDue + cr.unbilledPrincipal;
         uint256 amountToCollect = amount < totalPrincipal ? amount : totalPrincipal;
+        if (amountToCollect == 0) {
+            return (0, cr.nextDue == 0 && cr.unbilledPrincipal == 0);
+        }
 
         // Pay principal due first, then unbilled principal.
-        uint256 principalDuePaid;
+        uint256 principalDuePaid = 0;
         uint256 unbilledPrincipalPaid = 0;
         if (amount < principalDue) {
             cr.nextDue = uint96(cr.nextDue - amount);
@@ -478,6 +484,40 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             unbilledPrincipalPaid = amountToCollect - principalDuePaid;
             cr.nextDue = cr.yieldDue;
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - unbilledPrincipalPaid);
+        }
+
+        // Reduce the amount of yield due for the current period due to the reduction in
+        // principal. If the reduced amount of yield exceeds the total amount outstanding,
+        // then reduce the yield due to 0. Any excessive yield already paid won't be refunded.
+        // Do nothing if the bill is already in the late payment grace period.
+        if (block.timestamp <= cr.nextDueDate) {
+            uint256 accruedYieldToReduce = dueManager.computeYieldForRemainingDaysInPeriod(
+                amountToCollect,
+                cr.nextDueDate,
+                cc.yieldInBps
+            );
+            // The amount to reduce may exceed the amount of yield accrued since `yieldInBps` may have been
+            // updated after the previous drawdown but before the payment is made here, hence the `min` check.
+            // Technically, proportionally reducing the amount of yield due for the period based on the number
+            // of days remaining can yield more accurate result, but it is too complicated. Given that this is a
+            // corner case of a corner case, we simply compute the amount to reduce using the current `yieldInBps`.
+            dd.accrued -= uint96(Math.min(dd.accrued, accruedYieldToReduce));
+            // Use the higher of the new accrued yield and committed yield as the new total yield due.
+            if (dd.accrued > dd.committed) {
+                // If `dd.accrued` was higher than `dd.committed` before the payment and is still higher afterwards,
+                // then we need to reduce both the amount of next due and yield due, floored by 0.
+                uint96 dueAmountToReduce = uint96(Math.min(cr.yieldDue, accruedYieldToReduce));
+                cr.nextDue -= dueAmountToReduce;
+                cr.yieldDue -= dueAmountToReduce;
+            } else {
+                // 1. If `dd.accrued` was higher than `dd.committed` before the payment but becomes lower afterwards,
+                // then we need to reset yield due using the committed amount.
+                // 2. If `dd.accrued` was lower than `dd.committed` before the payment, now it's only going
+                // to be even lower, so resetting the yield is effectively a no-op.
+                uint96 newYieldDue = dd.committed - uint96(Math.min(dd.committed, dd.paid));
+                cr.nextDue = cr.nextDue - cr.yieldDue + newYieldDue;
+                cr.yieldDue = newYieldDue;
+            }
         }
 
         if (cr.nextDue == 0 && cr.unbilledPrincipal == 0 && cr.remainingPeriods == 0) {

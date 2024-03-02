@@ -2330,9 +2330,16 @@ describe("CreditLine Integration Test", function () {
 
         const oldCR = await creditContract.getCreditRecord(creditHash);
         const oldDD = await creditContract.getDueDetail(creditHash);
+        expect(oldDD.accrued).to.be.gt(oldDD.committed);
         const paymentAmount = toToken(150_000);
         const principalDuePaid = oldCR.nextDue.sub(oldCR.yieldDue);
         const unbilledPrincipalPaid = paymentAmount.sub(principalDuePaid);
+        const daysRemaining = 16;
+        const reducedAccruedYield = calcYield(
+            principalDuePaid.add(unbilledPrincipalPaid),
+            newYieldInBps,
+            daysRemaining,
+        );
 
         const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
         const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
@@ -2360,14 +2367,19 @@ describe("CreditLine Integration Test", function () {
             ...oldCR,
             ...{
                 unbilledPrincipal: oldCR.unbilledPrincipal.sub(unbilledPrincipalPaid),
-                nextDue: oldCR.yieldDue,
-                yieldDue: oldCR.yieldDue,
+                nextDue: oldCR.yieldDue.sub(reducedAccruedYield),
+                yieldDue: oldCR.yieldDue.sub(reducedAccruedYield),
             },
         };
         checkCreditRecordsMatch(actualCR, expectedCR);
 
         const actualDD = await creditContract.getDueDetail(creditHash);
-        const expectedDD = oldDD;
+        const expectedDD = {
+            ...oldDD,
+            ...{
+                accrued: oldDD.accrued.sub(reducedAccruedYield),
+            },
+        };
         checkDueDetailsMatch(actualDD, expectedDD);
     });
 

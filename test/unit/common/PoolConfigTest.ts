@@ -1913,6 +1913,7 @@ describe("PoolConfig Tests", function () {
                         newSettings.defaultGracePeriodInDays,
                         newSettings.advanceRateInBps,
                         newSettings.receivableAutoApproval,
+                        newSettings.principalOnlyPaymentAllowed,
                         await poolOwner.getAddress(),
                     );
 
@@ -1932,6 +1933,9 @@ describe("PoolConfig Tests", function () {
                 expect(actualNewSettings.receivableAutoApproval).to.equal(
                     newSettings.receivableAutoApproval,
                 );
+                expect(actualNewSettings.principalOnlyPaymentAllowed).to.equal(
+                    newSettings.principalOnlyPaymentAllowed,
+                );
             });
 
             it("Should allow the Huma owner to set the pool settings", async function () {
@@ -1947,6 +1951,7 @@ describe("PoolConfig Tests", function () {
                         newSettings.defaultGracePeriodInDays,
                         newSettings.advanceRateInBps,
                         newSettings.receivableAutoApproval,
+                        newSettings.principalOnlyPaymentAllowed,
                         await protocolOwner.getAddress(),
                     );
 
@@ -1965,6 +1970,9 @@ describe("PoolConfig Tests", function () {
                 expect(actualNewSettings.advanceRateInBps).to.equal(newSettings.advanceRateInBps);
                 expect(actualNewSettings.receivableAutoApproval).to.equal(
                     newSettings.receivableAutoApproval,
+                );
+                expect(actualNewSettings.principalOnlyPaymentAllowed).to.equal(
+                    newSettings.principalOnlyPaymentAllowed,
                 );
             });
 
