@@ -798,7 +798,7 @@ describe("PoolConfig Tests", function () {
             ] = await deployAndSetupPoolContracts(
                 humaConfigContract,
                 mockTokenContract,
-                "FixedSeniorYieldTranchePolicy",
+                "FixedSeniorYieldTranchesPolicy",
                 defaultDeployer,
                 poolOwner,
                 "MockPoolCredit",
