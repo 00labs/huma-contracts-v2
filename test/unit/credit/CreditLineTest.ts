@@ -7439,7 +7439,7 @@ describe("CreditLine Test", function () {
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
         });
 
-        async function approveCredit() {
+        async function approveCredit(committedAmount: BN = toToken(100_000)) {
             const settings = await poolConfigContract.getPoolSettings();
             await poolConfigContract
                 .connect(poolOwner)
@@ -7452,7 +7452,7 @@ describe("CreditLine Test", function () {
                     toToken(100_000),
                     remainingPeriods,
                     yieldInBps,
-                    toToken(100_000),
+                    committedAmount,
                     0,
                     true,
                 );
@@ -7577,332 +7577,1756 @@ describe("CreditLine Test", function () {
             }
 
             describe("When principal rate is zero", function () {
-                async function prepareForMakePayment() {
-                    principalRateInBps = 0;
-                    await poolConfigContract.connect(poolOwner).setFeeStructure({
-                        yieldInBps,
-                        minPrincipalRateInBps: principalRateInBps,
-                        lateFeeBps,
+                describe("If the accrued yield is always lower than the committed yield", function () {
+                    async function prepareForMakePayment() {
+                        principalRateInBps = 0;
+                        await poolConfigContract.connect(poolOwner).setFeeStructure({
+                            yieldInBps,
+                            minPrincipalRateInBps: principalRateInBps,
+                            lateFeeBps,
+                        });
+                        await approveCredit();
+                        await drawdown();
+                    }
+
+                    beforeEach(async function () {
+                        await loadFixture(prepareForMakePayment);
                     });
-                    await approveCredit();
-                    await drawdown();
-                }
 
-                beforeEach(async function () {
-                    await loadFixture(prepareForMakePayment);
-                });
+                    it("Should allow the borrower to pay for the unbilled principal once in the current billing cycle", async function () {
+                        const cc = await creditManagerContract.getCreditConfig(creditHash);
+                        const cr = await creditContract.getCreditRecord(creditHash);
+                        const dd = await creditContract.getDueDetail(creditHash);
+                        expect(dd.accrued).to.be.lt(dd.committed);
 
-                it("Should allow the borrower to pay for the unbilled principal once in the current billing cycle", async function () {
-                    const cr = await creditContract.getCreditRecord(creditHash);
-                    const dd = await creditContract.getDueDetail(creditHash);
+                        makePaymentDate = drawdownDate
+                            .clone()
+                            .add(2, "days")
+                            .add(22, "hours")
+                            .add(14, "seconds");
+                        const nextDueDate = firstDueDate;
+                        const expectedNewCR = {
+                            unbilledPrincipal: 0,
+                            nextDueDate: nextDueDate.unix(),
+                            nextDue: cr.nextDue,
+                            yieldDue: cr.yieldDue,
+                            totalPastDue: BN.from(0),
+                            missedPeriods: 0,
+                            remainingPeriods: cr.remainingPeriods,
+                            state: CreditState.GoodStanding,
+                        };
+                        const startDateOfNextPeriod =
+                            await calendarContract.getStartDateOfNextPeriod(
+                                cc.periodDuration,
+                                makePaymentDate.unix(),
+                            );
+                        const daysRemaining = await calendarContract.getDaysDiff(
+                            makePaymentDate.unix(),
+                            startDateOfNextPeriod,
+                        );
+                        const reducedAccruedYield = calcYield(
+                            borrowAmount,
+                            yieldInBps,
+                            daysRemaining.toNumber(),
+                        );
+                        const expectedNewDD = {
+                            lateFeeUpdatedDate: BN.from(0),
+                            lateFee: BN.from(0),
+                            principalPastDue: BN.from(0),
+                            yieldPastDue: BN.from(0),
+                            committed: dd.committed,
+                            accrued: dd.accrued.sub(reducedAccruedYield),
+                            paid: BN.from(0),
+                        };
+                        expect(expectedNewDD.accrued).to.be.lt(expectedNewDD.committed);
+                        await testMakePrincipalPayment(
+                            makePaymentDate,
+                            borrowAmount,
+                            borrowAmount,
+                            nextDueDate,
+                            BN.from(0),
+                            borrowAmount,
+                            expectedNewCR,
+                            expectedNewDD,
+                        );
+                    });
 
-                    makePaymentDate = drawdownDate
-                        .clone()
-                        .add(2, "days")
-                        .add(22, "hours")
-                        .add(14, "seconds");
-                    const nextDueDate = firstDueDate;
-                    const expectedNewCR = {
-                        unbilledPrincipal: 0,
-                        nextDueDate: nextDueDate.unix(),
-                        nextDue: cr.nextDue,
-                        yieldDue: cr.yieldDue,
-                        totalPastDue: BN.from(0),
-                        missedPeriods: 0,
-                        remainingPeriods: cr.remainingPeriods,
-                        state: CreditState.GoodStanding,
-                    };
-                    const expectedNewDD = {
-                        lateFeeUpdatedDate: BN.from(0),
-                        lateFee: BN.from(0),
-                        principalPastDue: BN.from(0),
-                        yieldPastDue: BN.from(0),
-                        committed: dd.committed,
-                        accrued: dd.accrued,
-                        paid: BN.from(0),
-                    };
-                    await testMakePrincipalPayment(
-                        makePaymentDate,
-                        borrowAmount,
-                        borrowAmount,
-                        nextDueDate,
-                        BN.from(0),
-                        borrowAmount,
-                        expectedNewCR,
-                        expectedNewDD,
-                    );
-                });
+                    it("Should allow the borrower to pay for the unbilled principal once in the late payment grace period", async function () {
+                        const cr = await creditContract.getCreditRecord(creditHash);
+                        const dd = await creditContract.getDueDetail(creditHash);
+                        expect(dd.accrued).to.be.lt(dd.committed);
 
-                it("Should allow the borrower to pay for the unbilled principal once in the late payment grace period", async function () {
-                    const cr = await creditContract.getCreditRecord(creditHash);
-                    const dd = await creditContract.getDueDetail(creditHash);
+                        makePaymentDate = moment
+                            .utc(cr.nextDueDate.toNumber() * 1000)
+                            .add(2, "days")
+                            .add(22, "hours")
+                            .add(14, "seconds");
+                        const nextDueDate = firstDueDate;
+                        const expectedNewCR = {
+                            unbilledPrincipal: 0,
+                            nextDueDate: nextDueDate.unix(),
+                            nextDue: cr.nextDue,
+                            yieldDue: cr.yieldDue,
+                            totalPastDue: BN.from(0),
+                            missedPeriods: 0,
+                            remainingPeriods: cr.remainingPeriods,
+                            state: CreditState.GoodStanding,
+                        };
+                        const expectedNewDD = {
+                            lateFeeUpdatedDate: BN.from(0),
+                            lateFee: BN.from(0),
+                            principalPastDue: BN.from(0),
+                            yieldPastDue: BN.from(0),
+                            committed: dd.committed,
+                            accrued: dd.accrued,
+                            paid: BN.from(0),
+                        };
+                        expect(expectedNewDD.accrued).to.be.lt(expectedNewDD.committed);
+                        await testMakePrincipalPayment(
+                            makePaymentDate,
+                            borrowAmount,
+                            borrowAmount,
+                            nextDueDate,
+                            BN.from(0),
+                            borrowAmount,
+                            expectedNewCR,
+                            expectedNewDD,
+                        );
+                    });
 
-                    makePaymentDate = moment
-                        .utc(cr.nextDueDate.toNumber() * 1000)
-                        .add(2, "days")
-                        .add(22, "hours")
-                        .add(14, "seconds");
-                    const nextDueDate = firstDueDate;
-                    const expectedNewCR = {
-                        unbilledPrincipal: 0,
-                        nextDueDate: nextDueDate.unix(),
-                        nextDue: cr.nextDue,
-                        yieldDue: cr.yieldDue,
-                        totalPastDue: BN.from(0),
-                        missedPeriods: 0,
-                        remainingPeriods: cr.remainingPeriods,
-                        state: CreditState.GoodStanding,
-                    };
-                    const expectedNewDD = {
-                        lateFeeUpdatedDate: BN.from(0),
-                        lateFee: BN.from(0),
-                        principalPastDue: BN.from(0),
-                        yieldPastDue: BN.from(0),
-                        committed: dd.committed,
-                        accrued: dd.accrued,
-                        paid: BN.from(0),
-                    };
-                    await testMakePrincipalPayment(
-                        makePaymentDate,
-                        borrowAmount,
-                        borrowAmount,
-                        nextDueDate,
-                        BN.from(0),
-                        borrowAmount,
-                        expectedNewCR,
-                        expectedNewDD,
-                    );
-                });
+                    it("Should allow the borrower to make multiple payments for the unbilled principal within the same period", async function () {
+                        const cc = await creditManagerContract.getCreditConfig(creditHash);
+                        const cr = await creditContract.getCreditRecord(creditHash);
+                        const dd = await creditContract.getDueDetail(creditHash);
+                        expect(dd.accrued).to.be.lt(dd.committed);
 
-                it("Should allow the borrower to make multiple payments for the unbilled principal within the same period", async function () {
-                    const cr = await creditContract.getCreditRecord(creditHash);
-                    const dd = await creditContract.getDueDetail(creditHash);
-
-                    makePaymentDate = drawdownDate
-                        .clone()
-                        .add(2, "days")
-                        .add(22, "hours")
-                        .add(14, "seconds");
-                    const nextDueDate = firstDueDate;
-                    const firstPaymentAmount = toToken(20_000);
-                    let expectedNewCR = {
-                        unbilledPrincipal: borrowAmount.sub(firstPaymentAmount),
-                        nextDueDate: nextDueDate.unix(),
-                        nextDue: cr.nextDue,
-                        yieldDue: cr.yieldDue,
-                        totalPastDue: BN.from(0),
-                        missedPeriods: 0,
-                        remainingPeriods: cr.remainingPeriods,
-                        state: CreditState.GoodStanding,
-                    };
-                    await testMakePrincipalPayment(
-                        makePaymentDate,
-                        firstPaymentAmount,
-                        firstPaymentAmount,
-                        firstDueDate,
-                        BN.from(0),
-                        firstPaymentAmount,
-                        expectedNewCR,
-                        dd,
-                    );
-
-                    // Second payment pays off the unbilled principal.
-                    const secondPaymentDate = makePaymentDate.clone().add(1, "day");
-                    const secondPaymentAmount = borrowAmount.sub(toToken(20_000));
-                    expectedNewCR = {
-                        unbilledPrincipal: BN.from(0),
-                        nextDueDate: nextDueDate.unix(),
-                        nextDue: cr.nextDue,
-                        yieldDue: cr.yieldDue,
-                        totalPastDue: BN.from(0),
-                        missedPeriods: 0,
-                        remainingPeriods: cr.remainingPeriods,
-                        state: CreditState.GoodStanding,
-                    };
-                    await testMakePrincipalPayment(
-                        secondPaymentDate,
-                        secondPaymentAmount,
-                        secondPaymentAmount,
-                        nextDueDate,
-                        BN.from(0),
-                        secondPaymentAmount,
-                        expectedNewCR,
-                        dd,
-                    );
-
-                    // Third payment is a no-op since the principal has already been paid off.
-                    const thirdPaymentDate = secondPaymentDate.clone().add(16, "hours");
-                    const thirdPaymentAmount = toToken(10_000);
-                    await testMakePrincipalPayment(
-                        thirdPaymentDate,
-                        thirdPaymentAmount,
-                        BN.from(0),
-                        nextDueDate,
-                        BN.from(0),
-                        BN.from(0),
-                        expectedNewCR,
-                        dd,
-                    );
-                });
-
-                it("Should allow the borrower to payoff the unbilled principal in the last period and close the credit line", async function () {
-                    const cc = await creditManagerContract.getCreditConfig(creditHash);
-                    const cr = await creditContract.getCreditRecord(creditHash);
-                    const dd = await creditContract.getDueDetail(creditHash);
-                    const maturityDate = moment.utc(
-                        getMaturityDate(
-                            cc.periodDuration,
-                            cr.remainingPeriods,
-                            drawdownDate.unix(),
-                        ) * 1000,
-                    );
-
-                    // First payment pays off everything except the unbilled principal.
-                    makePaymentDate = drawdownDate.clone().add(remainingPeriods - 1, "months");
-                    const [
-                        yieldPastDue,
-                        yieldNextDue,
-                        [accruedYieldNextDue, committedYieldNextDue],
-                    ] = await calcYieldDueNew(
-                        calendarContract,
-                        cc,
-                        cr,
-                        dd,
-                        makePaymentDate,
-                        latePaymentGracePeriodInDays,
-                    );
-                    const [, lateFee] = await calcLateFeeNew(
-                        poolConfigContract,
-                        calendarContract,
-                        cc,
-                        cr,
-                        dd,
-                        makePaymentDate,
-                        latePaymentGracePeriodInDays,
-                    );
-                    await setNextBlockTimestamp(makePaymentDate.unix());
-                    await creditContract
-                        .connect(borrower)
-                        .makePayment(
-                            borrower.getAddress(),
-                            yieldPastDue.add(yieldNextDue).add(lateFee),
+                        makePaymentDate = drawdownDate
+                            .clone()
+                            .add(2, "days")
+                            .add(22, "hours")
+                            .add(14, "seconds");
+                        const nextDueDate = firstDueDate;
+                        const firstPaymentAmount = toToken(20_000);
+                        const startDateOfNextPeriod =
+                            await calendarContract.getStartDateOfNextPeriod(
+                                cc.periodDuration,
+                                makePaymentDate.unix(),
+                            );
+                        const daysRemaining = await calendarContract.getDaysDiff(
+                            makePaymentDate.unix(),
+                            startDateOfNextPeriod,
+                        );
+                        const reducedAccruedYield = calcYield(
+                            firstPaymentAmount,
+                            yieldInBps,
+                            daysRemaining.toNumber(),
+                        );
+                        let expectedNewCR = {
+                            unbilledPrincipal: borrowAmount.sub(firstPaymentAmount),
+                            nextDueDate: nextDueDate.unix(),
+                            nextDue: cr.nextDue,
+                            yieldDue: cr.yieldDue,
+                            totalPastDue: BN.from(0),
+                            missedPeriods: 0,
+                            remainingPeriods: cr.remainingPeriods,
+                            state: CreditState.GoodStanding,
+                        };
+                        let expectedNewDD = {
+                            ...dd,
+                            ...{
+                                accrued: dd.accrued.sub(reducedAccruedYield),
+                            },
+                        };
+                        expect(expectedNewDD.accrued).to.be.lt(expectedNewDD.committed);
+                        await testMakePrincipalPayment(
+                            makePaymentDate,
+                            firstPaymentAmount,
+                            firstPaymentAmount,
+                            firstDueDate,
+                            BN.from(0),
+                            firstPaymentAmount,
+                            expectedNewCR,
+                            expectedNewDD,
                         );
 
-                    // Second payment pays off the unbilled principal.
-                    const secondPaymentDate = makePaymentDate.clone().add(1, "day");
-                    const nextDueDate = maturityDate;
-                    const expectedNewCR = {
-                        unbilledPrincipal: BN.from(0),
-                        nextDueDate: nextDueDate.unix(),
-                        nextDue: BN.from(0),
-                        yieldDue: BN.from(0),
-                        totalPastDue: BN.from(0),
-                        missedPeriods: 0,
-                        remainingPeriods: 0,
-                        state: CreditState.Deleted,
-                    };
-                    const expectedNewDD = {
-                        lateFeeUpdatedDate: 0,
-                        lateFee: BN.from(0),
-                        principalPastDue: BN.from(0),
-                        yieldPastDue: BN.from(0),
-                        committed: committedYieldNextDue,
-                        accrued: accruedYieldNextDue,
-                        paid: yieldNextDue,
-                    };
-                    await testMakePrincipalPayment(
-                        secondPaymentDate,
-                        borrowAmount,
-                        borrowAmount,
-                        nextDueDate,
-                        borrowAmount,
-                        BN.from(0),
-                        expectedNewCR,
-                        expectedNewDD,
-                    );
+                        // Second payment pays off the unbilled principal.
+                        const secondPaymentDate = makePaymentDate.clone().add(1, "day");
+                        const secondPaymentAmount = borrowAmount.sub(firstPaymentAmount);
+                        const secondDaysRemaining = await calendarContract.getDaysDiff(
+                            secondPaymentDate.unix(),
+                            startDateOfNextPeriod,
+                        );
+                        const secondReducedAccruedYield = calcYield(
+                            secondPaymentAmount,
+                            yieldInBps,
+                            secondDaysRemaining.toNumber(),
+                        );
+                        expectedNewCR = {
+                            unbilledPrincipal: BN.from(0),
+                            nextDueDate: nextDueDate.unix(),
+                            nextDue: cr.nextDue,
+                            yieldDue: cr.yieldDue,
+                            totalPastDue: BN.from(0),
+                            missedPeriods: 0,
+                            remainingPeriods: cr.remainingPeriods,
+                            state: CreditState.GoodStanding,
+                        };
+                        expectedNewDD = {
+                            ...expectedNewDD,
+                            ...{
+                                accrued: expectedNewDD.accrued.sub(secondReducedAccruedYield),
+                            },
+                        };
+                        expect(expectedNewDD.accrued).to.be.lt(expectedNewDD.committed);
+                        await testMakePrincipalPayment(
+                            secondPaymentDate,
+                            secondPaymentAmount,
+                            secondPaymentAmount,
+                            nextDueDate,
+                            BN.from(0),
+                            secondPaymentAmount,
+                            expectedNewCR,
+                            expectedNewDD,
+                        );
 
-                    // Any further attempt to make principal payment will be rejected since the
-                    // credit line is closed.
-                    await expect(
-                        creditContract.connect(borrower).makePrincipalPayment(toToken(1)),
-                    ).to.be.revertedWithCustomError(
-                        creditContract,
-                        "CreditNotInStateForMakingPrincipalPayment",
-                    );
-                });
-
-                it("Should not allow payment when the protocol is paused or pool is not on", async function () {
-                    await humaConfigContract.connect(protocolOwner).pause();
-                    await expect(
-                        creditContract.makePrincipalPayment(toToken(1)),
-                    ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
-                    await humaConfigContract.connect(protocolOwner).unpause();
-
-                    await poolContract.connect(poolOwner).disablePool();
-                    await expect(
-                        creditContract.makePrincipalPayment(toToken(1)),
-                    ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
-                    await poolContract.connect(poolOwner).enablePool();
-                });
-
-                it("Should not allow non-borrowers to make principal payment", async function () {
-                    await expect(
-                        creditContract.connect(borrower2).makePrincipalPayment(toToken(1)),
-                    ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
-                });
-
-                it("Should not allow the borrower to make principal payment with 0 amount", async function () {
-                    await expect(
-                        creditContract.connect(borrower).makePrincipalPayment(0),
-                    ).to.be.revertedWithCustomError(creditContract, "ZeroAmountProvided");
-                });
-
-                it("Should not allow the borrower to make principal payment if the bill is delayed", async function () {
-                    makePaymentDate = drawdownDate.add(2, "months");
-                    await setNextBlockTimestamp(makePaymentDate.unix());
-                    await expect(
-                        creditContract.connect(borrower).makePrincipalPayment(toToken(1)),
-                    ).to.be.revertedWithCustomError(
-                        creditContract,
-                        "CreditNotInStateForMakingPrincipalPayment",
-                    );
-                });
-
-                it("Should not allow the borrower to make principal payment if the bill is defaulted", async function () {
-                    const defaultGracePeriodInDays = 1;
-                    const settings = await poolConfigContract.getPoolSettings();
-                    await poolConfigContract.connect(poolOwner).setPoolSettings({
-                        ...settings,
-                        ...{ defaultGracePeriodInDays: defaultGracePeriodInDays },
+                        // Third payment is a no-op since the principal has already been paid off.
+                        const thirdPaymentDate = secondPaymentDate.clone().add(16, "hours");
+                        const thirdPaymentAmount = toToken(10_000);
+                        await testMakePrincipalPayment(
+                            thirdPaymentDate,
+                            thirdPaymentAmount,
+                            BN.from(0),
+                            nextDueDate,
+                            BN.from(0),
+                            BN.from(0),
+                            expectedNewCR,
+                            expectedNewDD,
+                        );
                     });
 
-                    const oldCR = await creditContract.getCreditRecord(creditHash);
-                    const cc = await creditManagerContract.getCreditConfig(creditHash);
-                    const startOfNextPeriod = await calendarContract.getStartDateOfNextPeriod(
-                        cc.periodDuration,
-                        oldCR.nextDueDate,
-                    );
-                    const triggerDefaultDate =
-                        startOfNextPeriod.toNumber() +
-                        defaultGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY;
-                    await setNextBlockTimestamp(triggerDefaultDate);
-                    await creditManagerContract
-                        .connect(evaluationAgent)
-                        .triggerDefault(borrower.getAddress());
-                    const expectedCR = await creditContract.getCreditRecord(creditHash);
-                    expect(expectedCR.state).to.equal(CreditState.Defaulted);
-                    const expectedDD = await creditContract.getDueDetail(creditHash);
+                    it("Should allow the borrower to payoff the unbilled principal in the last period and close the credit line", async function () {
+                        const cc = await creditManagerContract.getCreditConfig(creditHash);
+                        const cr = await creditContract.getCreditRecord(creditHash);
+                        const dd = await creditContract.getDueDetail(creditHash);
+                        expect(dd.accrued).to.be.lt(dd.committed);
+                        const maturityDate = moment.utc(
+                            getMaturityDate(
+                                cc.periodDuration,
+                                cr.remainingPeriods,
+                                drawdownDate.unix(),
+                            ) * 1000,
+                        );
 
-                    await expect(
-                        creditContract.connect(borrower).makePrincipalPayment(toToken(1)),
-                    ).to.be.revertedWithCustomError(
-                        creditContract,
-                        "CreditNotInStateForMakingPrincipalPayment",
-                    );
-                    const actualCR = await creditContract.getCreditRecord(creditHash);
-                    checkCreditRecordsMatch(actualCR, expectedCR);
-                    const actualDD = await creditContract.getDueDetail(creditHash);
-                    checkDueDetailsMatch(actualDD, expectedDD);
+                        // First payment pays off everything except the unbilled principal.
+                        makePaymentDate = drawdownDate.clone().add(remainingPeriods - 1, "months");
+                        const [
+                            yieldPastDue,
+                            yieldNextDue,
+                            [accruedYieldNextDue, committedYieldNextDue],
+                        ] = await calcYieldDueNew(
+                            calendarContract,
+                            cc,
+                            cr,
+                            dd,
+                            makePaymentDate,
+                            latePaymentGracePeriodInDays,
+                        );
+                        const [, lateFee] = await calcLateFeeNew(
+                            poolConfigContract,
+                            calendarContract,
+                            cc,
+                            cr,
+                            dd,
+                            makePaymentDate,
+                            latePaymentGracePeriodInDays,
+                        );
+                        await setNextBlockTimestamp(makePaymentDate.unix());
+                        await creditContract
+                            .connect(borrower)
+                            .makePayment(
+                                borrower.getAddress(),
+                                yieldPastDue.add(yieldNextDue).add(lateFee),
+                            );
+
+                        // Second payment pays off the unbilled principal.
+                        const secondPaymentDate = makePaymentDate.clone().add(1, "day");
+                        const nextDueDate = maturityDate;
+                        const startDateOfNextPeriod =
+                            await calendarContract.getStartDateOfNextPeriod(
+                                cc.periodDuration,
+                                secondPaymentDate.unix(),
+                            );
+                        const daysRemaining = await calendarContract.getDaysDiff(
+                            secondPaymentDate.unix(),
+                            startDateOfNextPeriod,
+                        );
+                        const reducedAccruedYield = calcYield(
+                            borrowAmount,
+                            yieldInBps,
+                            daysRemaining.toNumber(),
+                        );
+                        const expectedNewCR = {
+                            unbilledPrincipal: BN.from(0),
+                            nextDueDate: nextDueDate.unix(),
+                            nextDue: BN.from(0),
+                            yieldDue: BN.from(0),
+                            totalPastDue: BN.from(0),
+                            missedPeriods: 0,
+                            remainingPeriods: 0,
+                            state: CreditState.Deleted,
+                        };
+                        const expectedNewDD = {
+                            lateFeeUpdatedDate: 0,
+                            lateFee: BN.from(0),
+                            principalPastDue: BN.from(0),
+                            yieldPastDue: BN.from(0),
+                            committed: committedYieldNextDue,
+                            accrued: accruedYieldNextDue.sub(reducedAccruedYield),
+                            paid: yieldNextDue,
+                        };
+                        expect(expectedNewDD.accrued).to.be.lt(expectedNewDD.committed);
+                        await testMakePrincipalPayment(
+                            secondPaymentDate,
+                            borrowAmount,
+                            borrowAmount,
+                            nextDueDate,
+                            borrowAmount,
+                            BN.from(0),
+                            expectedNewCR,
+                            expectedNewDD,
+                        );
+
+                        // Any further attempt to make principal payment will be rejected since the
+                        // credit line is closed.
+                        await expect(
+                            creditContract.connect(borrower).makePrincipalPayment(toToken(1)),
+                        ).to.be.revertedWithCustomError(
+                            creditContract,
+                            "CreditNotInStateForMakingPrincipalPayment",
+                        );
+                    });
+
+                    it("Should not allow payment when the protocol is paused or pool is not on", async function () {
+                        await humaConfigContract.connect(protocolOwner).pause();
+                        await expect(
+                            creditContract.makePrincipalPayment(toToken(1)),
+                        ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
+                        await humaConfigContract.connect(protocolOwner).unpause();
+
+                        await poolContract.connect(poolOwner).disablePool();
+                        await expect(
+                            creditContract.makePrincipalPayment(toToken(1)),
+                        ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
+                        await poolContract.connect(poolOwner).enablePool();
+                    });
+
+                    it("Should not allow non-borrowers to make principal payment", async function () {
+                        await expect(
+                            creditContract.connect(borrower2).makePrincipalPayment(toToken(1)),
+                        ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
+                    });
+
+                    it("Should not allow the borrower to make principal payment with 0 amount", async function () {
+                        await expect(
+                            creditContract.connect(borrower).makePrincipalPayment(0),
+                        ).to.be.revertedWithCustomError(creditContract, "ZeroAmountProvided");
+                    });
+
+                    it("Should not allow the borrower to make principal payment if the functionality is disabled", async function () {
+                        const poolSettings = await poolConfigContract.getPoolSettings();
+                        await poolConfigContract.connect(poolOwner).setPoolSettings({
+                            ...poolSettings,
+                            ...{
+                                principalOnlyPaymentAllowed: false,
+                            },
+                        });
+
+                        await expect(
+                            creditContract.connect(borrower).makePrincipalPayment(toToken(1)),
+                        ).to.be.revertedWithCustomError(creditContract, "UnsupportedFunction");
+                    });
+
+                    it("Should not allow the borrower to make principal payment if the bill is delayed", async function () {
+                        makePaymentDate = drawdownDate.add(2, "months");
+                        await setNextBlockTimestamp(makePaymentDate.unix());
+                        await expect(
+                            creditContract.connect(borrower).makePrincipalPayment(toToken(1)),
+                        ).to.be.revertedWithCustomError(
+                            creditContract,
+                            "CreditNotInStateForMakingPrincipalPayment",
+                        );
+                    });
+
+                    it("Should not allow the borrower to make principal payment if the bill is defaulted", async function () {
+                        const defaultGracePeriodInDays = 1;
+                        const settings = await poolConfigContract.getPoolSettings();
+                        await poolConfigContract.connect(poolOwner).setPoolSettings({
+                            ...settings,
+                            ...{ defaultGracePeriodInDays: defaultGracePeriodInDays },
+                        });
+
+                        const oldCR = await creditContract.getCreditRecord(creditHash);
+                        const cc = await creditManagerContract.getCreditConfig(creditHash);
+                        const startOfNextPeriod = await calendarContract.getStartDateOfNextPeriod(
+                            cc.periodDuration,
+                            oldCR.nextDueDate,
+                        );
+                        const triggerDefaultDate =
+                            startOfNextPeriod.toNumber() +
+                            defaultGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY;
+                        await setNextBlockTimestamp(triggerDefaultDate);
+                        await creditManagerContract
+                            .connect(evaluationAgent)
+                            .triggerDefault(borrower.getAddress());
+                        const expectedCR = await creditContract.getCreditRecord(creditHash);
+                        expect(expectedCR.state).to.equal(CreditState.Defaulted);
+                        const expectedDD = await creditContract.getDueDetail(creditHash);
+
+                        await expect(
+                            creditContract.connect(borrower).makePrincipalPayment(toToken(1)),
+                        ).to.be.revertedWithCustomError(
+                            creditContract,
+                            "CreditNotInStateForMakingPrincipalPayment",
+                        );
+                        const actualCR = await creditContract.getCreditRecord(creditHash);
+                        checkCreditRecordsMatch(actualCR, expectedCR);
+                        const actualDD = await creditContract.getDueDetail(creditHash);
+                        checkDueDetailsMatch(actualDD, expectedDD);
+                    });
+                });
+
+                describe("If the accrued yield is always higher than the committed yield", function () {
+                    async function prepareForMakePayment() {
+                        principalRateInBps = 0;
+                        await poolConfigContract.connect(poolOwner).setFeeStructure({
+                            yieldInBps,
+                            minPrincipalRateInBps: principalRateInBps,
+                            lateFeeBps,
+                        });
+                        await approveCredit(toToken(10_000));
+                        await drawdown();
+                    }
+
+                    beforeEach(async function () {
+                        await loadFixture(prepareForMakePayment);
+                    });
+
+                    it("Should allow the borrower to pay for the unbilled principal once in the current billing cycle", async function () {
+                        const cc = await creditManagerContract.getCreditConfig(creditHash);
+                        const cr = await creditContract.getCreditRecord(creditHash);
+                        const dd = await creditContract.getDueDetail(creditHash);
+                        expect(dd.accrued).to.be.gt(dd.committed);
+
+                        makePaymentDate = drawdownDate
+                            .clone()
+                            .add(2, "days")
+                            .add(22, "hours")
+                            .add(14, "seconds");
+                        const nextDueDate = firstDueDate;
+
+                        const paymentAmount = toToken(10_000);
+                        const startDateOfNextPeriod =
+                            await calendarContract.getStartDateOfNextPeriod(
+                                cc.periodDuration,
+                                makePaymentDate.unix(),
+                            );
+                        const daysRemaining = await calendarContract.getDaysDiff(
+                            makePaymentDate.unix(),
+                            startDateOfNextPeriod,
+                        );
+                        const reducedAccruedYield = calcYield(
+                            paymentAmount,
+                            yieldInBps,
+                            daysRemaining.toNumber(),
+                        );
+                        const expectedNewCR = {
+                            unbilledPrincipal: borrowAmount.sub(paymentAmount),
+                            nextDueDate: nextDueDate.unix(),
+                            nextDue: cr.nextDue.sub(reducedAccruedYield),
+                            yieldDue: cr.yieldDue.sub(reducedAccruedYield),
+                            totalPastDue: BN.from(0),
+                            missedPeriods: 0,
+                            remainingPeriods: cr.remainingPeriods,
+                            state: CreditState.GoodStanding,
+                        };
+                        const expectedNewDD = {
+                            lateFeeUpdatedDate: BN.from(0),
+                            lateFee: BN.from(0),
+                            principalPastDue: BN.from(0),
+                            yieldPastDue: BN.from(0),
+                            committed: dd.committed,
+                            accrued: dd.accrued.sub(reducedAccruedYield),
+                            paid: BN.from(0),
+                        };
+                        expect(expectedNewDD.accrued).to.be.gt(expectedNewDD.committed);
+                        await testMakePrincipalPayment(
+                            makePaymentDate,
+                            paymentAmount,
+                            paymentAmount,
+                            nextDueDate,
+                            BN.from(0),
+                            paymentAmount,
+                            expectedNewCR,
+                            expectedNewDD,
+                        );
+                    });
+
+                    it("Should allow the borrower to pay for the unbilled principal once in the late payment grace period", async function () {
+                        const cr = await creditContract.getCreditRecord(creditHash);
+                        const dd = await creditContract.getDueDetail(creditHash);
+                        expect(dd.accrued).to.be.gt(dd.committed);
+
+                        makePaymentDate = moment
+                            .utc(cr.nextDueDate.toNumber() * 1000)
+                            .add(2, "days")
+                            .add(22, "hours")
+                            .add(14, "seconds");
+                        const nextDueDate = firstDueDate;
+                        const paymentAmount = toToken(10_000);
+                        const expectedNewCR = {
+                            unbilledPrincipal: borrowAmount.sub(paymentAmount),
+                            nextDueDate: nextDueDate.unix(),
+                            nextDue: cr.nextDue,
+                            yieldDue: cr.yieldDue,
+                            totalPastDue: BN.from(0),
+                            missedPeriods: 0,
+                            remainingPeriods: cr.remainingPeriods,
+                            state: CreditState.GoodStanding,
+                        };
+                        const expectedNewDD = {
+                            lateFeeUpdatedDate: BN.from(0),
+                            lateFee: BN.from(0),
+                            principalPastDue: BN.from(0),
+                            yieldPastDue: BN.from(0),
+                            committed: dd.committed,
+                            accrued: dd.accrued,
+                            paid: BN.from(0),
+                        };
+                        expect(expectedNewDD.accrued).to.be.gt(expectedNewDD.committed);
+                        await testMakePrincipalPayment(
+                            makePaymentDate,
+                            paymentAmount,
+                            paymentAmount,
+                            nextDueDate,
+                            BN.from(0),
+                            paymentAmount,
+                            expectedNewCR,
+                            expectedNewDD,
+                        );
+                    });
+
+                    it("Should allow the borrower to make multiple payments for the unbilled principal within the same period", async function () {
+                        const cc = await creditManagerContract.getCreditConfig(creditHash);
+                        const cr = await creditContract.getCreditRecord(creditHash);
+                        const dd = await creditContract.getDueDetail(creditHash);
+                        expect(dd.accrued).to.be.gt(dd.committed);
+
+                        makePaymentDate = drawdownDate
+                            .clone()
+                            .add(2, "days")
+                            .add(22, "hours")
+                            .add(14, "seconds");
+                        const nextDueDate = firstDueDate;
+                        const firstPaymentAmount = toToken(20_000);
+                        const startDateOfNextPeriod =
+                            await calendarContract.getStartDateOfNextPeriod(
+                                cc.periodDuration,
+                                makePaymentDate.unix(),
+                            );
+                        const daysRemaining = await calendarContract.getDaysDiff(
+                            makePaymentDate.unix(),
+                            startDateOfNextPeriod,
+                        );
+                        const reducedAccruedYield = calcYield(
+                            firstPaymentAmount,
+                            yieldInBps,
+                            daysRemaining.toNumber(),
+                        );
+                        let expectedNewCR = {
+                            unbilledPrincipal: borrowAmount.sub(firstPaymentAmount),
+                            nextDueDate: nextDueDate.unix(),
+                            nextDue: cr.nextDue.sub(reducedAccruedYield),
+                            yieldDue: cr.yieldDue.sub(reducedAccruedYield),
+                            totalPastDue: BN.from(0),
+                            missedPeriods: 0,
+                            remainingPeriods: cr.remainingPeriods,
+                            state: CreditState.GoodStanding,
+                        };
+                        let expectedNewDD = {
+                            ...dd,
+                            ...{
+                                accrued: dd.accrued.sub(reducedAccruedYield),
+                            },
+                        };
+                        expect(expectedNewDD.accrued).to.be.gt(expectedNewDD.committed);
+                        await testMakePrincipalPayment(
+                            makePaymentDate,
+                            firstPaymentAmount,
+                            firstPaymentAmount,
+                            firstDueDate,
+                            BN.from(0),
+                            firstPaymentAmount,
+                            expectedNewCR,
+                            expectedNewDD,
+                        );
+
+                        const secondPaymentDate = makePaymentDate.clone().add(1, "day");
+                        const secondPaymentAmount = toToken(20_000);
+                        const secondDaysRemaining = await calendarContract.getDaysDiff(
+                            secondPaymentDate.unix(),
+                            startDateOfNextPeriod,
+                        );
+                        const secondReducedAccruedYield = calcYield(
+                            secondPaymentAmount,
+                            yieldInBps,
+                            secondDaysRemaining.toNumber(),
+                        );
+                        expectedNewCR = {
+                            unbilledPrincipal:
+                                expectedNewCR.unbilledPrincipal.sub(secondPaymentAmount),
+                            nextDueDate: nextDueDate.unix(),
+                            nextDue: expectedNewCR.nextDue.sub(secondReducedAccruedYield),
+                            yieldDue: expectedNewCR.yieldDue.sub(secondReducedAccruedYield),
+                            totalPastDue: BN.from(0),
+                            missedPeriods: 0,
+                            remainingPeriods: cr.remainingPeriods,
+                            state: CreditState.GoodStanding,
+                        };
+                        expectedNewDD = {
+                            ...expectedNewDD,
+                            ...{
+                                accrued: expectedNewDD.accrued.sub(secondReducedAccruedYield),
+                            },
+                        };
+                        expect(expectedNewDD.accrued).to.be.gt(expectedNewDD.committed);
+                        await testMakePrincipalPayment(
+                            secondPaymentDate,
+                            secondPaymentAmount,
+                            secondPaymentAmount,
+                            nextDueDate,
+                            BN.from(0),
+                            secondPaymentAmount,
+                            expectedNewCR,
+                            expectedNewDD,
+                        );
+                    });
+                });
+
+                describe("If the accrued yield was higher than the committed yield before payment, but becomes lower afterwards", function () {
+                    async function prepareForMakePayment() {
+                        principalRateInBps = 0;
+                        await poolConfigContract.connect(poolOwner).setFeeStructure({
+                            yieldInBps,
+                            minPrincipalRateInBps: principalRateInBps,
+                            lateFeeBps,
+                        });
+                        await approveCredit(toToken(40_000));
+                        await drawdown();
+                    }
+
+                    beforeEach(async function () {
+                        await loadFixture(prepareForMakePayment);
+                    });
+
+                    it("Should allow the borrower to pay for the unbilled principal once in the current billing cycle", async function () {
+                        const cc = await creditManagerContract.getCreditConfig(creditHash);
+                        const cr = await creditContract.getCreditRecord(creditHash);
+                        const dd = await creditContract.getDueDetail(creditHash);
+                        expect(dd.accrued).to.be.gt(dd.committed);
+
+                        makePaymentDate = drawdownDate
+                            .clone()
+                            .add(2, "days")
+                            .add(22, "hours")
+                            .add(14, "seconds");
+                        const nextDueDate = firstDueDate;
+
+                        const paymentAmount = toToken(20_000);
+                        const startDateOfNextPeriod =
+                            await calendarContract.getStartDateOfNextPeriod(
+                                cc.periodDuration,
+                                makePaymentDate.unix(),
+                            );
+                        const daysRemaining = await calendarContract.getDaysDiff(
+                            makePaymentDate.unix(),
+                            startDateOfNextPeriod,
+                        );
+                        const reducedAccruedYield = calcYield(
+                            paymentAmount,
+                            yieldInBps,
+                            daysRemaining.toNumber(),
+                        );
+                        const expectedNewCR = {
+                            unbilledPrincipal: borrowAmount.sub(paymentAmount),
+                            nextDueDate: nextDueDate.unix(),
+                            nextDue: cr.nextDue.sub(cr.yieldDue).add(dd.committed),
+                            yieldDue: dd.committed,
+                            totalPastDue: BN.from(0),
+                            missedPeriods: 0,
+                            remainingPeriods: cr.remainingPeriods,
+                            state: CreditState.GoodStanding,
+                        };
+                        const expectedNewDD = {
+                            lateFeeUpdatedDate: BN.from(0),
+                            lateFee: BN.from(0),
+                            principalPastDue: BN.from(0),
+                            yieldPastDue: BN.from(0),
+                            committed: dd.committed,
+                            accrued: dd.accrued.sub(reducedAccruedYield),
+                            paid: BN.from(0),
+                        };
+                        expect(expectedNewDD.accrued).to.be.lt(expectedNewDD.committed);
+                        await testMakePrincipalPayment(
+                            makePaymentDate,
+                            paymentAmount,
+                            paymentAmount,
+                            nextDueDate,
+                            BN.from(0),
+                            paymentAmount,
+                            expectedNewCR,
+                            expectedNewDD,
+                        );
+                    });
+
+                    it("Should allow the borrower to pay for the unbilled principal once in the late payment grace period", async function () {
+                        const cr = await creditContract.getCreditRecord(creditHash);
+                        const dd = await creditContract.getDueDetail(creditHash);
+                        expect(dd.accrued).to.be.gt(dd.committed);
+
+                        makePaymentDate = moment
+                            .utc(cr.nextDueDate.toNumber() * 1000)
+                            .add(2, "days")
+                            .add(22, "hours")
+                            .add(14, "seconds");
+                        const nextDueDate = firstDueDate;
+                        const paymentAmount = toToken(20_000);
+                        const expectedNewCR = {
+                            unbilledPrincipal: borrowAmount.sub(paymentAmount),
+                            nextDueDate: nextDueDate.unix(),
+                            nextDue: cr.nextDue,
+                            yieldDue: cr.yieldDue,
+                            totalPastDue: BN.from(0),
+                            missedPeriods: 0,
+                            remainingPeriods: cr.remainingPeriods,
+                            state: CreditState.GoodStanding,
+                        };
+                        const expectedNewDD = {
+                            lateFeeUpdatedDate: BN.from(0),
+                            lateFee: BN.from(0),
+                            principalPastDue: BN.from(0),
+                            yieldPastDue: BN.from(0),
+                            committed: dd.committed,
+                            accrued: dd.accrued,
+                            paid: BN.from(0),
+                        };
+                        expect(expectedNewDD.accrued).to.be.gt(expectedNewDD.committed);
+                        await testMakePrincipalPayment(
+                            makePaymentDate,
+                            paymentAmount,
+                            paymentAmount,
+                            nextDueDate,
+                            BN.from(0),
+                            paymentAmount,
+                            expectedNewCR,
+                            expectedNewDD,
+                        );
+                    });
+
+                    it("Should allow the borrower to make multiple payments for the unbilled principal within the same period", async function () {
+                        const cc = await creditManagerContract.getCreditConfig(creditHash);
+                        const cr = await creditContract.getCreditRecord(creditHash);
+                        const dd = await creditContract.getDueDetail(creditHash);
+                        expect(dd.accrued).to.be.gt(dd.committed);
+
+                        makePaymentDate = drawdownDate
+                            .clone()
+                            .add(2, "days")
+                            .add(22, "hours")
+                            .add(14, "seconds");
+                        const nextDueDate = firstDueDate;
+                        const firstPaymentAmount = toToken(10_000);
+                        const startDateOfNextPeriod =
+                            await calendarContract.getStartDateOfNextPeriod(
+                                cc.periodDuration,
+                                makePaymentDate.unix(),
+                            );
+                        const daysRemaining = await calendarContract.getDaysDiff(
+                            makePaymentDate.unix(),
+                            startDateOfNextPeriod,
+                        );
+                        const reducedAccruedYield = calcYield(
+                            firstPaymentAmount,
+                            yieldInBps,
+                            daysRemaining.toNumber(),
+                        );
+                        let expectedNewCR = {
+                            unbilledPrincipal: borrowAmount.sub(firstPaymentAmount),
+                            nextDueDate: nextDueDate.unix(),
+                            nextDue: cr.nextDue.sub(reducedAccruedYield),
+                            yieldDue: cr.yieldDue.sub(reducedAccruedYield),
+                            totalPastDue: BN.from(0),
+                            missedPeriods: 0,
+                            remainingPeriods: cr.remainingPeriods,
+                            state: CreditState.GoodStanding,
+                        };
+                        let expectedNewDD = {
+                            ...dd,
+                            ...{
+                                accrued: dd.accrued.sub(reducedAccruedYield),
+                            },
+                        };
+                        expect(expectedNewDD.accrued).to.be.gt(expectedNewDD.committed);
+                        await testMakePrincipalPayment(
+                            makePaymentDate,
+                            firstPaymentAmount,
+                            firstPaymentAmount,
+                            firstDueDate,
+                            BN.from(0),
+                            firstPaymentAmount,
+                            expectedNewCR,
+                            expectedNewDD,
+                        );
+
+                        const secondPaymentDate = makePaymentDate.clone().add(1, "day");
+                        const secondPaymentAmount = toToken(20_000);
+                        const secondDaysRemaining = await calendarContract.getDaysDiff(
+                            secondPaymentDate.unix(),
+                            startDateOfNextPeriod,
+                        );
+                        const secondReducedAccruedYield = calcYield(
+                            secondPaymentAmount,
+                            yieldInBps,
+                            secondDaysRemaining.toNumber(),
+                        );
+                        expectedNewCR = {
+                            unbilledPrincipal:
+                                expectedNewCR.unbilledPrincipal.sub(secondPaymentAmount),
+                            nextDueDate: nextDueDate.unix(),
+                            nextDue: expectedNewCR.nextDue
+                                .sub(expectedNewCR.yieldDue)
+                                .add(expectedNewDD.committed),
+                            yieldDue: expectedNewDD.committed,
+                            totalPastDue: BN.from(0),
+                            missedPeriods: 0,
+                            remainingPeriods: cr.remainingPeriods,
+                            state: CreditState.GoodStanding,
+                        };
+                        expectedNewDD = {
+                            ...expectedNewDD,
+                            ...{
+                                accrued: expectedNewDD.accrued.sub(secondReducedAccruedYield),
+                            },
+                        };
+                        expect(expectedNewDD.accrued).to.be.lt(expectedNewDD.committed);
+                        await testMakePrincipalPayment(
+                            secondPaymentDate,
+                            secondPaymentAmount,
+                            secondPaymentAmount,
+                            nextDueDate,
+                            BN.from(0),
+                            secondPaymentAmount,
+                            expectedNewCR,
+                            expectedNewDD,
+                        );
+                    });
+                });
+
+                describe("If the yield due has been paid", function () {
+                    let yieldPaymentDate: moment.Moment;
+
+                    async function payYieldDue(paymentAmount: BN) {
+                        yieldPaymentDate = drawdownDate
+                            .add(13, "hours")
+                            .add(47, "minutes")
+                            .add(8, "seconds");
+                        await setNextBlockTimestamp(yieldPaymentDate.unix());
+
+                        await creditContract
+                            .connect(borrower)
+                            .makePayment(borrower.getAddress(), paymentAmount);
+                    }
+
+                    describe("If the yield due has been fully paid", function () {
+                        describe("If the accrued yield is always lower than the committed yield", function () {
+                            async function prepareForMakePayment() {
+                                principalRateInBps = 0;
+                                await poolConfigContract.connect(poolOwner).setFeeStructure({
+                                    yieldInBps,
+                                    minPrincipalRateInBps: principalRateInBps,
+                                    lateFeeBps,
+                                });
+                                await approveCredit();
+                                await drawdown();
+                                const cr = await creditContract.getCreditRecord(creditHash);
+                                await payYieldDue(cr.yieldDue);
+                            }
+
+                            beforeEach(async function () {
+                                await loadFixture(prepareForMakePayment);
+                            });
+
+                            it("Should allow the borrower to pay for the unbilled principal once in the current billing cycle", async function () {
+                                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                                const cr = await creditContract.getCreditRecord(creditHash);
+                                const dd = await creditContract.getDueDetail(creditHash);
+                                expect(dd.accrued).to.be.lt(dd.committed);
+                                expect(dd.paid).to.eq(dd.committed);
+
+                                makePaymentDate = drawdownDate
+                                    .clone()
+                                    .add(2, "days")
+                                    .add(22, "hours")
+                                    .add(14, "seconds");
+                                const nextDueDate = firstDueDate;
+                                const expectedNewCR = {
+                                    unbilledPrincipal: 0,
+                                    nextDueDate: nextDueDate.unix(),
+                                    nextDue: 0,
+                                    yieldDue: 0,
+                                    totalPastDue: BN.from(0),
+                                    missedPeriods: 0,
+                                    remainingPeriods: cr.remainingPeriods,
+                                    state: CreditState.GoodStanding,
+                                };
+                                const startDateOfNextPeriod =
+                                    await calendarContract.getStartDateOfNextPeriod(
+                                        cc.periodDuration,
+                                        makePaymentDate.unix(),
+                                    );
+                                const daysRemaining = await calendarContract.getDaysDiff(
+                                    makePaymentDate.unix(),
+                                    startDateOfNextPeriod,
+                                );
+                                const reducedAccruedYield = calcYield(
+                                    borrowAmount,
+                                    yieldInBps,
+                                    daysRemaining.toNumber(),
+                                );
+                                const expectedNewDD = {
+                                    lateFeeUpdatedDate: BN.from(0),
+                                    lateFee: BN.from(0),
+                                    principalPastDue: BN.from(0),
+                                    yieldPastDue: BN.from(0),
+                                    committed: dd.committed,
+                                    accrued: dd.accrued.sub(reducedAccruedYield),
+                                    paid: dd.paid,
+                                };
+                                expect(expectedNewDD.accrued).to.be.lt(expectedNewDD.committed);
+                                await testMakePrincipalPayment(
+                                    makePaymentDate,
+                                    borrowAmount,
+                                    borrowAmount,
+                                    nextDueDate,
+                                    BN.from(0),
+                                    borrowAmount,
+                                    expectedNewCR,
+                                    expectedNewDD,
+                                );
+                            });
+
+                            it("Should allow the borrower to make multiple payments for the unbilled principal within the same period", async function () {
+                                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                                const cr = await creditContract.getCreditRecord(creditHash);
+                                const dd = await creditContract.getDueDetail(creditHash);
+                                expect(dd.accrued).to.be.lt(dd.committed);
+                                expect(dd.paid).to.eq(dd.committed);
+
+                                makePaymentDate = drawdownDate
+                                    .clone()
+                                    .add(2, "days")
+                                    .add(22, "hours")
+                                    .add(14, "seconds");
+                                const nextDueDate = firstDueDate;
+                                const firstPaymentAmount = toToken(20_000);
+                                const startDateOfNextPeriod =
+                                    await calendarContract.getStartDateOfNextPeriod(
+                                        cc.periodDuration,
+                                        makePaymentDate.unix(),
+                                    );
+                                const daysRemaining = await calendarContract.getDaysDiff(
+                                    makePaymentDate.unix(),
+                                    startDateOfNextPeriod,
+                                );
+                                const reducedAccruedYield = calcYield(
+                                    firstPaymentAmount,
+                                    yieldInBps,
+                                    daysRemaining.toNumber(),
+                                );
+                                let expectedNewCR = {
+                                    unbilledPrincipal: borrowAmount.sub(firstPaymentAmount),
+                                    nextDueDate: nextDueDate.unix(),
+                                    nextDue: 0,
+                                    yieldDue: 0,
+                                    totalPastDue: BN.from(0),
+                                    missedPeriods: 0,
+                                    remainingPeriods: cr.remainingPeriods,
+                                    state: CreditState.GoodStanding,
+                                };
+                                let expectedNewDD = {
+                                    ...dd,
+                                    ...{
+                                        accrued: dd.accrued.sub(reducedAccruedYield),
+                                    },
+                                };
+                                expect(expectedNewDD.accrued).to.be.lt(expectedNewDD.committed);
+                                await testMakePrincipalPayment(
+                                    makePaymentDate,
+                                    firstPaymentAmount,
+                                    firstPaymentAmount,
+                                    firstDueDate,
+                                    BN.from(0),
+                                    firstPaymentAmount,
+                                    expectedNewCR,
+                                    expectedNewDD,
+                                );
+
+                                // Second payment pays off the unbilled principal.
+                                const secondPaymentDate = makePaymentDate.clone().add(1, "day");
+                                const secondPaymentAmount = borrowAmount.sub(firstPaymentAmount);
+                                const secondDaysRemaining = await calendarContract.getDaysDiff(
+                                    secondPaymentDate.unix(),
+                                    startDateOfNextPeriod,
+                                );
+                                const secondReducedAccruedYield = calcYield(
+                                    secondPaymentAmount,
+                                    yieldInBps,
+                                    secondDaysRemaining.toNumber(),
+                                );
+                                expectedNewCR = {
+                                    unbilledPrincipal: BN.from(0),
+                                    nextDueDate: nextDueDate.unix(),
+                                    nextDue: 0,
+                                    yieldDue: 0,
+                                    totalPastDue: BN.from(0),
+                                    missedPeriods: 0,
+                                    remainingPeriods: cr.remainingPeriods,
+                                    state: CreditState.GoodStanding,
+                                };
+                                expectedNewDD = {
+                                    ...expectedNewDD,
+                                    ...{
+                                        accrued: expectedNewDD.accrued.sub(
+                                            secondReducedAccruedYield,
+                                        ),
+                                    },
+                                };
+                                expect(expectedNewDD.accrued).to.be.lt(expectedNewDD.committed);
+                                await testMakePrincipalPayment(
+                                    secondPaymentDate,
+                                    secondPaymentAmount,
+                                    secondPaymentAmount,
+                                    nextDueDate,
+                                    BN.from(0),
+                                    secondPaymentAmount,
+                                    expectedNewCR,
+                                    expectedNewDD,
+                                );
+
+                                // Third payment is a no-op since the principal has already been paid off.
+                                const thirdPaymentDate = secondPaymentDate
+                                    .clone()
+                                    .add(16, "hours");
+                                const thirdPaymentAmount = toToken(10_000);
+                                await testMakePrincipalPayment(
+                                    thirdPaymentDate,
+                                    thirdPaymentAmount,
+                                    BN.from(0),
+                                    nextDueDate,
+                                    BN.from(0),
+                                    BN.from(0),
+                                    expectedNewCR,
+                                    expectedNewDD,
+                                );
+                            });
+                        });
+
+                        describe("If the accrued yield is always higher than the committed yield", function () {
+                            async function prepareForMakePayment() {
+                                principalRateInBps = 0;
+                                await poolConfigContract.connect(poolOwner).setFeeStructure({
+                                    yieldInBps,
+                                    minPrincipalRateInBps: principalRateInBps,
+                                    lateFeeBps,
+                                });
+                                await approveCredit(toToken(10_000));
+                                await drawdown();
+                                const cr = await creditContract.getCreditRecord(creditHash);
+                                await payYieldDue(cr.yieldDue);
+                            }
+
+                            beforeEach(async function () {
+                                await loadFixture(prepareForMakePayment);
+                            });
+
+                            it("Should allow the borrower to pay for the unbilled principal once in the current billing cycle", async function () {
+                                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                                const cr = await creditContract.getCreditRecord(creditHash);
+                                const dd = await creditContract.getDueDetail(creditHash);
+                                expect(dd.accrued).to.be.gt(dd.committed);
+                                expect(dd.paid).to.eq(dd.accrued);
+
+                                makePaymentDate = drawdownDate
+                                    .clone()
+                                    .add(2, "days")
+                                    .add(22, "hours")
+                                    .add(14, "seconds");
+                                const nextDueDate = firstDueDate;
+
+                                const paymentAmount = toToken(10_000);
+                                const startDateOfNextPeriod =
+                                    await calendarContract.getStartDateOfNextPeriod(
+                                        cc.periodDuration,
+                                        makePaymentDate.unix(),
+                                    );
+                                const daysRemaining = await calendarContract.getDaysDiff(
+                                    makePaymentDate.unix(),
+                                    startDateOfNextPeriod,
+                                );
+                                const reducedAccruedYield = calcYield(
+                                    paymentAmount,
+                                    yieldInBps,
+                                    daysRemaining.toNumber(),
+                                );
+                                const expectedNewCR = {
+                                    unbilledPrincipal: borrowAmount.sub(paymentAmount),
+                                    nextDueDate: nextDueDate.unix(),
+                                    nextDue: 0,
+                                    yieldDue: 0,
+                                    totalPastDue: BN.from(0),
+                                    missedPeriods: 0,
+                                    remainingPeriods: cr.remainingPeriods,
+                                    state: CreditState.GoodStanding,
+                                };
+                                const expectedNewDD = {
+                                    lateFeeUpdatedDate: BN.from(0),
+                                    lateFee: BN.from(0),
+                                    principalPastDue: BN.from(0),
+                                    yieldPastDue: BN.from(0),
+                                    committed: dd.committed,
+                                    accrued: dd.accrued.sub(reducedAccruedYield),
+                                    paid: dd.paid,
+                                };
+                                expect(expectedNewDD.accrued).to.be.gt(expectedNewDD.committed);
+                                await testMakePrincipalPayment(
+                                    makePaymentDate,
+                                    paymentAmount,
+                                    paymentAmount,
+                                    nextDueDate,
+                                    BN.from(0),
+                                    paymentAmount,
+                                    expectedNewCR,
+                                    expectedNewDD,
+                                );
+                            });
+
+                            it("Should allow the borrower to make multiple payments for the unbilled principal within the same period", async function () {
+                                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                                const cr = await creditContract.getCreditRecord(creditHash);
+                                const dd = await creditContract.getDueDetail(creditHash);
+                                expect(dd.accrued).to.be.gt(dd.committed);
+                                expect(dd.paid).to.eq(dd.accrued);
+
+                                makePaymentDate = drawdownDate
+                                    .clone()
+                                    .add(2, "days")
+                                    .add(22, "hours")
+                                    .add(14, "seconds");
+                                const nextDueDate = firstDueDate;
+                                const firstPaymentAmount = toToken(20_000);
+                                const startDateOfNextPeriod =
+                                    await calendarContract.getStartDateOfNextPeriod(
+                                        cc.periodDuration,
+                                        makePaymentDate.unix(),
+                                    );
+                                const daysRemaining = await calendarContract.getDaysDiff(
+                                    makePaymentDate.unix(),
+                                    startDateOfNextPeriod,
+                                );
+                                const reducedAccruedYield = calcYield(
+                                    firstPaymentAmount,
+                                    yieldInBps,
+                                    daysRemaining.toNumber(),
+                                );
+                                let expectedNewCR = {
+                                    unbilledPrincipal: borrowAmount.sub(firstPaymentAmount),
+                                    nextDueDate: nextDueDate.unix(),
+                                    nextDue: 0,
+                                    yieldDue: 0,
+                                    totalPastDue: BN.from(0),
+                                    missedPeriods: 0,
+                                    remainingPeriods: cr.remainingPeriods,
+                                    state: CreditState.GoodStanding,
+                                };
+                                let expectedNewDD = {
+                                    ...dd,
+                                    ...{
+                                        accrued: dd.accrued.sub(reducedAccruedYield),
+                                    },
+                                };
+                                expect(expectedNewDD.accrued).to.be.gt(expectedNewDD.committed);
+                                await testMakePrincipalPayment(
+                                    makePaymentDate,
+                                    firstPaymentAmount,
+                                    firstPaymentAmount,
+                                    firstDueDate,
+                                    BN.from(0),
+                                    firstPaymentAmount,
+                                    expectedNewCR,
+                                    expectedNewDD,
+                                );
+
+                                const secondPaymentDate = makePaymentDate.clone().add(1, "day");
+                                const secondPaymentAmount = toToken(20_000);
+                                const secondDaysRemaining = await calendarContract.getDaysDiff(
+                                    secondPaymentDate.unix(),
+                                    startDateOfNextPeriod,
+                                );
+                                const secondReducedAccruedYield = calcYield(
+                                    secondPaymentAmount,
+                                    yieldInBps,
+                                    secondDaysRemaining.toNumber(),
+                                );
+                                expectedNewCR = {
+                                    unbilledPrincipal:
+                                        expectedNewCR.unbilledPrincipal.sub(secondPaymentAmount),
+                                    nextDueDate: nextDueDate.unix(),
+                                    nextDue: 0,
+                                    yieldDue: 0,
+                                    totalPastDue: BN.from(0),
+                                    missedPeriods: 0,
+                                    remainingPeriods: cr.remainingPeriods,
+                                    state: CreditState.GoodStanding,
+                                };
+                                expectedNewDD = {
+                                    ...expectedNewDD,
+                                    ...{
+                                        accrued: expectedNewDD.accrued.sub(
+                                            secondReducedAccruedYield,
+                                        ),
+                                    },
+                                };
+                                expect(expectedNewDD.accrued).to.be.gt(expectedNewDD.committed);
+                                await testMakePrincipalPayment(
+                                    secondPaymentDate,
+                                    secondPaymentAmount,
+                                    secondPaymentAmount,
+                                    nextDueDate,
+                                    BN.from(0),
+                                    secondPaymentAmount,
+                                    expectedNewCR,
+                                    expectedNewDD,
+                                );
+                            });
+                        });
+
+                        describe("If the accrued yield was higher than the committed yield before payment, but becomes lower afterwards", function () {
+                            async function prepareForMakePayment() {
+                                principalRateInBps = 0;
+                                await poolConfigContract.connect(poolOwner).setFeeStructure({
+                                    yieldInBps,
+                                    minPrincipalRateInBps: principalRateInBps,
+                                    lateFeeBps,
+                                });
+                                await approveCredit(toToken(40_000));
+                                await drawdown();
+                                const cr = await creditContract.getCreditRecord(creditHash);
+                                await payYieldDue(cr.yieldDue);
+                            }
+
+                            beforeEach(async function () {
+                                await loadFixture(prepareForMakePayment);
+                            });
+
+                            it("Should allow the borrower to pay for the unbilled principal once in the current billing cycle", async function () {
+                                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                                const cr = await creditContract.getCreditRecord(creditHash);
+                                const dd = await creditContract.getDueDetail(creditHash);
+                                expect(dd.accrued).to.be.gt(dd.committed);
+                                expect(dd.paid).to.eq(dd.accrued);
+
+                                makePaymentDate = drawdownDate
+                                    .clone()
+                                    .add(2, "days")
+                                    .add(22, "hours")
+                                    .add(14, "seconds");
+                                const nextDueDate = firstDueDate;
+
+                                const paymentAmount = toToken(20_000);
+                                const startDateOfNextPeriod =
+                                    await calendarContract.getStartDateOfNextPeriod(
+                                        cc.periodDuration,
+                                        makePaymentDate.unix(),
+                                    );
+                                const daysRemaining = await calendarContract.getDaysDiff(
+                                    makePaymentDate.unix(),
+                                    startDateOfNextPeriod,
+                                );
+                                const reducedAccruedYield = calcYield(
+                                    paymentAmount,
+                                    yieldInBps,
+                                    daysRemaining.toNumber(),
+                                );
+                                const expectedNewCR = {
+                                    unbilledPrincipal: borrowAmount.sub(paymentAmount),
+                                    nextDueDate: nextDueDate.unix(),
+                                    nextDue: 0,
+                                    yieldDue: 0,
+                                    totalPastDue: BN.from(0),
+                                    missedPeriods: 0,
+                                    remainingPeriods: cr.remainingPeriods,
+                                    state: CreditState.GoodStanding,
+                                };
+                                const expectedNewDD = {
+                                    lateFeeUpdatedDate: BN.from(0),
+                                    lateFee: BN.from(0),
+                                    principalPastDue: BN.from(0),
+                                    yieldPastDue: BN.from(0),
+                                    committed: dd.committed,
+                                    accrued: dd.accrued.sub(reducedAccruedYield),
+                                    paid: dd.paid,
+                                };
+                                expect(expectedNewDD.accrued).to.be.lt(expectedNewDD.committed);
+                                await testMakePrincipalPayment(
+                                    makePaymentDate,
+                                    paymentAmount,
+                                    paymentAmount,
+                                    nextDueDate,
+                                    BN.from(0),
+                                    paymentAmount,
+                                    expectedNewCR,
+                                    expectedNewDD,
+                                );
+                            });
+
+                            it("Should allow the borrower to make multiple payments for the unbilled principal within the same period", async function () {
+                                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                                const cr = await creditContract.getCreditRecord(creditHash);
+                                const dd = await creditContract.getDueDetail(creditHash);
+                                expect(dd.accrued).to.be.gt(dd.committed);
+                                expect(dd.paid).to.eq(dd.accrued);
+
+                                makePaymentDate = drawdownDate
+                                    .clone()
+                                    .add(2, "days")
+                                    .add(22, "hours")
+                                    .add(14, "seconds");
+                                const nextDueDate = firstDueDate;
+                                const firstPaymentAmount = toToken(10_000);
+                                const startDateOfNextPeriod =
+                                    await calendarContract.getStartDateOfNextPeriod(
+                                        cc.periodDuration,
+                                        makePaymentDate.unix(),
+                                    );
+                                const daysRemaining = await calendarContract.getDaysDiff(
+                                    makePaymentDate.unix(),
+                                    startDateOfNextPeriod,
+                                );
+                                const reducedAccruedYield = calcYield(
+                                    firstPaymentAmount,
+                                    yieldInBps,
+                                    daysRemaining.toNumber(),
+                                );
+                                let expectedNewCR = {
+                                    unbilledPrincipal: borrowAmount.sub(firstPaymentAmount),
+                                    nextDueDate: nextDueDate.unix(),
+                                    nextDue: 0,
+                                    yieldDue: 0,
+                                    totalPastDue: BN.from(0),
+                                    missedPeriods: 0,
+                                    remainingPeriods: cr.remainingPeriods,
+                                    state: CreditState.GoodStanding,
+                                };
+                                let expectedNewDD = {
+                                    ...dd,
+                                    ...{
+                                        accrued: dd.accrued.sub(reducedAccruedYield),
+                                    },
+                                };
+                                expect(expectedNewDD.accrued).to.be.gt(expectedNewDD.committed);
+                                await testMakePrincipalPayment(
+                                    makePaymentDate,
+                                    firstPaymentAmount,
+                                    firstPaymentAmount,
+                                    firstDueDate,
+                                    BN.from(0),
+                                    firstPaymentAmount,
+                                    expectedNewCR,
+                                    expectedNewDD,
+                                );
+
+                                const secondPaymentDate = makePaymentDate.clone().add(1, "day");
+                                const secondPaymentAmount = toToken(20_000);
+                                const secondDaysRemaining = await calendarContract.getDaysDiff(
+                                    secondPaymentDate.unix(),
+                                    startDateOfNextPeriod,
+                                );
+                                const secondReducedAccruedYield = calcYield(
+                                    secondPaymentAmount,
+                                    yieldInBps,
+                                    secondDaysRemaining.toNumber(),
+                                );
+                                expectedNewCR = {
+                                    unbilledPrincipal:
+                                        expectedNewCR.unbilledPrincipal.sub(secondPaymentAmount),
+                                    nextDueDate: nextDueDate.unix(),
+                                    nextDue: 0,
+                                    yieldDue: 0,
+                                    totalPastDue: BN.from(0),
+                                    missedPeriods: 0,
+                                    remainingPeriods: cr.remainingPeriods,
+                                    state: CreditState.GoodStanding,
+                                };
+                                expectedNewDD = {
+                                    ...expectedNewDD,
+                                    ...{
+                                        accrued: expectedNewDD.accrued.sub(
+                                            secondReducedAccruedYield,
+                                        ),
+                                    },
+                                };
+                                expect(expectedNewDD.accrued).to.be.lt(expectedNewDD.committed);
+                                await testMakePrincipalPayment(
+                                    secondPaymentDate,
+                                    secondPaymentAmount,
+                                    secondPaymentAmount,
+                                    nextDueDate,
+                                    BN.from(0),
+                                    secondPaymentAmount,
+                                    expectedNewCR,
+                                    expectedNewDD,
+                                );
+                            });
+                        });
+                    });
+
+                    describe("If the yield due has been partially paid", function () {
+                        let yieldPaymentAmount: BN;
+
+                        describe("If the accrued yield is always lower than the committed yield", function () {
+                            async function prepareForMakePayment() {
+                                principalRateInBps = 0;
+                                await poolConfigContract.connect(poolOwner).setFeeStructure({
+                                    yieldInBps,
+                                    minPrincipalRateInBps: principalRateInBps,
+                                    lateFeeBps,
+                                });
+                                await approveCredit();
+                                await drawdown();
+
+                                yieldPaymentAmount = toToken(10);
+                                await payYieldDue(yieldPaymentAmount);
+                            }
+
+                            beforeEach(async function () {
+                                await loadFixture(prepareForMakePayment);
+                            });
+
+                            it("Should allow the borrower to pay for the unbilled principal once in the current billing cycle", async function () {
+                                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                                const cr = await creditContract.getCreditRecord(creditHash);
+                                const dd = await creditContract.getDueDetail(creditHash);
+                                expect(dd.accrued).to.be.lt(dd.committed);
+                                expect(dd.paid).to.be.lt(dd.committed);
+
+                                makePaymentDate = drawdownDate
+                                    .clone()
+                                    .add(2, "days")
+                                    .add(22, "hours")
+                                    .add(14, "seconds");
+                                const nextDueDate = firstDueDate;
+                                const expectedNewCR = {
+                                    unbilledPrincipal: 0,
+                                    nextDueDate: nextDueDate.unix(),
+                                    nextDue: cr.nextDue,
+                                    yieldDue: cr.yieldDue,
+                                    totalPastDue: BN.from(0),
+                                    missedPeriods: 0,
+                                    remainingPeriods: cr.remainingPeriods,
+                                    state: CreditState.GoodStanding,
+                                };
+                                const startDateOfNextPeriod =
+                                    await calendarContract.getStartDateOfNextPeriod(
+                                        cc.periodDuration,
+                                        makePaymentDate.unix(),
+                                    );
+                                const daysRemaining = await calendarContract.getDaysDiff(
+                                    makePaymentDate.unix(),
+                                    startDateOfNextPeriod,
+                                );
+                                const reducedAccruedYield = calcYield(
+                                    borrowAmount,
+                                    yieldInBps,
+                                    daysRemaining.toNumber(),
+                                );
+                                const expectedNewDD = {
+                                    lateFeeUpdatedDate: BN.from(0),
+                                    lateFee: BN.from(0),
+                                    principalPastDue: BN.from(0),
+                                    yieldPastDue: BN.from(0),
+                                    committed: dd.committed,
+                                    accrued: dd.accrued.sub(reducedAccruedYield),
+                                    paid: dd.paid,
+                                };
+                                expect(expectedNewDD.accrued).to.be.lt(expectedNewDD.committed);
+                                await testMakePrincipalPayment(
+                                    makePaymentDate,
+                                    borrowAmount,
+                                    borrowAmount,
+                                    nextDueDate,
+                                    BN.from(0),
+                                    borrowAmount,
+                                    expectedNewCR,
+                                    expectedNewDD,
+                                );
+                            });
+                        });
+
+                        describe("If the accrued yield is always higher than the committed yield", function () {
+                            async function prepareForMakePayment() {
+                                principalRateInBps = 0;
+                                await poolConfigContract.connect(poolOwner).setFeeStructure({
+                                    yieldInBps,
+                                    minPrincipalRateInBps: principalRateInBps,
+                                    lateFeeBps,
+                                });
+                                await approveCredit(toToken(10_000));
+                                await drawdown();
+
+                                yieldPaymentAmount = toToken(10);
+                                await payYieldDue(yieldPaymentAmount);
+                            }
+
+                            beforeEach(async function () {
+                                await loadFixture(prepareForMakePayment);
+                            });
+
+                            it("Should allow the borrower to pay for the unbilled principal once in the current billing cycle", async function () {
+                                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                                const cr = await creditContract.getCreditRecord(creditHash);
+                                const dd = await creditContract.getDueDetail(creditHash);
+                                expect(dd.accrued).to.be.gt(dd.committed);
+                                expect(dd.paid).to.be.lt(dd.accrued);
+
+                                makePaymentDate = drawdownDate
+                                    .clone()
+                                    .add(2, "days")
+                                    .add(22, "hours")
+                                    .add(14, "seconds");
+                                const nextDueDate = firstDueDate;
+
+                                const paymentAmount = toToken(10_000);
+                                const startDateOfNextPeriod =
+                                    await calendarContract.getStartDateOfNextPeriod(
+                                        cc.periodDuration,
+                                        makePaymentDate.unix(),
+                                    );
+                                const daysRemaining = await calendarContract.getDaysDiff(
+                                    makePaymentDate.unix(),
+                                    startDateOfNextPeriod,
+                                );
+                                const reducedAccruedYield = calcYield(
+                                    paymentAmount,
+                                    yieldInBps,
+                                    daysRemaining.toNumber(),
+                                );
+                                const expectedNewCR = {
+                                    unbilledPrincipal: borrowAmount.sub(paymentAmount),
+                                    nextDueDate: nextDueDate.unix(),
+                                    nextDue: cr.nextDue.sub(reducedAccruedYield),
+                                    yieldDue: cr.yieldDue.sub(reducedAccruedYield),
+                                    totalPastDue: BN.from(0),
+                                    missedPeriods: 0,
+                                    remainingPeriods: cr.remainingPeriods,
+                                    state: CreditState.GoodStanding,
+                                };
+                                const expectedNewDD = {
+                                    lateFeeUpdatedDate: BN.from(0),
+                                    lateFee: BN.from(0),
+                                    principalPastDue: BN.from(0),
+                                    yieldPastDue: BN.from(0),
+                                    committed: dd.committed,
+                                    accrued: dd.accrued.sub(reducedAccruedYield),
+                                    paid: dd.paid,
+                                };
+                                expect(expectedNewDD.accrued).to.be.gt(expectedNewDD.committed);
+                                await testMakePrincipalPayment(
+                                    makePaymentDate,
+                                    paymentAmount,
+                                    paymentAmount,
+                                    nextDueDate,
+                                    BN.from(0),
+                                    paymentAmount,
+                                    expectedNewCR,
+                                    expectedNewDD,
+                                );
+                            });
+                        });
+
+                        describe("If the accrued yield was higher than the committed yield before payment, but becomes lower afterwards", function () {
+                            async function prepareForMakePayment() {
+                                principalRateInBps = 0;
+                                await poolConfigContract.connect(poolOwner).setFeeStructure({
+                                    yieldInBps,
+                                    minPrincipalRateInBps: principalRateInBps,
+                                    lateFeeBps,
+                                });
+                                await approveCredit(toToken(40_000));
+                                await drawdown();
+
+                                yieldPaymentAmount = toToken(10);
+                                await payYieldDue(yieldPaymentAmount);
+                            }
+
+                            beforeEach(async function () {
+                                await loadFixture(prepareForMakePayment);
+                            });
+
+                            it("Should allow the borrower to pay for the unbilled principal once in the current billing cycle", async function () {
+                                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                                const cr = await creditContract.getCreditRecord(creditHash);
+                                const dd = await creditContract.getDueDetail(creditHash);
+                                expect(dd.accrued).to.be.gt(dd.committed);
+                                expect(dd.paid).to.be.lt(dd.accrued);
+
+                                makePaymentDate = drawdownDate
+                                    .clone()
+                                    .add(2, "days")
+                                    .add(22, "hours")
+                                    .add(14, "seconds");
+                                const nextDueDate = firstDueDate;
+
+                                const paymentAmount = toToken(20_000);
+                                const startDateOfNextPeriod =
+                                    await calendarContract.getStartDateOfNextPeriod(
+                                        cc.periodDuration,
+                                        makePaymentDate.unix(),
+                                    );
+                                const daysRemaining = await calendarContract.getDaysDiff(
+                                    makePaymentDate.unix(),
+                                    startDateOfNextPeriod,
+                                );
+                                const reducedAccruedYield = calcYield(
+                                    paymentAmount,
+                                    yieldInBps,
+                                    daysRemaining.toNumber(),
+                                );
+                                const expectedNewCR = {
+                                    unbilledPrincipal: borrowAmount.sub(paymentAmount),
+                                    nextDueDate: nextDueDate.unix(),
+                                    nextDue: dd.committed.sub(dd.paid),
+                                    yieldDue: dd.committed.sub(dd.paid),
+                                    totalPastDue: BN.from(0),
+                                    missedPeriods: 0,
+                                    remainingPeriods: cr.remainingPeriods,
+                                    state: CreditState.GoodStanding,
+                                };
+                                const expectedNewDD = {
+                                    lateFeeUpdatedDate: BN.from(0),
+                                    lateFee: BN.from(0),
+                                    principalPastDue: BN.from(0),
+                                    yieldPastDue: BN.from(0),
+                                    committed: dd.committed,
+                                    accrued: dd.accrued.sub(reducedAccruedYield),
+                                    paid: dd.paid,
+                                };
+                                expect(expectedNewDD.accrued).to.be.lt(expectedNewDD.committed);
+                                await testMakePrincipalPayment(
+                                    makePaymentDate,
+                                    paymentAmount,
+                                    paymentAmount,
+                                    nextDueDate,
+                                    BN.from(0),
+                                    paymentAmount,
+                                    expectedNewCR,
+                                    expectedNewDD,
+                                );
+                            });
+                        });
+                    });
+                });
+
+                describe("If yieldInBps is adjusted higher after drawdown but before payment", function () {
+                    let newYieldInBps: BN;
+
+                    async function prepareForMakePayment() {
+                        newYieldInBps = CONSTANTS.BP_FACTOR;
+                        principalRateInBps = 0;
+                        await poolConfigContract.connect(poolOwner).setFeeStructure({
+                            yieldInBps,
+                            minPrincipalRateInBps: principalRateInBps,
+                            lateFeeBps,
+                        });
+                        await approveCredit(toToken(10_000));
+                        await drawdown();
+                        await creditManagerContract
+                            .connect(evaluationAgent)
+                            .updateYield(borrower.getAddress(), newYieldInBps);
+                    }
+
+                    beforeEach(async function () {
+                        await loadFixture(prepareForMakePayment);
+                    });
+
+                    it("Should reset the accrued yield using the new yieldInBps", async function () {
+                        const cc = await creditManagerContract.getCreditConfig(creditHash);
+                        const cr = await creditContract.getCreditRecord(creditHash);
+                        const dd = await creditContract.getDueDetail(creditHash);
+                        expect(dd.accrued).to.be.gt(dd.committed);
+
+                        makePaymentDate = drawdownDate
+                            .clone()
+                            .add(2, "days")
+                            .add(22, "hours")
+                            .add(14, "seconds");
+                        const nextDueDate = firstDueDate;
+
+                        const paymentAmount = borrowAmount;
+                        const startDateOfNextPeriod =
+                            await calendarContract.getStartDateOfNextPeriod(
+                                cc.periodDuration,
+                                makePaymentDate.unix(),
+                            );
+                        const daysRemaining = await calendarContract.getDaysDiff(
+                            makePaymentDate.unix(),
+                            startDateOfNextPeriod,
+                        );
+                        const reducedAccruedYield = calcYield(
+                            paymentAmount,
+                            newYieldInBps,
+                            daysRemaining.toNumber(),
+                        );
+                        expect(reducedAccruedYield).to.be.gt(dd.accrued);
+                        const expectedNewCR = {
+                            unbilledPrincipal: borrowAmount.sub(paymentAmount),
+                            nextDueDate: nextDueDate.unix(),
+                            nextDue: cr.nextDue.sub(cr.yieldDue).add(dd.committed),
+                            yieldDue: dd.committed,
+                            totalPastDue: BN.from(0),
+                            missedPeriods: 0,
+                            remainingPeriods: cr.remainingPeriods,
+                            state: CreditState.GoodStanding,
+                        };
+                        const expectedNewDD = {
+                            lateFeeUpdatedDate: BN.from(0),
+                            lateFee: BN.from(0),
+                            principalPastDue: BN.from(0),
+                            yieldPastDue: BN.from(0),
+                            committed: dd.committed,
+                            accrued: 0,
+                            paid: dd.paid,
+                        };
+                        expect(expectedNewDD.accrued).to.be.lt(expectedNewDD.committed);
+                        await testMakePrincipalPayment(
+                            makePaymentDate,
+                            paymentAmount,
+                            paymentAmount,
+                            nextDueDate,
+                            BN.from(0),
+                            paymentAmount,
+                            expectedNewCR,
+                            expectedNewDD,
+                        );
+                    });
                 });
             });
 
@@ -7950,6 +9374,19 @@ describe("CreditLine Test", function () {
                         latePaymentGracePeriodInDays,
                         principalRateInBps,
                     );
+                    const startDateOfNextPeriod = await calendarContract.getStartDateOfNextPeriod(
+                        cc.periodDuration,
+                        makePaymentDate.unix(),
+                    );
+                    const daysRemaining = await calendarContract.getDaysDiff(
+                        makePaymentDate.unix(),
+                        startDateOfNextPeriod,
+                    );
+                    const reducedAccruedYield = calcYield(
+                        borrowAmount,
+                        yieldInBps,
+                        daysRemaining.toNumber(),
+                    );
                     const expectedNewCR = {
                         unbilledPrincipal: BN.from(0),
                         nextDueDate: nextDueDate.unix(),
@@ -7960,6 +9397,12 @@ describe("CreditLine Test", function () {
                         remainingPeriods: cr.remainingPeriods,
                         state: CreditState.GoodStanding,
                     };
+                    const expectedNewDD = {
+                        ...dd,
+                        ...{
+                            accrued: dd.accrued.sub(reducedAccruedYield),
+                        },
+                    };
                     await testMakePrincipalPayment(
                         makePaymentDate,
                         borrowAmount,
@@ -7968,7 +9411,7 @@ describe("CreditLine Test", function () {
                         principalNextDue,
                         borrowAmount.sub(principalNextDue),
                         expectedNewCR,
-                        dd,
+                        expectedNewDD,
                     );
                 });
 
@@ -8004,6 +9447,19 @@ describe("CreditLine Test", function () {
                     // Leave 1 wei unpaid to test partial payment.
                     const firstPaymentDiff = toToken(1);
                     const firstPaymentAmount = principalNextDue.sub(firstPaymentDiff);
+                    const startDateOfNextPeriod = await calendarContract.getStartDateOfNextPeriod(
+                        cc.periodDuration,
+                        makePaymentDate.unix(),
+                    );
+                    const daysRemaining = await calendarContract.getDaysDiff(
+                        makePaymentDate.unix(),
+                        startDateOfNextPeriod,
+                    );
+                    const reducedAccruedYield = calcYield(
+                        firstPaymentAmount,
+                        yieldInBps,
+                        daysRemaining.toNumber(),
+                    );
                     let expectedNewCR = {
                         unbilledPrincipal: cr.unbilledPrincipal,
                         nextDueDate: nextDueDate.unix(),
@@ -8014,6 +9470,12 @@ describe("CreditLine Test", function () {
                         remainingPeriods: cr.remainingPeriods,
                         state: CreditState.GoodStanding,
                     };
+                    let expectedNewDD = {
+                        ...dd,
+                        ...{
+                            accrued: dd.accrued.sub(reducedAccruedYield),
+                        },
+                    };
                     await testMakePrincipalPayment(
                         makePaymentDate,
                         firstPaymentAmount,
@@ -8022,13 +9484,22 @@ describe("CreditLine Test", function () {
                         firstPaymentAmount,
                         BN.from(0),
                         expectedNewCR,
-                        dd,
+                        expectedNewDD,
                     );
 
                     // Second payment pays off the unbilled principal.
                     const secondPaymentDate = makePaymentDate.clone().add(1, "day");
                     // Attempt to pay the entire borrow amount, but only unbilled principal should be charged.
                     const secondPaymentAmount = borrowAmount;
+                    const secondDaysRemaining = await calendarContract.getDaysDiff(
+                        secondPaymentDate.unix(),
+                        startDateOfNextPeriod,
+                    );
+                    const secondReducedAccruedYield = calcYield(
+                        unbilledPrincipal.add(firstPaymentDiff),
+                        yieldInBps,
+                        secondDaysRemaining.toNumber(),
+                    );
                     expectedNewCR = {
                         unbilledPrincipal: BN.from(0),
                         nextDueDate: nextDueDate.unix(),
@@ -8039,6 +9510,12 @@ describe("CreditLine Test", function () {
                         remainingPeriods: cr.remainingPeriods,
                         state: CreditState.GoodStanding,
                     };
+                    expectedNewDD = {
+                        ...expectedNewDD,
+                        ...{
+                            accrued: expectedNewDD.accrued.sub(secondReducedAccruedYield),
+                        },
+                    };
                     await testMakePrincipalPayment(
                         secondPaymentDate,
                         secondPaymentAmount,
@@ -8047,7 +9524,7 @@ describe("CreditLine Test", function () {
                         firstPaymentDiff,
                         unbilledPrincipal,
                         expectedNewCR,
-                        dd,
+                        expectedNewDD,
                     );
                 });
 
@@ -8073,17 +9550,16 @@ describe("CreditLine Test", function () {
                         makePaymentDate,
                         latePaymentGracePeriodInDays,
                     );
-                    const [unbilledPrincipal, principalPastDue, principalNextDue] =
-                        await calcPrincipalDueNew(
-                            calendarContract,
-                            cc,
-                            cr,
-                            dd,
-                            makePaymentDate,
-                            maturityDate,
-                            latePaymentGracePeriodInDays,
-                            principalRateInBps,
-                        );
+                    const [, principalPastDue, principalNextDue] = await calcPrincipalDueNew(
+                        calendarContract,
+                        cc,
+                        cr,
+                        dd,
+                        makePaymentDate,
+                        maturityDate,
+                        latePaymentGracePeriodInDays,
+                        principalRateInBps,
+                    );
                     const [, lateFee] = await calcLateFeeNew(
                         poolConfigContract,
                         calendarContract,
@@ -8105,6 +9581,19 @@ describe("CreditLine Test", function () {
                     const secondPaymentDate = makePaymentDate.clone().add(1, "day");
                     const nextDueDate = maturityDate;
                     const secondPaymentAmount = principalNextDue;
+                    const startDateOfNextPeriod = await calendarContract.getStartDateOfNextPeriod(
+                        cc.periodDuration,
+                        makePaymentDate.unix(),
+                    );
+                    const secondDaysRemaining = await calendarContract.getDaysDiff(
+                        secondPaymentDate.unix(),
+                        startDateOfNextPeriod,
+                    );
+                    const secondReducedAccruedYield = calcYield(
+                        secondPaymentAmount,
+                        yieldInBps,
+                        secondDaysRemaining.toNumber(),
+                    );
                     dd = await creditContract.getDueDetail(creditHash);
                     let expectedNewCR = {
                         unbilledPrincipal: BN.from(0),
@@ -8116,6 +9605,12 @@ describe("CreditLine Test", function () {
                         remainingPeriods: 0,
                         state: CreditState.Deleted,
                     };
+                    const expectedNewDD = {
+                        ...dd,
+                        ...{
+                            accrued: dd.accrued.sub(secondReducedAccruedYield),
+                        },
+                    };
                     await testMakePrincipalPayment(
                         secondPaymentDate,
                         secondPaymentAmount,
@@ -8124,7 +9619,7 @@ describe("CreditLine Test", function () {
                         principalNextDue,
                         BN.from(0),
                         expectedNewCR,
-                        dd,
+                        expectedNewDD,
                     );
                     // Further payment attempts will be rejected.
                     await expect(
@@ -8579,6 +10074,9 @@ describe("CreditLine Test", function () {
                 const amount = toToken(1_000);
                 await creditContract.connect(borrower).drawdown(amount);
                 // Only pay back the total principal outstanding.
+                const currentTS = (await getLatestBlock()).timestamp;
+                const makePaymentDate = currentTS + 2 * CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(makePaymentDate);
                 const oldCR = await creditContract.getCreditRecord(creditHash);
                 const totalPrincipal = oldCR.nextDue
                     .sub(oldCR.yieldDue)
@@ -8601,6 +10099,9 @@ describe("CreditLine Test", function () {
                 const paymentAmount = oldCR.unbilledPrincipal.add(
                     oldCR.nextDue.sub(oldCR.yieldDue),
                 );
+                const currentTS = (await getLatestBlock()).timestamp;
+                const makePaymentDate = currentTS + 2 * CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(makePaymentDate);
                 await creditContract.connect(borrower).makePrincipalPayment(paymentAmount);
                 await creditManagerContract
                     .connect(evaluationAgent)
