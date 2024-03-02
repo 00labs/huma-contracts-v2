@@ -271,6 +271,8 @@ describe("Factory Test", function () {
         );
         await poolFactoryContract.setLPConfig(1, toToken(1_000_000), 4, 1000, 1000, 60);
         await poolFactoryContract.setFees(1, 0, 1000, 1500, 0, 100, 0, 0, 0, 0);
+        await poolFactoryContract.setPoolOwnerTreasury(1, poolOwnerTreasury.getAddress());
+        await poolFactoryContract.setPoolEvaluationAgent(1, evaluationAgent.getAddress());
         await poolFactoryContract.addPoolOperator(1, poolOperator.getAddress());
         await poolFactoryContract.updatePoolStatus(1, 1);
         await expect((await poolFactoryContract.checkPool(1)).poolStatus).to.equal(1);
