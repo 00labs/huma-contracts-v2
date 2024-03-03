@@ -1,0 +1,161 @@
+@startuml
+allowmixing
+
+rectangle "common" #line.dashed {
+  interface ICalendar
+  class HumaConfig
+  class PoolConfig
+  class PoolConfigCache
+}
+
+
+package credit <<Rectangle>> #line.dashed {
+  interface I_BL_CreditMgr
+  interface ICredit
+  interface ICredit_DM
+  interface ICreditLine
+  interface ICreditManager
+  interface IReceivable
+  interface I_RB_CL_Mgr
+  interface I_RF_Credit
+  interface I_RF_CreditFor
+  interface I_RL_CM
+
+  class BL_CreditMgr #back:aqua
+  abstract class Credit
+  class Credit_DM
+  class CreditLine #back:red
+  abstract class CreditManager
+  class CM_S <<storage>> #back:lightblue
+  class CreditStorage
+  class CreditStructs
+  class Receivable
+  class RB_CL #back:red
+  class RB_CL_Mgr #back:aqua
+  class RB_CL_Mgr_S <<storage>> #back:lightblue
+  class RF_Credit #back:red
+  class RL_CM #back:aqua
+  class ReceivableStorage <<storage>> #back:lightblue
+
+
+  BL_CreditMgr .up.|> I_BL_CreditMgr
+  BL_CreditMgr --|> CreditManager
+
+  Credit .up.|> ICredit
+  Credit -up-|> CreditStorage
+
+  Credit_DM .up.|> ICredit_DM
+
+  CreditLine ..|> ICreditLine
+  CreditLine -up-|> Credit
+
+  CreditManager ..|> ICreditManager 
+  CreditManager --|> CM_S
+
+
+  Receivable ..|> IReceivable
+  Receivable --|> ReceivableStorage
+  Receivable --|> ERC721Upgradable
+  
+  RB_CL -up-|> Credit
+
+  RB_CL_Mgr ..|> I_RB_CL_Mgr
+  RB_CL_Mgr --|> BL_CreditMgr
+  RB_CL_Mgr --|> RB_CL_Mgr_S
+
+  RF_Credit ..|> I_RF_Credit
+  RF_Credit ..|> I_RF_CreditFor
+  RF_Credit -up-|> Credit
+  RF_Credit -up-> IERC721
+
+  RL_CM -right-|> CreditManager
+
+  RL_CM ..|>I_RL_CM
+
+  Receivable <-up- RB_CL
+  Receivable <-up- RB_CL_Mgr
+
+  Credit -right-> CreditManager
+  Credit -up-> Credit_DM
+
+}
+
+
+
+
+package "liquidity" <<rectangle>> #line.dashed {
+  interface ITranchesPolicy
+  interface IEpochManager
+  interface IFLC
+  interface IPool
+  interface IPool_FM
+  interface IPoolSafe
+  interface IRedemptionHandler
+  class PoolSafe <<Stablecoin Safe>> #back:lightgreen
+  class Pool
+  class Pool_FM
+  class EpochManager
+  class BaseTranchesPolicy
+  class FixedSeniorYieldTranchesPolicy
+  class RiskAdjustedTranchesPolicy
+  class FLC #back:lightgreen
+  class TrancheVault #back:lightgreen
+  class FLC_S <<Storage>> #back:lightblue
+  class TV_S <<Storage>> #back:lightblue
+
+TrancheVault -left-> Pool
+EpochManager -right-> Pool
+TrancheVault <-up-> EpochManager
+Pool -right-> ITranchesPolicy
+Pool -down-> FLC
+Pool -down-> Pool_FM
+
+Pool --> PoolSafe 
+Pool .up.|> IPool
+EpochManager -down-> PoolSafe
+FLC -right-> PoolSafe
+TrancheVault --> PoolSafe
+Pool_FM --> PoolSafe
+
+BaseTranchesPolicy ..|> ITranchesPolicy
+FixedSeniorYieldTranchesPolicy --|> BaseTranchesPolicy
+RiskAdjustedTranchesPolicy --|> BaseTranchesPolicy
+EpochManager .up.|> IEpochManager
+
+FLC .up.|> IFLC
+FLC -down-|> FLC_S
+
+Pool_FM .right.|> IPool_FM
+
+PoolSafe .right.|> IPoolSafe
+
+TrancheVault ..|> IRedemptionHandler
+TrancheVault -left-|> TV_S
+}
+
+
+
+
+note as N1 
+  <b><font color="red"> Contracts in pink are different credit types</b>
+  <b><font color="aqua"> Contracts in aqua are different credit ana</b>
+  <b><font color="green"> Contracts in green holds tokens</b>
+  <b><font color="blue"> Contracts in blue have storage</b>
+
+  Abbreviation patterns used to smooth layout:
+  \tFLC:\tFirst Loss Cover
+  \tFM:\tFee Manager
+  \tTV:\tTrancheValue
+  \tCL\tCreditLine
+  \tCM\tCreditManager
+  \tRB\tReceivableBacked 
+  \tBL\tBorrowerLevel
+  \tRL\tReceivableLevel
+  \tS\tStorage
+end note
+
+credit -down-> common
+liquidity --> common
+credit <--> liquidity
+
+@enduml

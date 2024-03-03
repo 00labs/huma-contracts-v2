@@ -1,0 +1,46 @@
+@startuml
+Header First drawdown with Commitment Sequence Diagram
+
+actor Borrower
+Entity EvaluationAgent as EA
+participant CreditLine as CL
+participant CreditLineManager as CM
+Entity Autotask as A
+participant Pool as P
+participant PoolSafe as PS
+
+autonumber 100 10
+Borrower -> EA: Requests to open a credit line with commitment
+activate EA
+EA -> CM: `approveBorrower()`
+activate CM
+CM -> EA: Success
+deactivate CM
+EA -> Borrower: Success
+deactivate EA
+
+autonumber 200 10
+group If the credit line has a designated start date
+A -> CM: `startCommittedCredit()`
+activate CM
+CM -> A: Success
+deactivate CM
+end
+
+autonumber 300 10
+Borrower -> CL: `drawdown()`
+activate CL
+CL -> CL: Computes yield due\nfrom borrow amount and\ncommitted amount and\nuses the larger of the two
+CL -> CL: Computes principal due if any
+CL -> P: Calls `distributeProfit()` to distribute the front loading fees as profit
+activate P
+P -> CL: Success
+deactivate P
+CL -> PS: Calls `withdraw()` to transfer the net borrow amount to the borrower
+activate PS
+PS -> Borrower: `SafeERC20.safeTransfer()`
+deactivate PS
+CL -> Borrower: Success
+deactivate CL
+
+@enduml

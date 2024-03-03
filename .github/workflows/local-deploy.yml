@@ -1,0 +1,26 @@
+name: Local Deploy Tests
+
+on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize]
+    branches: ["main", "develop", "release*", "spearbit*"]
+
+jobs:
+  test-local-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: yarn install
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+      - name: Compile contracts
+        run: yarn compile
+      - name: Start yarn chain in the background
+        run: nohup yarn chain &
+      - name: Deploy contracts locally
+        run: yarn deploy-local
+      - name: Stop yarn chain
+        run: pkill -f "yarn chain" || true

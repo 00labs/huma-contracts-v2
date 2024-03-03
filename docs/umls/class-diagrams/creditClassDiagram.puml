@@ -1,0 +1,105 @@
+@startuml
+allowmixing
+
+rectangle "common" #line.dashed {
+  interface ICalendar
+  class Calendar
+  class HumaConfig
+  class PoolConfig
+  class PoolConfigCache
+  class EvaluationAgentNFT
+  class SharedDefs
+  ICalendar <|.. Calendar
+}
+
+
+package credit <<Rectangle>> #line.dashed {
+  interface I_CL_Mgr
+  interface ICredit
+  interface ICredit_DM
+  interface ICreditLine
+  interface ICreditManager
+  interface IReceivable
+  interface I_RB_CL_Mgr
+  interface I_RF_Credit
+  interface I_RP
+  interface I_RF_CM
+
+  class CL_Mgr #back:aqua
+  abstract class Credit
+  class Credit_DM
+  class CreditLine #back:lightpink
+  abstract class CreditManager
+  class CM_S <<storage>> #back:lightblue
+  class CreditStorage <<storage>> #back:lightblue
+  class CreditStructs
+  class Receivable
+  class RB_CL #back:lightpink
+  class RB_CL_Mgr #back:aqua
+  class RB_CL_Mgr_S <<storage>> #back:lightblue
+  class RF_Credit #back:lightpink
+  class RF_CM #back:aqua
+  class ReceivableStorage <<storage>> #back:lightblue
+
+
+CL_Mgr .up.|> I_CL_Mgr
+CL_Mgr --|> CreditManager
+
+Credit .up.|> ICredit
+Credit -up-|> CreditStorage
+
+Credit_DM .up.|> ICredit_DM
+
+CreditLine ..|> ICreditLine
+CreditLine -up-|> Credit
+
+CreditManager ..|> ICreditManager 
+CreditManager --|> CM_S
+
+
+Receivable ..|> IReceivable
+Receivable --|> ReceivableStorage
+Receivable --|> ERC721Upgradable
+  
+RB_CL -up-|> Credit
+
+RB_CL_Mgr ..|> I_RB_CL_Mgr
+RB_CL_Mgr --|> CL_Mgr
+RB_CL_Mgr --|> RB_CL_Mgr_S
+
+RF_Credit ..|> I_RF_Credit
+RF_Credit ..|> I_RP
+RF_Credit -up-|> Credit
+RF_Credit -up-> IERC721
+
+RF_CM -right-|> CreditManager
+
+RF_CM ..|>I_RF_CM
+
+Receivable <-up- RB_CL
+Receivable <-up- RB_CL_Mgr
+
+Credit -right-> CreditManager
+Credit -up-> Credit_DM
+
+}
+
+
+
+note as NoteCredit
+  <b><font color="green"> Contracts in pink are different credit types</b>
+  <b><font color="aqua"> Contracts in aqua are different credit ana</b>
+  <b><font color="blue"> Contracts in blue have storage</b>
+
+  Abbreviations:
+  CL\tCreditLine
+  CM\tCreditManager 
+  DM\tDueManager
+  RF\tReceivableFactoring
+  RB\tReceivableBacked
+  RP\tReceivablePayable
+  S\tStorage
+end note
+
+credit --> common
+@enduml
