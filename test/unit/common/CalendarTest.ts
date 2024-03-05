@@ -1165,15 +1165,15 @@ describe("Calendar Test", function () {
                 ).to.equal(0);
             });
 
-            it("Should return 0 if the end date is at the beginning of the next period but the start date is in the middle of a period", async function () {
+            it("Should return 1 if the end date is at the beginning of the next period but the start date is in the middle of a period", async function () {
                 const startDate = moment.utc({
                     year: 2024,
-                    month: 0,
-                    day: 1,
+                    month: 1,
+                    day: 15,
                 });
                 const endDate = moment.utc({
                     year: 2024,
-                    month: 2,
+                    month: 6,
                     day: 1,
                 });
                 expect(
@@ -1182,7 +1182,7 @@ describe("Calendar Test", function () {
                         startDate.unix(),
                         endDate.unix(),
                     ),
-                ).to.equal(0);
+                ).to.equal(1);
             });
 
             it("Should return 1 if both the start and end dates are on period boundaries", async function () {
