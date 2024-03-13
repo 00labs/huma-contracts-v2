@@ -9,7 +9,9 @@ async function redeemFromTranche(
 ): Promise<void> {
     const TrancheVault = await hre.ethers.getContractFactory("TrancheVault");
     const trancheVaultContract = TrancheVault.attach(trancheVaultContractAddr);
-    const disburseTx = await trancheVaultContract.connect(redemptionRequester).disburse();
+    const disburseTx = await trancheVaultContract
+        .connect(redemptionRequester)
+        .withdrawAfterPoolClosure();
     await disburseTx.wait();
 }
 
@@ -36,7 +38,7 @@ task(
         const juniorTranche = await poolConfigContract.juniorTranche();
         const seniorTranche = await poolConfigContract.seniorTranche();
 
-        // Submit redemption requests
+        // Redeem from tranches
         await redeemFromTranche(hre, juniorTranche, juniorLender);
         await redeemFromTranche(hre, juniorTranche, poolOwnerTreasury);
         await redeemFromTranche(hre, juniorTranche, evaluationAgent);

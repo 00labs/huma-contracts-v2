@@ -285,7 +285,6 @@ async function deployPool(
     console.log(`Borrower:           ${borrowerActive.address}`);
     console.log(`Sentinel Service:   ${sentinelServiceAccount.address}`);
     console.log(`Pool owner:         ${poolOwner.address}`);
-    console.log(`EA service:         ${eaServiceAccount.address}`);
 
     console.log("-------------------------------------");
     console.log("Addresses:");

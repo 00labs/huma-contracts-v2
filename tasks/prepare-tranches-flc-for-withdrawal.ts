@@ -96,7 +96,7 @@ task(
         // Set FLC ready to withdraw
         const Pool = await hre.ethers.getContractFactory("Pool");
         const poolContract = Pool.attach(await poolConfigContract.pool());
-        await poolContract.connect(poolOwner).setReadyForFirstLossCoverWithdrawal(true);
+        await poolContract.connect(poolOwner).closePool();
 
         await console.log("Withdrawing from FLC");
         await withdrawFromFLC(borrowerFirstLossCoverContract, borrowerActive);
