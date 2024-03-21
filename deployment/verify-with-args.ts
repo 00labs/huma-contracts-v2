@@ -1,5 +1,5 @@
 // TypeScript
-import { network, run } from "hardhat";
+import hre, { network, run } from "hardhat";
 import { getDeployedContracts } from "./deployUtils";
 async function verifyContract(): Promise<void> {
     const chainId = network.config.chainId!;
@@ -9,16 +9,25 @@ async function verifyContract(): Promise<void> {
     console.log(`ChainName: ${chainName}`);
     const deployedContracts = await getDeployedContracts(chainName);
 
-    const args: unknown[] = [
-        0,
-        ["0x60891b087E81Ee2a61B7606f68019ec112c539B9"],
-        ["0x60891b087E81Ee2a61B7606f68019ec112c539B9"],
-        "0x0000000000000000000000000000000000000000",
-    ];
+    // const args: unknown[] = [
+    //     0,
+    //     ["0x60891b087E81Ee2a61B7606f68019ec112c539B9"],
+    //     ["0x60891b087E81Ee2a61B7606f68019ec112c539B9"],
+    //     "0x0000000000000000000000000000000000000000",
+    // ];
+    const PoolFactory = await hre.ethers.getContractFactory("PoolFactory", {
+        libraries: { LibTimelockController: deployedContracts["LibTimelockController"] },
+    });
+    const poolFactoryImpl = PoolFactory.attach(deployedContracts["PoolFactoryImpl"]);
+    const fragment = await poolFactoryImpl.interface.getFunction("initialize(address)");
+    const calldata = await poolFactoryImpl.interface.encodeFunctionData(fragment, [
+        deployedContracts["HumaConfig"],
+    ]);
+    const args: unknown[] = ["0x077b618a91129435f5110915080c60eea078639f", calldata];
 
     // * only verify on testnets or mainnets.
     if (chainId != 31337 && process.env.ETHERSCAN_API_KEY) {
-        await verify("0xcb7C5e41DD9212c3C565633BF4878399B0496947", args);
+        await verify("0x3fD9e239390383C3766f059ad02d1dd82184F6Fa", args);
     }
 }
 
