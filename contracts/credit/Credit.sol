@@ -15,7 +15,6 @@ import {ICreditManager} from "./interfaces/ICreditManager.sol";
 import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
 import {BORROWER_LOSS_COVER_INDEX} from "../common/SharedDefs.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import "hardhat/console.sol";
 
 /**
  * @notice Credit is the core borrowing concept in Huma Protocol. This abstract contract operates at the
