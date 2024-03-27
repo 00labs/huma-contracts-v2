@@ -1,4 +1,4 @@
-import hre from "hardhat";
+import hre, { network } from "hardhat";
 import {
     getDeployedContracts,
     getInitilizedContract,
@@ -6,17 +6,17 @@ import {
     updateInitializedContract,
 } from "../deployUtils.ts";
 
-let deployer, eaService;
+let networkName;
+let deployer;
 let deployedContracts;
 const HUMA_TREASURY_ACCOUNT = "0x18A00C3cdb71491eF7c3b890f9df37CB5Ec11D2A";
-const EA_SERVICE_ACCOUNT = "0x18A00C3cdb71491eF7c3b890f9df37CB5Ec11D2A";
 const SENTINEL_ACCOUNT = "0xD8F15c96825e1724B18dd477583E0DcCE3DfF0b1";
 const contracts = [
-    // "PoolConfig",
-    // "PoolFeeManager",
-    // "PoolSafe",
-    // "FirstLossCover",
-    // "RiskAdjustedTranchesPolicy",
+    "PoolConfig",
+    "PoolFeeManager",
+    "PoolSafe",
+    "FirstLossCover",
+    "RiskAdjustedTranchesPolicy",
     "FixedSeniorYieldTranchesPolicy",
     "Pool",
     "EpochManager",
@@ -58,7 +58,7 @@ async function transferOwnershipToTL(contractName, contractKey, timeLockKey) {
 }
 
 async function initHumaConfig() {
-    const initilized = await getInitilizedContract("HumaConfig");
+    const initilized = await getInitilizedContract("HumaConfig", networkName);
     if (initilized) {
         console.log("HumaConfig is already initialized!");
         return;
@@ -68,10 +68,6 @@ async function initHumaConfig() {
         throw new Error("HumaConfig not deployed yet!");
     }
 
-    if (!deployedContracts["EANFT"]) {
-        throw new Error("EANFT not deployed yet!");
-    }
-
     if (!deployedContracts["MockToken"]) {
         throw new Error("MockToken not deployed yet!");
     }
@@ -79,16 +75,20 @@ async function initHumaConfig() {
     const HumaConfig = await hre.ethers.getContractFactory("HumaConfig");
     const humaConfig = HumaConfig.attach(deployedContracts["HumaConfig"]);
 
+    await sendTransaction("HumaConfig", humaConfig, "setHumaTreasury", [HUMA_TREASURY_ACCOUNT]);
+    await sendTransaction("HumaConfig", humaConfig, "setSentinelServiceAccount", [
+        SENTINEL_ACCOUNT,
+    ]);
     await sendTransaction("HumaConfig", humaConfig, "setLiquidityAsset", [
         deployedContracts["MockToken"],
     ]);
     // await transferOwnershipToTL("HumaConfig", "HumaConfig", "HumaConfigTimelock")
 
-    await updateInitializedContract("HumaConfig");
+    await updateInitializedContract("HumaConfig", networkName);
 }
 
 async function initPoolFactory() {
-    const initilized = await getInitilizedContract("PoolFactory");
+    const initilized = await getInitilizedContract("PoolFactory", networkName);
     if (initilized) {
         console.log("PoolFactory is already initialized!");
         return;
@@ -121,19 +121,19 @@ async function initPoolFactory() {
 
     // await transferOwnershipToTL("HumaConfig", "HumaConfig", "HumaConfigTimelock")
 
-    await updateInitializedContract("PoolFactory");
+    await updateInitializedContract("PoolFactory", networkName);
 }
 
 async function initContracts() {
-    // const network = (await hre.ethers.provider.getNetwork()).name;
-    const network = "localhost";
-    console.log("network : ", network);
+    // const networkName = (await hre.ethers.provider.getNetworkName()).name;
+    networkName = network.name;
+    console.log("networkName : ", networkName);
     const accounts = await hre.ethers.getSigners();
     [deployer] = await accounts;
     console.log("deployer address: " + deployer.address);
     // console.log("ea address: " + eaService.address);
 
-    deployedContracts = await getDeployedContracts(network);
+    deployedContracts = await getDeployedContracts(networkName);
     console.log(deployedContracts);
     await initHumaConfig();
     await initPoolFactory();

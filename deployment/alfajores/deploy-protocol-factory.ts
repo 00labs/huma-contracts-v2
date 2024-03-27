@@ -1,8 +1,9 @@
-import hre from "hardhat";
+import hre, { network } from "hardhat";
 import { deploy } from "../deployUtils.ts";
 
 const HUMA_OWNER_ADDRESS = "0x18A00C3cdb71491eF7c3b890f9df37CB5Ec11D2A";
 let deployer;
+let networkName;
 
 async function deployImplementationContracts() {
     const contracts = [
@@ -27,13 +28,17 @@ async function deployImplementationContracts() {
 
     for (var contractName of contracts) {
         console.log(contractName);
-        await deploy(contractName, `${contractName}Impl`);
+        await deploy(networkName, contractName, `${contractName}Impl`);
     }
 }
 
 async function deployFactory(humaConfigAddress) {
-    const libTimelockController = await deploy("LibTimelockController", "LibTimelockController");
-    const poolFactoryImpl = await deploy("PoolFactory", "PoolFactoryImpl", [], {
+    const libTimelockController = await deploy(
+        networkName,
+        "LibTimelockController",
+        "LibTimelockController",
+    );
+    const poolFactoryImpl = await deploy(networkName, "PoolFactory", "PoolFactoryImpl", [], {
         libraries: { LibTimelockController: libTimelockController.address },
     });
     console.log(humaConfigAddress);
@@ -41,14 +46,13 @@ async function deployFactory(humaConfigAddress) {
     const calldata = await poolFactoryImpl.interface.encodeFunctionData(fragment, [
         humaConfigAddress,
     ]);
-    await deploy("ERC1967Proxy", "PoolFactory", [poolFactoryImpl.address, calldata]);
+    await deploy(networkName, "ERC1967Proxy", "PoolFactory", [poolFactoryImpl.address, calldata]);
 }
 
 async function deployProtocolContracts() {
-    await deploy("EvaluationAgentNFT", "EANFT");
-    await deploy("Calendar", "Calendar");
-    const humaConfig = await deploy("HumaConfig", "HumaConfig");
-    await deploy("TimelockController", "HumaConfigTimelock", [
+    await deploy(networkName, "Calendar", "Calendar");
+    const humaConfig = await deploy(networkName, "HumaConfig", "HumaConfig");
+    await deploy(networkName, "TimelockController", "HumaConfigTimelock", [
         0,
         [HUMA_OWNER_ADDRESS],
         [deployer.address],
@@ -59,9 +63,9 @@ async function deployProtocolContracts() {
 }
 
 async function deployContracts() {
-    // const network = (await hre.ethers.provider.getNetwork()).name;
-    const network = "alfajores";
-    console.log("network : ", network);
+    // const networkName = (await hre.ethers.provider.getNetworkName()).name;
+    networkName = network.name;
+    console.log("networkName : ", networkName);
     const accounts = await hre.ethers.getSigners();
     if (accounts.length == 0) {
         throw new Error("Accounts not set!");
@@ -69,7 +73,7 @@ async function deployContracts() {
     [deployer] = await accounts;
     console.log("deployer address: " + deployer.address);
 
-    await deploy("MockToken", "MockToken");
+    await deploy(networkName, "MockToken", "MockToken");
     const humaConfigAddress = await deployProtocolContracts();
     await deployImplementationContracts();
     await deployFactory(humaConfigAddress);
