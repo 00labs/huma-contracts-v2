@@ -1,5 +1,5 @@
 // TypeScript
-import hre, { network, run } from "hardhat";
+import { network, run } from "hardhat";
 import { getDeployedContracts } from "./deployUtils";
 async function verifyContract(): Promise<void> {
     const chainId = network.config.chainId!;
@@ -9,25 +9,25 @@ async function verifyContract(): Promise<void> {
     console.log(`ChainName: ${chainName}`);
     const deployedContracts = await getDeployedContracts(chainName);
 
-    // const args: unknown[] = [
-    //     0,
-    //     ["0x60891b087E81Ee2a61B7606f68019ec112c539B9"],
-    //     ["0x60891b087E81Ee2a61B7606f68019ec112c539B9"],
-    //     "0x0000000000000000000000000000000000000000",
-    // ];
-    const PoolFactory = await hre.ethers.getContractFactory("PoolFactory", {
-        libraries: { LibTimelockController: deployedContracts["LibTimelockController"] },
-    });
-    const poolFactoryImpl = PoolFactory.attach(deployedContracts["PoolFactoryImpl"]);
-    const fragment = await poolFactoryImpl.interface.getFunction("initialize(address)");
-    const calldata = await poolFactoryImpl.interface.encodeFunctionData(fragment, [
-        deployedContracts["HumaConfig"],
-    ]);
-    const args: unknown[] = ["0x077b618a91129435f5110915080c60eea078639f", calldata];
+    const args: unknown[] = [
+        0,
+        ["0x9eA47A502BEffB25c8d559e614203562bb7d886d"],
+        ["0xABd48A580F66ad5Ad0Fe983968De686F408c88EE"],
+        "0xABd48A580F66ad5Ad0Fe983968De686F408c88EE",
+    ];
+    // const PoolFactory = await hre.ethers.getContractFactory("PoolFactory", {
+    //     libraries: { LibTimelockController: deployedContracts["LibTimelockController"] },
+    // });
+    // const poolFactoryImpl = PoolFactory.attach(deployedContracts["PoolFactoryImpl"]);
+    // const fragment = await poolFactoryImpl.interface.getFunction("initialize(address)");
+    // const calldata = await poolFactoryImpl.interface.encodeFunctionData(fragment, [
+    //     deployedContracts["HumaConfig"],
+    // ]);
+    // const args: unknown[] = ["0x077b618a91129435f5110915080c60eea078639f", calldata];
 
     // * only verify on testnets or mainnets.
-    if (chainId != 31337 && process.env.ETHERSCAN_API_KEY) {
-        await verify("0x3fD9e239390383C3766f059ad02d1dd82184F6Fa", args);
+    if (chainId != 31337 && process.env.CELOSCAN_API_KEY) {
+        await verify("0x14B067bac6039429A11baf564db90eDBcc4E27F3", args);
     }
 }
 

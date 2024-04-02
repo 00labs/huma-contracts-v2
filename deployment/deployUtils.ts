@@ -6,8 +6,8 @@ import { BigNumber as BN, ethers } from "ethers";
 import fs from "fs";
 const DEPLOYED_PATH = "./deployment/";
 
-const MAX_FEE_PER_GAS = 12_500_000_000;
-const MAX_PRIORITY_FEE_PER_GAS = 2_500_000_000;
+const MAX_FEE_PER_GAS = 5_000_000_000;
+const MAX_PRIORITY_FEE_PER_GAS = 0;
 
 const getContractAddressFile = async function (fileType = "deployed", network) {
     if (!network) {

@@ -1,0 +1,6 @@
+network,poolId,contractName,contractAddress
+celo,1,poolConfig,0xfd00E8709cC02B020A63a980729567E808671c21
+celo,1,juniorTranche,0xaB5Ee8465c8C8d51e2cCc7d52AC53c19AF201Fa4
+celo,1,poolSafe,0x1C35194ca4AB4BA266362BAD25e4C7d2748371AD
+celo,1,seniorTranche,0xc21a5485021C904Ed00b22BF774435a5B33c69bc
+celo,1,creditManager,0x4cc72E971547A625b0119f3e72877A5572daEeBb
