@@ -1,10 +1,10 @@
 import { time } from "@nomicfoundation/hardhat-network-helpers";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { BigNumber } from "ethers";
 import { task } from "hardhat/config";
 import { HardhatRuntimeEnvironment } from "hardhat/types/runtime";
 import moment from "moment";
 import { CONSTANTS } from "../test/constants";
+import { getAccountSigners } from "./utils";
 
 task(
     "advanceWeekAndDrawdownReceivable",
@@ -15,9 +15,7 @@ task(
         "The address of the Pool Config whose epoch you wish to advance to next",
     )
     .setAction(async (taskArgs: { poolConfigAddr: string }, hre: HardhatRuntimeEnvironment) => {
-        let borrowerActive: SignerWithAddress;
-
-        [, , , , , , , , , , , , borrowerActive] = await hre.ethers.getSigners();
+        const { borrowerActive } = await getAccountSigners(hre.ethers);
 
         const PoolConfig = await hre.ethers.getContractFactory("PoolConfig");
         const poolConfigContract = PoolConfig.attach(taskArgs.poolConfigAddr);

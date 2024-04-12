@@ -4,6 +4,7 @@ import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
 import moment from "moment";
 
+import { getAccountSigners } from "../tasks/utils";
 import {
     CreditContractName,
     CreditManagerContractName,
@@ -14,59 +15,14 @@ import {
 import { CONSTANTS, LocalPoolName } from "../test/constants";
 import { overrideFirstLossCoverConfig, toToken } from "../test/TestUtils";
 import {
-    Calendar,
-    CreditDueManager,
     CreditLine,
     CreditLineManager,
-    EpochManager,
     FirstLossCover,
-    HumaConfig,
     MockToken,
-    Pool,
-    PoolConfig,
-    PoolFeeManager,
-    PoolSafe,
-    Receivable,
     ReceivableBackedCreditLine,
-    RiskAdjustedTranchesPolicy,
-    TrancheVault,
+    ReceivableBackedCreditLineManager,
 } from "../typechain-types";
 import { advanceChainTime } from "./utils";
-
-let defaultDeployer: SignerWithAddress,
-    protocolOwner: SignerWithAddress,
-    treasury: SignerWithAddress,
-    sentinelServiceAccount: SignerWithAddress;
-let poolOwner: SignerWithAddress,
-    poolOwnerTreasury: SignerWithAddress,
-    evaluationAgent: SignerWithAddress,
-    poolOperator: SignerWithAddress;
-let juniorLender: SignerWithAddress,
-    seniorLender: SignerWithAddress,
-    lenderRedemptionActive: SignerWithAddress,
-    borrowerActive: SignerWithAddress,
-    borrowerApproved: SignerWithAddress,
-    borrowerNoAutopay: SignerWithAddress,
-    borrowerAutopayReady: SignerWithAddress,
-    borrowerLate: SignerWithAddress,
-    borrowerDefault: SignerWithAddress;
-
-let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
-let poolConfigContract: PoolConfig,
-    poolFeeManagerContract: PoolFeeManager,
-    poolSafeContract: PoolSafe,
-    calendarContract: Calendar,
-    borrowerFirstLossCoverContract: FirstLossCover,
-    adminFirstLossCoverContract: FirstLossCover,
-    tranchesPolicyContract: RiskAdjustedTranchesPolicy,
-    poolContract: Pool,
-    epochManagerContract: EpochManager,
-    seniorTrancheVaultContract: TrancheVault,
-    juniorTrancheVaultContract: TrancheVault,
-    creditContract: CreditLine | ReceivableBackedCreditLine,
-    creditDueManagerContract: CreditDueManager,
-    creditManagerContract: CreditLineManager,
-    receivableContract: Receivable;
 
 const poolsToDeploy: {
     creditContract: CreditContractName;
@@ -86,7 +42,12 @@ const poolsToDeploy: {
     // Add more pools as needed
 ];
 
-async function depositFirstLossCover(coverContract: FirstLossCover, account: SignerWithAddress) {
+async function depositFirstLossCover(
+    coverContract: FirstLossCover,
+    mockTokenContract: MockToken,
+    poolOwner: SignerWithAddress,
+    account: SignerWithAddress,
+) {
     await coverContract.connect(poolOwner).addCoverProvider(account.address);
     await mockTokenContract
         .connect(account)
@@ -110,7 +71,7 @@ async function deployPool(
         console.log(`Pool name: ${poolName}`);
     }
     console.log(`Starting block timestamp: ${await time.latest()}`);
-    [
+    const {
         defaultDeployer,
         protocolOwner,
         treasury,
@@ -123,22 +84,17 @@ async function deployPool(
         seniorLender,
         lenderRedemptionActive,
         borrowerActive,
-        borrowerApproved,
-        borrowerNoAutopay,
-        borrowerAutopayReady,
-        borrowerLate,
-        borrowerDefault,
-    ] = await ethers.getSigners();
+    } = await getAccountSigners(ethers);
 
     console.log("Deploying and setting up protocol contracts");
-    [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+    const [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
         protocolOwner,
         treasury,
         sentinelServiceAccount,
         poolOwner,
     );
 
-    [
+    const [
         poolConfigContract,
         poolFeeManagerContract,
         poolSafeContract,
@@ -150,9 +106,9 @@ async function deployPool(
         epochManagerContract,
         seniorTrancheVaultContract,
         juniorTrancheVaultContract,
-        creditContract as unknown,
+        creditContract,
         creditDueManagerContract,
-        creditManagerContract as unknown,
+        creditManagerContract,
         receivableContract,
     ] = await deployAndSetupPoolContracts(
         humaConfigContract,
@@ -170,7 +126,12 @@ async function deployPool(
     );
 
     // Deposit first loss cover
-    await depositFirstLossCover(borrowerFirstLossCoverContract, borrowerActive);
+    await depositFirstLossCover(
+        borrowerFirstLossCoverContract,
+        mockTokenContract,
+        poolOwner,
+        borrowerActive,
+    );
 
     // Set first loss cover liquidity cap
     const totalAssetsBorrowerFLC = await borrowerFirstLossCoverContract.totalAssets();
@@ -208,15 +169,17 @@ async function deployPool(
 
     if (poolName === LocalPoolName.CreditLine) {
         console.log("Drawing down from CreditLine");
-        await creditManagerContract.connect(evaluationAgent).approveBorrower(
-            borrowerActive.address,
-            toToken(100_000),
-            5, // numOfPeriods
-            1217, // yieldInBps
-            toToken(0),
-            0,
-            true,
-        );
+        await (creditManagerContract as CreditLineManager)
+            .connect(evaluationAgent)
+            .approveBorrower(
+                borrowerActive.address,
+                toToken(100_000),
+                5, // numOfPeriods
+                1217, // yieldInBps
+                toToken(0),
+                0,
+                true,
+            );
         const borrowAmount = toToken(100_000);
 
         // Drawing down credit line
@@ -244,16 +207,18 @@ async function deployPool(
             lateFeeBps,
         });
 
-        console.log("Drawing down from CreditLine");
-        await creditManagerContract.connect(evaluationAgent).approveBorrower(
-            borrowerActive.address,
-            toToken(100_000),
-            5, // numOfPeriods
-            1217, // yieldInBps
-            toToken(0),
-            0,
-            true,
-        );
+        console.log("Drawing down from ReceivableBackedCreditLine");
+        await (creditManagerContract as ReceivableBackedCreditLineManager)
+            .connect(evaluationAgent)
+            .approveBorrower(
+                borrowerActive.address,
+                toToken(100_000),
+                5, // numOfPeriods
+                1217, // yieldInBps
+                toToken(0),
+                0,
+                true,
+            );
         const borrowAmount = toToken(100_000);
 
         const currentBlockTimestamp = await time.latest();
@@ -285,8 +250,8 @@ async function deployPool(
     console.log(`Borrower:           ${borrowerActive.address}`);
     console.log(`Sentinel Service:   ${sentinelServiceAccount.address}`);
     console.log(`Pool owner:         ${poolOwner.address}`);
-
     console.log("-------------------------------------");
+
     console.log("Addresses:");
     console.log(`Pool:            ${poolContract.address}`);
     console.log(`Epoch manager:   ${epochManagerContract.address}`);
@@ -303,7 +268,6 @@ async function deployPool(
     if (poolName === LocalPoolName.ReceivableBackedCreditLine) {
         console.log(`Receivable:      ${receivableContract.address}`);
     }
-
     console.log("=====================================");
 }
 

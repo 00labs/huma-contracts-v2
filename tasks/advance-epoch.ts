@@ -33,6 +33,6 @@ task("advanceEpoch", "Advances time in the local blockchain based on options")
         console.log(`Advancing blockchain to ${timestampToAdvance}`);
 
         // Simulate the passage of time by advancing the time on the Hardhat Network
-        await hre.network.provider.send("evm_setNextBlockTimestamp", [timestampToAdvance]);
+        await hre.network.provider.send("evm_setNextBlockTimestamp", [timestampToAdvance + 1]);
         await hre.network.provider.send("evm_mine");
     });

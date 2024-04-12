@@ -9,7 +9,7 @@ import { HardhatUserConfig } from "hardhat/types";
 // Hardhat tasks
 import "./tasks/advance-epoch";
 import "./tasks/advance-week-and-drawdown-receivable";
-import "./tasks/prepare-tranches-flc-for-withdrawal";
+import "./tasks/withdraw-flc-and-close-pool";
 import "./tasks/withdraw-from-tranches";
 
 const EMPTY_URL = "empty url";
