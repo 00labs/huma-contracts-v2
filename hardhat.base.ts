@@ -47,6 +47,11 @@ const config: HardhatUserConfig = {
             accounts: [deployer],
             chainId: 84532,
         },
+        scrollSepolia: {
+            url: "https://sepolia-rpc.scroll.io",
+            accounts: [deployer],
+            chainId: 534351,
+        },
     },
     solidity: {
         compilers: [
@@ -67,6 +72,7 @@ const config: HardhatUserConfig = {
             alfajores: process.env.CELOSCAN_API_KEY || "",
             celo: process.env.CELOSCAN_API_KEY || "",
             baseSepolia: process.env.BASESCAN_API_KEY || "",
+            scrollSepolia: process.env.SCROLLSCAN_API_KEY || "",
         },
         customChains: [
             {
@@ -91,6 +97,14 @@ const config: HardhatUserConfig = {
                 urls: {
                     apiURL: "https://api-sepolia.basescan.org/api",
                     browserURL: "https://sepolia.basescan.org/",
+                },
+            },
+            {
+                network: "scrollSepolia",
+                chainId: 534351,
+                urls: {
+                    apiURL: "https://api-sepolia.scrollscan.com/api",
+                    browserURL: "https://sepolia.scrollscan.dev/",
                 },
             },
         ],

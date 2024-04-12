@@ -6,7 +6,7 @@ import { BigNumber as BN, ethers } from "ethers";
 import fs from "fs";
 const DEPLOYED_PATH = "./deployment/";
 
-const MAX_FEE_PER_GAS = 5_000_000_000;
+const MAX_FEE_PER_GAS = 1_000_000;
 const MAX_PRIORITY_FEE_PER_GAS = 0;
 
 const getContractAddressFile = async function (fileType = "deployed", network) {
@@ -112,12 +112,13 @@ export const sendTransaction = async function (
     const method = contractInstance[methodName];
     console.log(`${contractName}:${logMessage} Start!`);
     console.log(`paramaters: ${parameters}`);
-    await checkReceiptOk(
-        await method(...parameters, {
-            maxFeePerGas: MAX_FEE_PER_GAS,
-            maxPriorityFeePerGas: MAX_PRIORITY_FEE_PER_GAS,
-        }),
-    );
+    // await checkReceiptOk(
+    //     await method(...parameters, {
+    //         maxFeePerGas: MAX_FEE_PER_GAS,
+    //         maxPriorityFeePerGas: MAX_PRIORITY_FEE_PER_GAS,
+    //     }),
+    // );
+    await checkReceiptOk(await method(...parameters));
     console.log(`${contractName}:${logMessage} End!`);
 };
 
@@ -153,16 +154,21 @@ export async function deploy(
     // const gasPrice = web3.utils.toHex('33000000000')
 
     let contract;
+    // if (contractParameters) {
+    //     contract = await Contract.deploy(...contractParameters, {
+    //         maxFeePerGas: MAX_FEE_PER_GAS,
+    //         maxPriorityFeePerGas: MAX_PRIORITY_FEE_PER_GAS,
+    //     });
+    // } else {
+    //     contract = await Contract.deploy({
+    //         maxFeePerGas: MAX_FEE_PER_GAS,
+    //         maxPriorityFeePerGas: MAX_PRIORITY_FEE_PER_GAS,
+    //     });
+    // }
     if (contractParameters) {
-        contract = await Contract.deploy(...contractParameters, {
-            maxFeePerGas: MAX_FEE_PER_GAS,
-            maxPriorityFeePerGas: MAX_PRIORITY_FEE_PER_GAS,
-        });
+        contract = await Contract.deploy(...contractParameters);
     } else {
-        contract = await Contract.deploy({
-            maxFeePerGas: MAX_FEE_PER_GAS,
-            maxPriorityFeePerGas: MAX_PRIORITY_FEE_PER_GAS,
-        });
+        contract = await Contract.deploy();
     }
     console.log(`${keyName} TransactionHash: ${contract.deployTransaction.hash}`);
     await contract.deployed();
