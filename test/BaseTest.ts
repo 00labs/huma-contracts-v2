@@ -11,7 +11,7 @@ import {
     CreditLineManager,
     EpochManager,
     FirstLossCover,
-    FixedSeniorYieldTranchePolicy,
+    FixedSeniorYieldTranchesPolicy,
     HumaConfig,
     MockPoolCredit,
     MockPoolCreditManager,
@@ -88,7 +88,7 @@ export type PoolImplementations = [
     PoolSafe,
     FirstLossCover,
     RiskAdjustedTranchesPolicy,
-    FixedSeniorYieldTranchePolicy,
+    FixedSeniorYieldTranchesPolicy,
     Pool,
     EpochManager,
     TrancheVault,
@@ -114,7 +114,7 @@ export type PoolRecord = {
 type CreditType = "creditline" | "receivablebcked" | "receivablefactoring";
 type TranchesPolicyType = "fixed" | "adjusted";
 export type TranchesPolicyContractName =
-    | "FixedSeniorYieldTranchePolicy"
+    | "FixedSeniorYieldTranchesPolicy"
     | "RiskAdjustedTranchesPolicy";
 export type CreditContractName =
     | "CreditLine"
@@ -407,12 +407,12 @@ export async function deployImplementationContracts(): Promise<PoolImplementatio
     const riskAdjustedTranchesPolicyImpl = await RiskAdjustedTranchesPolicy.deploy();
     await riskAdjustedTranchesPolicyImpl.deployed();
 
-    // Deploy FixedSeniorYieldTranchePolicy
-    const FixedSeniorYieldTranchePolicy = await ethers.getContractFactory(
-        "FixedSeniorYieldTranchePolicy",
+    // Deploy FixedSeniorYieldTranchesPolicy
+    const FixedSeniorYieldTranchesPolicy = await ethers.getContractFactory(
+        "FixedSeniorYieldTranchesPolicy",
     );
-    const fixedSeniorYieldTranchePolicyImpl = await FixedSeniorYieldTranchePolicy.deploy();
-    await fixedSeniorYieldTranchePolicyImpl.deployed();
+    const fixedSeniorYieldTranchesPolicyImpl = await FixedSeniorYieldTranchesPolicy.deploy();
+    await fixedSeniorYieldTranchesPolicyImpl.deployed();
 
     // Deploy Pool
     const Pool = await ethers.getContractFactory("Pool");
@@ -481,7 +481,7 @@ export async function deployImplementationContracts(): Promise<PoolImplementatio
         poolSafeImpl,
         firstLossCoverImpl,
         riskAdjustedTranchesPolicyImpl,
-        fixedSeniorYieldTranchePolicyImpl,
+        fixedSeniorYieldTranchesPolicyImpl,
         poolImpl,
         epochManagerImpl,
         trancheVaultImpl,
@@ -505,7 +505,7 @@ export async function deployFactory(
     poolSafeImpl: PoolSafe,
     firstLossCoverImpl: FirstLossCover,
     riskAdjustedTranchesPolicyImpl: RiskAdjustedTranchesPolicy,
-    fixedSeniorYieldTranchePolicyImpl: FixedSeniorYieldTranchePolicy,
+    fixedSeniorYieldTranchesPolicyImpl: FixedSeniorYieldTranchesPolicy,
     poolImpl: Pool,
     epochManagerImpl: EpochManager,
     TrancheVaultImpl: TrancheVault,
@@ -537,7 +537,7 @@ export async function deployFactory(
         riskAdjustedTranchesPolicyImpl.address,
     );
     await poolFactoryContract.setFixedSeniorYieldTranchesPolicyImplAddress(
-        fixedSeniorYieldTranchePolicyImpl.address,
+        fixedSeniorYieldTranchesPolicyImpl.address,
     );
 
     await poolFactoryContract.setCreditLineImplAddress(creditLineImpl.address);
@@ -626,7 +626,10 @@ export async function setupPoolContracts(
     const settings = await poolConfigContract.getPoolSettings();
     await poolConfigContract
         .connect(poolOwner)
-        .setPoolSettings({ ...settings, ...{ maxCreditLine: toToken(10_000_000) } });
+        .setPoolSettings({
+            ...settings,
+            ...{ maxCreditLine: toToken(10_000_000), principalOnlyPaymentAllowed: true },
+        });
     const lpConfig = await poolConfigContract.getLPConfig();
     await poolConfigContract
         .connect(poolOwner)
@@ -1899,7 +1902,7 @@ async function getTranchesPolicyContractFactory(
     tranchesPolicyContractName: TranchesPolicyContractName,
 ) {
     switch (tranchesPolicyContractName) {
-        case "FixedSeniorYieldTranchePolicy":
+        case "FixedSeniorYieldTranchesPolicy":
         case "RiskAdjustedTranchesPolicy":
             return await ethers.getContractFactory(tranchesPolicyContractName);
         default:
@@ -1956,7 +1959,7 @@ export function calcPrincipalDueForPartialPeriod(
         .div(CONSTANTS.BP_FACTOR.mul(totalDaysInFullPeriod));
 }
 
-export function calcYield(principal: BN, yieldInBps: number, days: number): BN {
+export function calcYield(principal: BN, yieldInBps: BigNumberish, days: number): BN {
     return principal
         .mul(yieldInBps)
         .mul(days)

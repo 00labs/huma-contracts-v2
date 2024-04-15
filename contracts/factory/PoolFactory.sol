@@ -440,7 +440,8 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         uint8 latePaymentGracePeriodInDays,
         uint16 defaultGracePeriodInDays,
         uint16 advanceRateInBps,
-        bool receivableAutoApproval
+        bool receivableAutoApproval,
+        bool principalOnlyPaymentAllowed
     ) external {
         _onlyDeployer(msg.sender);
         PoolSettings memory settings = PoolSettings({
@@ -450,7 +451,8 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
             defaultGracePeriodInDays: defaultGracePeriodInDays,
             advanceRateInBps: advanceRateInBps,
-            receivableAutoApproval: receivableAutoApproval
+            receivableAutoApproval: receivableAutoApproval,
+            principalOnlyPaymentAllowed: principalOnlyPaymentAllowed
         });
         PoolConfig(_pools[poolId_].poolConfigAddress).setPoolSettings(settings);
     }
@@ -503,6 +505,32 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         poolConfig.setFeeStructure(fees);
         poolConfig.setPoolOwnerRewardsAndLiquidity(poolOwnerRewardRate, poolOwnerLiquidityRate);
         poolConfig.setEARewardsAndLiquidity(eaRewardRate, eaLiquidityRate);
+    }
+
+    /**
+     * @notice Sets EA for the pool after deployment.
+     * @notice If the deployer has the details of the pool EA,
+     * the deployer can set it using this function.
+     * Otherwise, the pool owner can set it later.
+     */
+    function setPoolEvaluationAgent(uint256 poolId_, address evaluationAgent) external {
+        _onlyDeployer(msg.sender);
+        _notZeroAddress(evaluationAgent);
+        PoolConfig poolConfig = PoolConfig(_pools[poolId_].poolConfigAddress);
+        poolConfig.setEvaluationAgent(evaluationAgent);
+    }
+
+    /**
+     * @notice Sets pool owner treasury for the pool after deployment.
+     * @notice If the deployer has the details of the pool owner treasury,
+     * the deployer can set it using this function.
+     * Otherwise, the pool owner can set it later.
+     */
+    function setPoolOwnerTreasury(uint256 poolId_, address poolOwnerTreasury) external {
+        _onlyDeployer(msg.sender);
+        _notZeroAddress(poolOwnerTreasury);
+        PoolConfig poolConfig = PoolConfig(_pools[poolId_].poolConfigAddress);
+        poolConfig.setPoolOwnerTreasury(poolOwnerTreasury);
     }
 
     /**

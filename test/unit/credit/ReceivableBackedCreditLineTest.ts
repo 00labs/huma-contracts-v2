@@ -1036,18 +1036,38 @@ describe("ReceivableBackedCreditLine Tests", function () {
                         await borrower.getAddress(),
                     );
 
+                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                const currentTS = (await getLatestBlock()).timestamp;
+                const startDateOfNextPeriod = await calendarContract.getStartDateOfNextPeriod(
+                    cc.periodDuration,
+                    currentTS,
+                );
+                const daysRemaining = await calendarContract.getDaysDiff(
+                    currentTS,
+                    startDateOfNextPeriod,
+                );
+                const reducedAccruedYield = calcYield(
+                    paymentAmount,
+                    yieldInBps,
+                    daysRemaining.toNumber(),
+                );
                 const actualCR = await creditContract.getCreditRecord(creditHash);
                 const expectedCR = {
                     ...oldCR,
                     ...{
-                        nextDue: oldCR.yieldDue,
-                        yieldDue: oldCR.yieldDue,
+                        nextDue: oldCR.yieldDue.sub(reducedAccruedYield),
+                        yieldDue: oldCR.yieldDue.sub(reducedAccruedYield),
                     },
                 };
                 checkCreditRecordsMatch(actualCR, expectedCR);
 
                 const actualDD = await creditContract.getDueDetail(creditHash);
-                const expectedDD = oldDD;
+                const expectedDD = {
+                    ...oldDD,
+                    ...{
+                        accrued: oldDD.accrued.sub(reducedAccruedYield),
+                    },
+                };
                 checkDueDetailsMatch(actualDD, expectedDD);
             });
 
@@ -1432,17 +1452,39 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     );
                     expect(poolSafeBalanceAfter.sub(poolSafeBalanceBefore)).to.equal(amountDiff);
 
+                    const cc = await creditManagerContract.getCreditConfig(creditHash);
+                    const currentTS = (await getLatestBlock()).timestamp;
+                    const startDateOfNextPeriod = await calendarContract.getStartDateOfNextPeriod(
+                        cc.periodDuration,
+                        currentTS,
+                    );
+                    const daysRemaining = await calendarContract.getDaysDiff(
+                        currentTS,
+                        startDateOfNextPeriod,
+                    );
+                    const reducedAccruedYield = calcYield(
+                        amountDiff,
+                        yieldInBps,
+                        daysRemaining.toNumber(),
+                    );
                     const actualCR = await creditContract.getCreditRecord(creditHash);
                     const expectedCR = {
                         ...oldCR,
                         ...{
-                            nextDue: oldCR.yieldDue,
+                            nextDue: oldCR.yieldDue.sub(reducedAccruedYield),
+                            yieldDue: oldCR.yieldDue.sub(reducedAccruedYield),
                         },
                     };
                     checkCreditRecordsMatch(actualCR, expectedCR);
 
                     const actualDD = await creditContract.getDueDetail(creditHash);
-                    checkDueDetailsMatch(actualDD, oldDD);
+                    const expectedDD = {
+                        ...oldDD,
+                        ...{
+                            accrued: oldDD.accrued.sub(reducedAccruedYield),
+                        },
+                    };
+                    checkDueDetailsMatch(actualDD, expectedDD);
                 });
             });
 
