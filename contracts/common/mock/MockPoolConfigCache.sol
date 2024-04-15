@@ -11,16 +11,16 @@ contract MockPoolConfigCache is PoolConfigCache {
     /**
      * @dev Exposes the _initialize function for testing.
      */
-    function otherInitialize(PoolConfig _poolConfig) external {
-        _initialize(_poolConfig);
+    function otherInitialize(PoolConfig poolConfig_) external {
+        _initialize(poolConfig_);
     }
 
     /**
      * @dev Overrides the _updatePoolConfigData function to make
      * abstract contract PoolConfigCache non-abstract.
      */
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal view override {
-        address addr = _poolConfig.poolSafe();
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal view override {
+        address addr = poolConfig_.poolSafe();
         assert(addr != address(0));
     }
 }
