@@ -96,7 +96,7 @@ package "liquidity" <<rectangle>> #line.dashed {
   class Pool_FM
   class EpochManager
   class BaseTranchesPolicy
-  class FixedSeniorYieldTranchePolicy
+  class FixedSeniorYieldTranchesPolicy
   class RiskAdjustedTranchesPolicy
   class FLC #back:lightgreen
   class TrancheVault #back:lightgreen
@@ -118,7 +118,7 @@ TrancheVault --> PoolSafe
 Pool_FM --> PoolSafe
 
 BaseTranchesPolicy ..|> ITranchesPolicy
-FixedSeniorYieldTranchePolicy --|> BaseTranchesPolicy
+FixedSeniorYieldTranchesPolicy --|> BaseTranchesPolicy
 RiskAdjustedTranchesPolicy --|> BaseTranchesPolicy
 EpochManager .up.|> IEpochManager
 
