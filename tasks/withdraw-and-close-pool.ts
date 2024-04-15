@@ -18,13 +18,26 @@ async function withdrawFromFLC(
     }
 }
 
+async function withdrawFromTranche(
+    hre: HardhatRuntimeEnvironment,
+    trancheVaultContractAddr: string,
+    redemptionRequester: SignerWithAddress,
+): Promise<void> {
+    const TrancheVault = await hre.ethers.getContractFactory("TrancheVault");
+    const trancheVaultContract = TrancheVault.attach(trancheVaultContractAddr);
+    const tx = await trancheVaultContract
+        .connect(redemptionRequester)
+        .withdrawAfterPoolClosure();
+    await tx.wait();
+}
+
 task(
-    "withdrawFLCAndClosePool",
+    "withdrawAndClosePool",
     "Submit withdrawal and redemption requests and prepare pool for closing",
 )
     .addParam(
         "poolConfigAddr",
-        "The address of the Pool Config whose epoch you wish to advance to next",
+        "The PoolConfig contract address of the pool in question",
     )
     .setAction(async (taskArgs: { poolConfigAddr: string }, hre: HardhatRuntimeEnvironment) => {
         console.log("Preparing pool for closing");
@@ -34,6 +47,8 @@ task(
             poolOwnerTreasury,
             evaluationAgent,
             borrowerActive,
+            juniorLender,
+            seniorLender
         } = await getAccountSigners(hre.ethers);
 
         const PoolConfig = await hre.ethers.getContractFactory("PoolConfig");
@@ -46,9 +61,6 @@ task(
         const affiliateFirstLossCoverContract = FirstLossCover.attach(
             flcContracts[CONSTANTS.ADMIN_LOSS_COVER_INDEX],
         );
-        
-        await poolConfigContract.connect(poolOwner).setPoolOwnerRewardsAndLiquidity(0, 0);
-        await poolConfigContract.connect(poolOwner).setEARewardsAndLiquidity(0, 0);
                 
         console.log("Closing pool");
         const Pool = await hre.ethers.getContractFactory("Pool");
@@ -60,4 +72,30 @@ task(
         await withdrawFromFLC(affiliateFirstLossCoverContract, evaluationAgent);
         await withdrawFromFLC(affiliateFirstLossCoverContract, treasury);
         await withdrawFromFLC(affiliateFirstLossCoverContract, poolOwnerTreasury);
+    
+        console.log("Withdrawing from pool tranches");
+        const juniorTranche = await poolConfigContract.juniorTranche();
+        const seniorTranche = await poolConfigContract.seniorTranche();
+
+        // Debug logs
+        // const TrancheVault = await hre.ethers.getContractFactory("TrancheVault");
+        // const juniorTrancheContract = TrancheVault.attach(juniorTranche);
+        // const seniorTrancheContract = TrancheVault.attach(seniorTranche);
+        // console.log(await juniorTrancheContract.withdrawableAssets(juniorLender.address));
+        // console.log(await juniorTrancheContract.withdrawableAssets(poolOwnerTreasury.address));
+        // console.log(await juniorTrancheContract.withdrawableAssets(evaluationAgent.address));
+        // console.log(await juniorTrancheContract.withdrawableAssets(seniorLender.address));
+        // console.log(await juniorTrancheContract.withdrawableAssets(treasury.address));
+        // console.log(await seniorTrancheContract.withdrawableAssets(juniorLender.address));
+        // console.log(await seniorTrancheContract.withdrawableAssets(poolOwnerTreasury.address));
+        // console.log(await seniorTrancheContract.withdrawableAssets(evaluationAgent.address));
+        // console.log(await seniorTrancheContract.withdrawableAssets(seniorLender.address));
+        // console.log(await seniorTrancheContract.withdrawableAssets(treasury.address));
+        
+        // Redeem from tranches
+        await withdrawFromTranche(hre, juniorTranche, juniorLender);
+        await withdrawFromTranche(hre, juniorTranche, poolOwnerTreasury);
+        await withdrawFromTranche(hre, juniorTranche, evaluationAgent);
+        await withdrawFromTranche(hre, seniorTranche, seniorLender);
+        await withdrawFromTranche(hre, seniorTranche, poolOwnerTreasury);
     });

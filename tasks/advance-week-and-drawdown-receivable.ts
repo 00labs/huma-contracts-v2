@@ -12,7 +12,7 @@ task(
 )
     .addParam(
         "poolConfigAddr",
-        "The address of the Pool Config whose epoch you wish to advance to next",
+        "The PoolConfig contract address of the pool in question",
     )
     .setAction(async (taskArgs: { poolConfigAddr: string }, hre: HardhatRuntimeEnvironment) => {
         const { borrowerActive } = await getAccountSigners(hre.ethers);

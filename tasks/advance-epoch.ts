@@ -5,7 +5,7 @@ import { HardhatRuntimeEnvironment } from "hardhat/types/runtime";
 task("advanceEpoch", "Advances time in the local blockchain based on options")
     .addParam(
         "poolConfigAddr",
-        "The address of the Pool Config whose epoch you wish to advance to next",
+        "The PoolConfig contract address of the pool in question",
     )
     .setAction(async (taskArgs: { poolConfigAddr: string }, hre: HardhatRuntimeEnvironment) => {
         console.log("Advancing to next epoch");
@@ -33,6 +33,8 @@ task("advanceEpoch", "Advances time in the local blockchain based on options")
         console.log(`Advancing blockchain to ${timestampToAdvance}`);
 
         // Simulate the passage of time by advancing the time on the Hardhat Network
-        await hre.network.provider.send("evm_setNextBlockTimestamp", [timestampToAdvance + 1]);
+        await hre.network.provider.send("evm_setNextBlockTimestamp", [timestampToAdvance + 60]);
+        await hre.network.provider.send("evm_mine");
+        await hre.network.provider.send("evm_mine");
         await hre.network.provider.send("evm_mine");
     });
