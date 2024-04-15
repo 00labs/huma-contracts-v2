@@ -1,10 +1,10 @@
 import { time } from "@nomicfoundation/hardhat-network-helpers";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { BigNumber } from "ethers";
 import { task } from "hardhat/config";
 import { HardhatRuntimeEnvironment } from "hardhat/types/runtime";
 import moment from "moment";
 import { CONSTANTS } from "../test/constants";
+import { getAccountSigners } from "./utils";
 
 task(
     "advanceWeekAndDrawdownReceivable",
@@ -12,12 +12,10 @@ task(
 )
     .addParam(
         "poolConfigAddr",
-        "The address of the Pool Config whose epoch you wish to advance to next",
+        "The PoolConfig contract address of the pool in question",
     )
     .setAction(async (taskArgs: { poolConfigAddr: string }, hre: HardhatRuntimeEnvironment) => {
-        let borrowerActive: SignerWithAddress;
-
-        [, , , , , , , , , , , , , borrowerActive] = await hre.ethers.getSigners();
+        const { borrowerActive } = await getAccountSigners(hre.ethers);
 
         const PoolConfig = await hre.ethers.getContractFactory("PoolConfig");
         const poolConfigContract = PoolConfig.attach(taskArgs.poolConfigAddr);
@@ -33,7 +31,7 @@ task(
         );
 
         const Recievable = await hre.ethers.getContractFactory("Receivable");
-        const receivableContract = Recievable.attach(await poolConfigContract.credit());
+        const receivableContract = Recievable.attach(await poolConfigContract.receivableAsset());
 
         const borrowAmount = BigNumber.from(100_000).mul(
             BigNumber.from(10).pow(BigNumber.from(await mockTokenContract.decimals())),
@@ -53,12 +51,15 @@ task(
         await createDrawdownReceivableTx.wait();
 
         // Calculate token ids of payback and drawdown receivables
+        const receivablesDrawndownCount = await receivableContract.balanceOf(
+            receivableCreditContract.address,
+        );
         const receivablesCountOfBorrower = await receivableContract.balanceOf(
             borrowerActive.address,
         );
         const payableReceivableTokenId = await receivableContract.tokenOfOwnerByIndex(
-            borrowerActive.address,
-            receivablesCountOfBorrower.toNumber() - 2,
+            receivableCreditContract.address,
+            receivablesDrawndownCount.toNumber() - 1,
         );
         const drawdownReceivableTokenId = await receivableContract.tokenOfOwnerByIndex(
             borrowerActive.address,
@@ -67,10 +68,11 @@ task(
 
         // Payback and drawdown
         console.log(
-            "Payback with {} and drawdown with {}",
-            payableReceivableTokenId,
-            drawdownReceivableTokenId,
+            `Payback with tokenId ${payableReceivableTokenId} and drawdown with tokenId ${drawdownReceivableTokenId}`,
         );
+        await receivableContract
+            .connect(borrowerActive)
+            .approve(receivableCreditContract.address, drawdownReceivableTokenId);
         const paybackAndDrawdownTx = await receivableCreditContract
             .connect(borrowerActive)
             .makePrincipalPaymentAndDrawdownWithReceivable(
