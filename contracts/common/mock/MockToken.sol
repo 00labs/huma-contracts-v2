@@ -61,6 +61,6 @@ contract MockToken is ERC20Permit, IERC165 {
     }
 
     function decimals() public view virtual override returns (uint8) {
-        return 6;
+        return 18;
     }
 }
