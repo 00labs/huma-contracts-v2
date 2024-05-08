@@ -7,6 +7,7 @@ import moment from "moment";
 import { getAccountSigners } from "../tasks/utils";
 import {
     CreditContractName,
+    CreditContractType,
     CreditManagerContractName,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
@@ -17,12 +18,17 @@ import { overrideFirstLossCoverConfig, toToken } from "../test/TestUtils";
 import {
     CreditLine,
     CreditLineManager,
+    EpochManager,
     FirstLossCover,
     MockToken,
+    Pool,
+    PoolConfig,
+    PoolSafe,
     ReceivableBackedCreditLine,
     ReceivableBackedCreditLineManager,
+    TrancheVault,
 } from "../typechain-types";
-import { advanceChainTime } from "./utils";
+import { advanceChainToTime } from "./utils";
 
 const poolsToDeploy: {
     creditContract: CreditContractName;
@@ -64,7 +70,16 @@ async function deployPool(
     creditContractName: CreditContractName,
     creditManagerContractName: CreditManagerContractName,
     poolName?: LocalPoolName,
-) {
+): Promise<{
+    poolContract: Pool;
+    poolConfigContract: PoolConfig;
+    poolSafeContract: PoolSafe;
+    creditContract: CreditContractType;
+    epochManagerContract: EpochManager;
+    juniorTrancheVaultContract: TrancheVault;
+    seniorTrancheVaultContract: TrancheVault;
+    mockTokenContract: MockToken;
+}> {
     console.log("=====================================");
     console.log(`Deploying pool with ${creditContractName} and ${creditManagerContractName}`);
     if (poolName) {
@@ -84,6 +99,7 @@ async function deployPool(
         seniorLender,
         lenderRedemptionActive,
         borrowerActive,
+        borrowerInactive,
     } = await getAccountSigners(ethers);
 
     console.log("Deploying and setting up protocol contracts");
@@ -122,7 +138,7 @@ async function deployPool(
         treasury,
         poolOwnerTreasury,
         poolOperator,
-        [juniorLender, seniorLender, lenderRedemptionActive, borrowerActive],
+        [juniorLender, seniorLender, lenderRedemptionActive, borrowerActive, borrowerInactive],
     );
 
     // Deposit first loss cover
@@ -180,6 +196,17 @@ async function deployPool(
                 0,
                 true,
             );
+        await (creditManagerContract as CreditLineManager)
+            .connect(evaluationAgent)
+            .approveBorrower(
+                borrowerInactive.address,
+                toToken(100_000),
+                5, // numOfPeriods
+                1217, // yieldInBps
+                toToken(0),
+                0,
+                true,
+            );
         const borrowAmount = toToken(100_000);
 
         // Drawing down credit line
@@ -219,6 +246,17 @@ async function deployPool(
                 0,
                 true,
             );
+        await (creditManagerContract as ReceivableBackedCreditLineManager)
+            .connect(evaluationAgent)
+            .approveBorrower(
+                borrowerInactive.address,
+                toToken(100_000),
+                5, // numOfPeriods
+                1217, // yieldInBps
+                toToken(0),
+                0,
+                true,
+            );
         const borrowAmount = toToken(100_000);
 
         const currentBlockTimestamp = await time.latest();
@@ -248,6 +286,7 @@ async function deployPool(
     console.log(`Junior lender:      ${juniorLender.address}`);
     console.log(`Senior lender:      ${seniorLender.address}`);
     console.log(`Borrower:           ${borrowerActive.address}`);
+    console.log(`Inactive Borrower:  ${borrowerInactive.address}`);
     console.log(`Sentinel Service:   ${sentinelServiceAccount.address}`);
     console.log(`Pool owner:         ${poolOwner.address}`);
     console.log("-------------------------------------");
@@ -256,7 +295,6 @@ async function deployPool(
     console.log(`Pool:            ${poolContract.address}`);
     console.log(`Epoch manager:   ${epochManagerContract.address}`);
     console.log(`Pool config:     ${poolConfigContract.address}`);
-    console.log(`Pool credit:     ${creditContract.address}`);
     console.log(`Junior tranche:  ${juniorTrancheVaultContract.address}`);
     console.log(`Senior tranche:  ${seniorTrancheVaultContract.address}`);
     console.log(`Pool safe:       ${poolSafeContract.address}`);
@@ -269,17 +307,41 @@ async function deployPool(
         console.log(`Receivable:      ${receivableContract.address}`);
     }
     console.log("=====================================");
+
+    return {
+        poolContract,
+        epochManagerContract,
+        poolSafeContract,
+        creditContract,
+        poolConfigContract,
+        juniorTrancheVaultContract,
+        seniorTrancheVaultContract,
+        mockTokenContract,
+    };
 }
 
 export async function deployPools(
     onlyDeployPoolName: LocalPoolName | undefined = undefined,
     shouldAdvanceTime: boolean = true,
-) {
+): Promise<
+    Array<{
+        poolContract: Pool;
+        poolSafeContract: PoolSafe;
+        epochManagerContract: EpochManager;
+        poolConfigContract: PoolConfig;
+        creditContract: CreditContractType;
+        juniorTrancheVaultContract: TrancheVault;
+        seniorTrancheVaultContract: TrancheVault;
+        mockTokenContract: MockToken;
+    }>
+> {
     try {
+        const contracts = [];
+
         if (shouldAdvanceTime) {
             // always set the date to the 1st of the next month
             const blockchainStartDate = moment().utc().add(1, "month").startOf("month");
-            await advanceChainTime(blockchainStartDate);
+            await advanceChainToTime(blockchainStartDate);
         }
 
         if (onlyDeployPoolName) {
@@ -298,11 +360,15 @@ export async function deployPools(
             }
         } else {
             for (const pool of poolsToDeploy) {
-                await deployPool(pool.creditContract, pool.manager, pool.poolName);
+                contracts.push(await deployPool(pool.creditContract, pool.manager, pool.poolName));
             }
         }
+
+        return contracts;
     } catch (error) {
         console.error(error);
         process.exitCode = 1;
+
+        throw error;
     }
 }
