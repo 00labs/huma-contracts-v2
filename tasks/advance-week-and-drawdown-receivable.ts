@@ -10,10 +10,7 @@ task(
     "advanceWeekAndDrawdownReceivable",
     "Pays back to the pool and draws down with a receivable, then advances blockchain time by a week",
 )
-    .addParam(
-        "poolConfigAddr",
-        "The PoolConfig contract address of the pool in question",
-    )
+    .addParam("poolConfigAddr", "The PoolConfig contract address of the pool in question")
     .setAction(async (taskArgs: { poolConfigAddr: string }, hre: HardhatRuntimeEnvironment) => {
         const { borrowerActive } = await getAccountSigners(hre.ethers);
 

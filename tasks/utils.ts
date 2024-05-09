@@ -16,6 +16,7 @@ export const getAccountSigners = async (
     seniorLender: SignerWithAddress;
     lenderRedemptionActive: SignerWithAddress;
     borrowerActive: SignerWithAddress;
+    borrowerInactive: SignerWithAddress;
 }> => {
     const [
         defaultDeployer,
@@ -30,6 +31,7 @@ export const getAccountSigners = async (
         seniorLender,
         lenderRedemptionActive,
         borrowerActive,
+        borrowerInactive,
     ] = await ethersClient.getSigners();
 
     return {
@@ -45,5 +47,6 @@ export const getAccountSigners = async (
         seniorLender,
         lenderRedemptionActive,
         borrowerActive,
+        borrowerInactive,
     };
 };
