@@ -16,6 +16,7 @@ const EMPTY_URL = "empty url";
 const EMPTY_PRIVATE_KEY = "0x0000000000000000000000000000000000000000000000000000000000000000";
 
 const sepoliaUrl = process.env["SEPOLIA_URL"] || EMPTY_URL;
+const amoyUrl = process.env["AMOY_URL"] || EMPTY_URL;
 const deployer = process.env["DEPLOYER"] || EMPTY_PRIVATE_KEY;
 
 const config: HardhatUserConfig = {
@@ -47,6 +48,11 @@ const config: HardhatUserConfig = {
             accounts: [deployer],
             chainId: 84532,
         },
+        amoy: {
+            url: amoyUrl,
+            accounts: [deployer],
+            chainId: 80002,
+        },
     },
     solidity: {
         compilers: [
@@ -67,6 +73,7 @@ const config: HardhatUserConfig = {
             alfajores: process.env.CELOSCAN_API_KEY || "",
             celo: process.env.CELOSCAN_API_KEY || "",
             baseSepolia: process.env.BASESCAN_API_KEY || "",
+            amoy: process.env.ETHERSCAN_API_KEY || "",
         },
         customChains: [
             {
@@ -91,6 +98,14 @@ const config: HardhatUserConfig = {
                 urls: {
                     apiURL: "https://api-sepolia.basescan.org/api",
                     browserURL: "https://sepolia.basescan.org/",
+                },
+            },
+            {
+                network: "amoy",
+                chainId: 80002,
+                urls: {
+                    apiURL: "https://api-amoy.polygonscan.com/api",
+                    browserURL: "https://amoy.polygonscan.com/",
                 },
             },
         ],
