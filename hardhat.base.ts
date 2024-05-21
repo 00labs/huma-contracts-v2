@@ -9,8 +9,8 @@ import { HardhatUserConfig } from "hardhat/types";
 // Hardhat tasks
 import "./tasks/advance-epoch";
 import "./tasks/advance-week-and-drawdown-receivable";
-import "./tasks/prepare-tranches-flc-for-withdrawal";
-import "./tasks/withdraw-from-tranches";
+import "./tasks/log-incomes";
+import "./tasks/withdraw-and-close-pool";
 
 const EMPTY_URL = "empty url";
 const EMPTY_PRIVATE_KEY = "0x0000000000000000000000000000000000000000000000000000000000000000";
@@ -22,6 +22,11 @@ const config: HardhatUserConfig = {
     networks: {
         hardhat: {
             chainId: Number(process.env.LOCALHOST_CHAIN_ID ?? 31337),
+            accounts: process.env.LOCALHOST_MNEMONIC_PHRASE
+                ? {
+                      mnemonic: process.env.LOCALHOST_MNEMONIC_PHRASE,
+                  }
+                : undefined,
         },
         sepolia: {
             url: sepoliaUrl,
@@ -31,7 +36,7 @@ const config: HardhatUserConfig = {
     solidity: {
         compilers: [
             {
-                version: "0.8.18",
+                version: "0.8.23",
                 settings: {
                     optimizer: {
                         enabled: true,

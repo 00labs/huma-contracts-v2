@@ -3,10 +3,11 @@
   "plugins": [],
   "rules": {
     "compiler-version": ["error", "^0.8.0"],
-    "not-rely-on-time": "off",
-    "no-empty-blocks": "off",
+    "func-param-name-mixedcase": "error",
     "func-visibility": ["error", { "ignoreConstructors": true }],
-    "no-console": "warn",
+    "no-empty-blocks": "off",
+    "not-rely-on-time": "off",
+    "private-vars-leading-underscore": ["error", { "strict": true }],
     "ordering": "error"
   }
 }

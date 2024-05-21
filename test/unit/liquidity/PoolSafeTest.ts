@@ -7,10 +7,10 @@ import {
     Calendar,
     CreditDueManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
+    MockPoolCreditManager,
     MockToken,
     Pool,
     PoolConfig,
@@ -19,13 +19,16 @@ import {
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../../../typechain-types";
-import { deployAndSetupPoolContracts, deployProtocolContracts } from "../../BaseTest";
+import {
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
+    mockDistributePnL,
+} from "../../BaseTest";
 import { toToken } from "../../TestUtils";
 import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -35,9 +38,7 @@ let poolOwner: SignerWithAddress,
     lender: SignerWithAddress,
     borrower: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -50,6 +51,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
+    creditManagerContract: MockPoolCreditManager,
     creditDueManagerContract: CreditDueManager;
 
 describe("PoolSafe Tests", function () {
@@ -58,7 +60,6 @@ describe("PoolSafe Tests", function () {
             defaultDeployer,
             protocolOwner,
             protocolTreasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -70,10 +71,9 @@ describe("PoolSafe Tests", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             protocolTreasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -92,16 +92,17 @@ describe("PoolSafe Tests", function () {
             juniorTrancheVaultContract,
             creditContract as unknown,
             creditDueManagerContract,
+            creditManagerContract as unknown,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
-            "CreditLineManager",
+            "MockPoolCreditManager",
             evaluationAgent,
+            protocolTreasury,
             poolOwnerTreasury,
             poolOperator,
             [lender],
@@ -133,6 +134,8 @@ describe("PoolSafe Tests", function () {
             await poolConfigContract
                 .connect(poolOwner)
                 .setTranches(defaultDeployer.address, defaultDeployer.address);
+            await poolSafeContract.connect(poolOwner).updatePoolConfigData();
+
             await testDeposit();
         });
 
@@ -151,11 +154,15 @@ describe("PoolSafe Tests", function () {
 
         it("Should allow the credit contract to make deposit into the safe", async function () {
             await poolConfigContract.connect(poolOwner).setCredit(defaultDeployer.address);
+            await poolSafeContract.connect(poolOwner).updatePoolConfigData();
+
             await testDeposit();
         });
 
         it("Should allow the pool fee manager contract to make deposit into the safe", async function () {
             await poolConfigContract.connect(poolOwner).setPoolFeeManager(defaultDeployer.address);
+            await poolSafeContract.connect(poolOwner).updatePoolConfigData();
+
             await testDeposit();
         });
 
@@ -186,6 +193,8 @@ describe("PoolSafe Tests", function () {
             await poolConfigContract
                 .connect(poolOwner)
                 .setTranches(defaultDeployer.address, defaultDeployer.address);
+            await poolSafeContract.connect(poolOwner).updatePoolConfigData();
+
             await testWithdrawal();
         });
 
@@ -204,11 +213,15 @@ describe("PoolSafe Tests", function () {
 
         it("Should allow the credit contract to withdraw from the safe", async function () {
             await poolConfigContract.connect(poolOwner).setCredit(defaultDeployer.address);
+            await poolSafeContract.connect(poolOwner).updatePoolConfigData();
+
             await testWithdrawal();
         });
 
         it("Should allow the pool fee manager contract to make deposit into the safe", async function () {
             await poolConfigContract.connect(poolOwner).setPoolFeeManager(defaultDeployer.address);
+            await poolSafeContract.connect(poolOwner).updatePoolConfigData();
+
             await testWithdrawal();
         });
 
@@ -340,13 +353,21 @@ describe("PoolSafe Tests", function () {
     describe("getAvailableBalanceForFees", function () {
         it("Should return 0 if the reserve exceeds the amount of assets", async function () {
             const profit = toToken(1_000_000);
-            await creditContract.mockDistributePnL(profit, toToken(0), toToken(0));
+            await mockDistributePnL(
+                creditContract,
+                creditManagerContract,
+                profit,
+                toToken(0),
+                toToken(0),
+            );
             // Withdraw assets away from pool safe so that the liquidity falls below the amount of reserve.
             await poolConfigContract
                 .connect(poolOwner)
                 .setPoolFeeManager(defaultDeployer.getAddress());
+            await poolSafeContract.connect(poolOwner).updatePoolConfigData();
             const totalBalance = await poolSafeContract.totalBalance();
             await poolSafeContract.withdraw(defaultDeployer.getAddress(), totalBalance);
+
             expect(await poolSafeContract.getAvailableBalanceForFees()).to.equal(
                 ethers.constants.Zero,
             );

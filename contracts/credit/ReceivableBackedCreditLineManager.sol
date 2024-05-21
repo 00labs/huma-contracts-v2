@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {CreditLineManager} from "./CreditLineManager.sol";
 import {ReceivableBackedCreditLineManagerStorage} from "./ReceivableBackedCreditLineManagerStorage.sol";
@@ -10,6 +10,7 @@ import {HUNDRED_PERCENT_IN_BPS} from "../common/SharedDefs.sol";
 import {IReceivable} from "./interfaces/IReceivable.sol";
 import {PoolConfig} from "../common/PoolConfig.sol";
 import {CreditManager} from "./CreditManager.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract ReceivableBackedCreditLineManager is
     IReceivableBackedCreditLineManager,
@@ -36,7 +37,7 @@ contract ReceivableBackedCreditLineManager is
     /// @inheritdoc IReceivableBackedCreditLineManager
     function approveReceivable(address borrower, uint256 receivableId) external {
         poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != humaConfig.eaServiceAccount() && msg.sender != address(credit))
+        if (msg.sender != poolConfig.evaluationAgent() && msg.sender != address(credit))
             revert Errors.AuthorizedContractCallerRequired();
 
         if (receivableId == 0) revert Errors.ZeroReceivableIdProvided();
@@ -64,9 +65,14 @@ contract ReceivableBackedCreditLineManager is
     }
 
     /// @inheritdoc IReceivableBackedCreditLineManager
-    function decreaseCreditLimit(bytes32 creditHash, uint256 amount) external {
+    function decreaseAvailableCredit(bytes32 creditHash, uint256 amount) external {
         if (msg.sender != address(credit)) revert Errors.AuthorizedContractCallerRequired();
-        uint256 availableCredit = getAvailableCredit(creditHash);
+        // The creditLimit may change while the credit line is active and drop below the previously approved
+        // amount of available credit, so use the lesser of the two values as the amount of available credit.
+        uint256 availableCredit = Math.min(
+            getAvailableCredit(creditHash),
+            getCreditConfig(creditHash).creditLimit
+        );
         if (amount > availableCredit) revert Errors.CreditLimitExceeded();
         availableCredit -= amount;
         _availableCredits[creditHash] = uint96(availableCredit);

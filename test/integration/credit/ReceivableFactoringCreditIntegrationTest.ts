@@ -7,7 +7,6 @@ import {
     Calendar,
     CreditDueManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockNFT,
@@ -44,7 +43,6 @@ import { CONSTANTS } from "../../constants";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -52,9 +50,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress;
 let lender: SignerWithAddress, borrower: SignerWithAddress, payer: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -77,7 +73,6 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -90,10 +85,9 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -116,13 +110,13 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
             "ReceivableFactoringCredit",
             "ReceivableFactoringCreditManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender, borrower, payer],
@@ -144,9 +138,7 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
             .connect(borrower)
             .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
 
-        await juniorTrancheVaultContract
-            .connect(lender)
-            .deposit(toToken(10_000_000), lender.address);
+        await juniorTrancheVaultContract.connect(lender).deposit(toToken(10_000_000));
     }
 
     describe("Bulla case tests", function () {
@@ -203,7 +195,7 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
 
         it("Approves borrower credit", async function () {
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveReceivable(
                     borrower.address,
                     { receivableAmount: creditLimit, receivableId: tokenId },
@@ -216,16 +208,14 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
         it("Payee draws down with receivable", async function () {
             await nftContract.connect(borrower).approve(creditContract.address, tokenId);
 
-            await creditContract
-                .connect(borrower)
-                .drawdownWithReceivable(borrower.address, tokenId, borrowAmount);
+            await creditContract.connect(borrower).drawdownWithReceivable(tokenId, borrowAmount);
         });
 
         it("Payee pays for the yield due due", async function () {
             const oldCR = await creditContract["getCreditRecord(bytes32)"](creditHash);
             await creditContract
                 .connect(borrower)
-                .makePaymentWithReceivable(borrower.address, tokenId, oldCR.yieldDue);
+                .makePaymentWithReceivable(tokenId, oldCR.yieldDue);
 
             const actualCR = await creditContract["getCreditRecord(bytes32)"](creditHash);
             const expectedCR = {

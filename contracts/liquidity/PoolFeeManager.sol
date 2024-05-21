@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {ADMIN_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS} from "../common/SharedDefs.sol";
 import {PoolConfig, AdminRnR} from "../common/PoolConfig.sol";
@@ -105,23 +105,19 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
      * @custom:access Only the protocol owner can call to withdraw.
      */
     function withdrawProtocolFee(uint256 amount) external {
-        if (msg.sender != humaConfig.owner()) revert Errors.ProtocolOwnerRequired();
+        address humaTreasury = humaConfig.humaTreasury();
+        if (msg.sender != humaTreasury) revert Errors.HumaTreasuryRequired();
         // Invests available fees in FirstLossCover first
         AccruedIncomes memory incomes = _investFeesInFirstLossCover();
+        if (!firstLossCover.isSufficient()) revert Errors.InsufficientFirstLossCover();
+
         uint256 incomeWithdrawn = protocolIncomeWithdrawn;
         if (incomeWithdrawn + amount > incomes.protocolIncome)
             revert Errors.InsufficientAmountForRequest();
 
         protocolIncomeWithdrawn = incomeWithdrawn + amount;
-
-        address treasuryAddress = humaConfig.humaTreasury();
-        // It is possible that Huma protocolTreasury is missed in the setup. If that happens,
-        // the transaction is reverted. The protocol owner can still withdraw protocol fee
-        // after protocolTreasury is configured in HumaConfig.
-        assert(treasuryAddress != address(0));
-
-        poolSafe.withdraw(treasuryAddress, amount);
-        emit ProtocolRewardsWithdrawn(treasuryAddress, amount, msg.sender);
+        poolSafe.withdraw(humaTreasury, amount);
+        emit ProtocolRewardsWithdrawn(humaTreasury, amount, msg.sender);
     }
 
     /**
@@ -215,26 +211,26 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     }
 
     /// Utility function to cache the dependent contract addresses.
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
         address oldUnderlyingToken = address(underlyingToken);
-        address newUnderlyingToken = _poolConfig.underlyingToken();
+        address newUnderlyingToken = poolConfig_.underlyingToken();
         assert(newUnderlyingToken != address(0));
         underlyingToken = IERC20(newUnderlyingToken);
 
-        address addr = _poolConfig.poolSafe();
+        address addr = poolConfig_.poolSafe();
         assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
-        addr = _poolConfig.pool();
+        addr = poolConfig_.pool();
         assert(addr != address(0));
         pool = IPool(addr);
 
-        addr = address(_poolConfig.humaConfig());
+        addr = address(poolConfig_.humaConfig());
         assert(addr != address(0));
         humaConfig = HumaConfig(addr);
 
         address oldFirstLossCover = address(firstLossCover);
-        addr = _poolConfig.getFirstLossCover(ADMIN_LOSS_COVER_INDEX);
+        addr = poolConfig_.getFirstLossCover(ADMIN_LOSS_COVER_INDEX);
         assert(addr != address(0));
         firstLossCover = IFirstLossCover(addr);
         _resetFirstLossCoverAllowance(
@@ -284,31 +280,34 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
      */
     function _investFeesInFirstLossCover() internal returns (AccruedIncomes memory incomes) {
         (
-            uint256 feesLiquidity,
+            uint256 availableFeesForCover,
             AccruedIncomes memory availableIncomes
         ) = _getAvailableFeesToInvestInFirstLossCover();
-        if (feesLiquidity == 0) return _accruedIncomes;
+        if (availableFeesForCover == 0) return _accruedIncomes;
 
-        uint256 totalAvailableFees = availableIncomes.protocolIncome +
+        uint256 totalIncomes = availableIncomes.protocolIncome +
             availableIncomes.poolOwnerIncome +
             availableIncomes.eaIncome;
         incomes = _accruedIncomes;
 
-        uint256 poolOwnerFees = (availableIncomes.poolOwnerIncome * feesLiquidity) /
-            totalAvailableFees;
-        uint256 eaFees = (availableIncomes.eaIncome * feesLiquidity) / totalAvailableFees;
-        uint256 protocolFees = feesLiquidity - poolOwnerFees - eaFees;
-        incomes.protocolIncome -= uint96(protocolFees);
-        incomes.poolOwnerIncome -= uint96(poolOwnerFees);
-        incomes.eaIncome -= uint96(eaFees);
+        uint256 poolOwnerFeesInvested = (availableIncomes.poolOwnerIncome *
+            availableFeesForCover) / totalIncomes;
+        uint256 eaFeesInvested = (availableIncomes.eaIncome * availableFeesForCover) /
+            totalIncomes;
+        uint256 protocolFeesInvested = availableFeesForCover -
+            poolOwnerFeesInvested -
+            eaFeesInvested;
+        incomes.protocolIncome -= uint96(protocolFeesInvested);
+        incomes.poolOwnerIncome -= uint96(poolOwnerFeesInvested);
+        incomes.eaIncome -= uint96(eaFeesInvested);
         _accruedIncomes = incomes;
 
         // Transfers tokens from PoolSafe to this contract first, firstLossCover then will transfer
         // token from this contract to itself while calling depositCoverFor.
-        poolSafe.withdraw(address(this), feesLiquidity);
-        firstLossCover.depositCoverFor(poolOwnerFees, poolConfig.poolOwnerTreasury());
-        firstLossCover.depositCoverFor(eaFees, poolConfig.evaluationAgent());
-        firstLossCover.depositCoverFor(protocolFees, humaConfig.humaTreasury());
+        poolSafe.withdraw(address(this), availableFeesForCover);
+        firstLossCover.depositCoverFor(poolOwnerFeesInvested, poolConfig.poolOwnerTreasury());
+        firstLossCover.depositCoverFor(eaFeesInvested, poolConfig.evaluationAgent());
+        firstLossCover.depositCoverFor(protocolFeesInvested, humaConfig.humaTreasury());
     }
 
     function _getAvailableIncomes() internal view returns (AccruedIncomes memory incomes) {
@@ -366,7 +365,6 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         incomes.eaIncome = uint96(income);
 
         remaining -= incomes.poolOwnerIncome + incomes.eaIncome;
-        return (incomes, remaining);
     }
 
     function _onlyPoolOwnerTreasury(address account) internal view returns (address) {

@@ -7,7 +7,6 @@ import {
     CreditDueManager,
     CreditLineManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
@@ -24,7 +23,6 @@ import { deployPoolContracts, deployProtocolContracts, deployProxyContract } fro
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -32,9 +30,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress,
     lender: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -56,7 +52,6 @@ describe("PoolConfigCache Test", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -67,10 +62,9 @@ describe("PoolConfigCache Test", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -166,5 +160,14 @@ describe("PoolConfigCache Test", function () {
         expect(await seniorTrancheVaultContract.epochManager()).to.equal(
             mockTokenContract.address,
         );
+    });
+
+    it("Should not let non initializer to _initialize in PoolConfigCache", async function () {
+        const MockPoolConfigCache = await ethers.getContractFactory("MockPoolConfigCache");
+        const mockPoolConfigCacheContract = await deployProxyContract(MockPoolConfigCache);
+        await mockPoolConfigCacheContract.deployed();
+        await expect(
+            mockPoolConfigCacheContract.otherInitialize(poolConfigContract.address),
+        ).to.be.revertedWith("Initializable: contract is not initializing");
     });
 });

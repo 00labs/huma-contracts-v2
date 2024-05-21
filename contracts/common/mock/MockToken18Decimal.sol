@@ -5,7 +5,7 @@ import {ERC20, ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-contract MockToken is ERC20Permit, IERC165 {
+contract MockToken18Decimal is ERC20Permit, IERC165 {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /// Transfers to these addresses will fail and return `false` so that we can test transfer failure handling.
@@ -61,6 +61,6 @@ contract MockToken is ERC20Permit, IERC165 {
     }
 
     function decimals() public view virtual override returns (uint8) {
-        return 6;
+        return 18;
     }
 }

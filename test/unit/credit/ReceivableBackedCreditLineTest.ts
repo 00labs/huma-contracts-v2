@@ -7,7 +7,6 @@ import {
     Calendar,
     CreditDueManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockToken,
@@ -48,7 +47,6 @@ import { CONSTANTS } from "../../constants";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -56,9 +54,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress;
 let lender: SignerWithAddress, borrower: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -81,7 +77,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -93,10 +88,9 @@ describe("ReceivableBackedCreditLine Tests", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -120,13 +114,13 @@ describe("ReceivableBackedCreditLine Tests", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
             "ReceivableBackedCreditLine",
             "ReceivableBackedCreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender, borrower],
@@ -149,13 +143,52 @@ describe("ReceivableBackedCreditLine Tests", function () {
             .connect(borrower)
             .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
 
-        await juniorTrancheVaultContract
-            .connect(lender)
-            .deposit(toToken(10_000_000), lender.address);
+        await juniorTrancheVaultContract.connect(lender).deposit(toToken(10_000_000));
     }
 
     beforeEach(async function () {
         await loadFixture(prepare);
+    });
+
+    describe("onERC721Received", function () {
+        let receivableId: BN;
+
+        async function prepareForTransfer() {
+            const currentTS = (await getLatestBlock()).timestamp;
+            const maturityDate =
+                currentTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+
+            await receivableContract
+                .connect(borrower)
+                .createReceivable(1, toToken(10_000), maturityDate, "", "");
+            receivableId = await receivableContract.tokenOfOwnerByIndex(borrower.getAddress(), 0);
+        }
+
+        beforeEach(async function () {
+            await loadFixture(prepareForTransfer);
+        });
+
+        it("Should disallow transfers when the protocol is paused or pool is not on", async function () {
+            await humaConfigContract.connect(protocolOwner).pause();
+            await expect(
+                receivableContract
+                    .connect(borrower)
+                    [
+                        "safeTransferFrom(address,address,uint256)"
+                    ](borrower.getAddress(), creditContract.address, receivableId),
+            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
+            await humaConfigContract.connect(protocolOwner).unpause();
+
+            await poolContract.connect(poolOwner).disablePool();
+            await expect(
+                receivableContract
+                    .connect(borrower)
+                    [
+                        "safeTransferFrom(address,address,uint256)"
+                    ](borrower.getAddress(), creditContract.address, receivableId),
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
+            await poolContract.connect(poolOwner).enablePool();
+        });
     });
 
     describe("getNextBillRefreshDate and getDueInfo", function () {
@@ -188,7 +221,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(100_000),
@@ -218,7 +251,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
         it("Should return the latest bill for the borrower", async function () {
             await creditContract
                 .connect(borrower)
-                .drawdownWithReceivable(borrower.getAddress(), receivableId, borrowAmount);
+                .drawdownWithReceivable(receivableId, borrowAmount);
 
             const oldCR = await creditContract.getCreditRecord(creditHash);
             const latePaymentDeadline =
@@ -319,7 +352,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
 
         async function approveBorrower() {
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(100_000),
@@ -340,11 +373,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 await expect(
                     creditContract
                         .connect(borrower)
-                        .drawdownWithReceivable(
-                            borrower.getAddress(),
-                            receivableId,
-                            receivableAmount,
-                        ),
+                        .drawdownWithReceivable(receivableId, receivableAmount),
                 ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
             });
         });
@@ -386,11 +415,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 await expect(
                     creditContract
                         .connect(borrower)
-                        .drawdownWithReceivable(
-                            borrower.getAddress(),
-                            receivableId,
-                            receivableAmount,
-                        ),
+                        .drawdownWithReceivable(receivableId, receivableAmount),
                 )
                     .to.emit(creditContract, "DrawdownMade")
                     .withArgs(await borrower.getAddress(), receivableAmount, netBorrowAmount)
@@ -402,7 +427,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                         await borrower.getAddress(),
                     )
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, nextDueDate, nextDue);
+                    .withArgs(creditHash, nextDueDate, nextDue, 0);
                 const borrowerNewBalance = await mockTokenContract.balanceOf(
                     borrower.getAddress(),
                 );
@@ -431,21 +456,13 @@ describe("ReceivableBackedCreditLine Tests", function () {
             it("Should not allow drawdown when the protocol is paused or pool is not on", async function () {
                 await humaConfigContract.connect(protocolOwner).pause();
                 await expect(
-                    creditContract.drawdownWithReceivable(
-                        borrower.getAddress(),
-                        receivableId,
-                        receivableAmount,
-                    ),
+                    creditContract.drawdownWithReceivable(receivableId, receivableAmount),
                 ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
 
                 await poolContract.connect(poolOwner).disablePool();
                 await expect(
-                    creditContract.drawdownWithReceivable(
-                        borrower.getAddress(),
-                        receivableId,
-                        receivableAmount,
-                    ),
+                    creditContract.drawdownWithReceivable(receivableId, receivableAmount),
                 ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
             });
@@ -454,12 +471,8 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 await expect(
                     creditContract
                         .connect(lender)
-                        .drawdownWithReceivable(
-                            borrower.getAddress(),
-                            receivableId,
-                            receivableAmount,
-                        ),
-                ).to.be.revertedWithCustomError(creditContract, "BorrowerRequired");
+                        .drawdownWithReceivable(receivableId, receivableAmount),
+                ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
             });
 
             it("Should not allow drawdown with 0 receivable amount", async function () {
@@ -477,11 +490,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 await expect(
                     creditContract
                         .connect(borrower)
-                        .drawdownWithReceivable(
-                            borrower.getAddress(),
-                            receivableId2,
-                            receivableAmount,
-                        ),
+                        .drawdownWithReceivable(receivableId2, receivableAmount),
                 ).to.be.revertedWithCustomError(creditContract, "InsufficientReceivableAmount");
                 await receivableContract.connect(borrower).burn(receivableId2);
                 expect(await receivableContract.balanceOf(borrower.getAddress())).to.equal(1);
@@ -489,9 +498,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
 
             it("Should not allow drawdown with 0 receivable ID", async function () {
                 await expect(
-                    creditContract
-                        .connect(borrower)
-                        .drawdownWithReceivable(borrower.getAddress(), 0, receivableAmount),
+                    creditContract.connect(borrower).drawdownWithReceivable(0, receivableAmount),
                 ).to.be.revertedWithCustomError(creditContract, "ZeroReceivableIdProvided");
             });
 
@@ -499,19 +506,13 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 await expect(
                     creditContract
                         .connect(borrower)
-                        .drawdownWithReceivable(
-                            borrower.getAddress(),
-                            receivableId,
-                            receivableAmount.add(toToken(1)),
-                        ),
+                        .drawdownWithReceivable(receivableId, receivableAmount.add(toToken(1))),
                 ).to.be.revertedWithCustomError(creditContract, "InsufficientReceivableAmount");
             });
 
             it("Should not allow drawdown with 0 borrow amount", async function () {
                 await expect(
-                    creditContract
-                        .connect(borrower)
-                        .drawdownWithReceivable(borrower.getAddress(), receivableId, 0),
+                    creditContract.connect(borrower).drawdownWithReceivable(receivableId, 0),
                 ).to.be.revertedWithCustomError(creditContract, "ZeroAmountProvided");
             });
 
@@ -530,11 +531,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 await expect(
                     creditContract
                         .connect(borrower)
-                        .drawdownWithReceivable(
-                            borrower.getAddress(),
-                            receivableId2,
-                            receivableAmount,
-                        ),
+                        .drawdownWithReceivable(receivableId2, receivableAmount),
                 ).to.be.revertedWithCustomError(creditContract, "ReceivableOwnerRequired");
 
                 await receivableContract.connect(lender).burn(receivableId2);
@@ -555,11 +552,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 await expect(
                     creditContract
                         .connect(borrower)
-                        .drawdownWithReceivable(
-                            borrower.getAddress(),
-                            receivableId2,
-                            receivableAmount,
-                        ),
+                        .drawdownWithReceivable(receivableId2, receivableAmount),
                 ).to.be.revertedWithCustomError(creditManagerContract, "ReceivableAlreadyMatured");
 
                 await receivableContract.connect(borrower).burn(receivableId2);
@@ -573,11 +566,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 await expect(
                     creditContract
                         .connect(borrower)
-                        .drawdownWithReceivable(
-                            borrower.getAddress(),
-                            receivableId,
-                            receivableAmount,
-                        ),
+                        .drawdownWithReceivable(receivableId, receivableAmount),
                 ).to.be.revertedWithCustomError(creditManagerContract, "InvalidReceivableState");
             });
 
@@ -595,11 +584,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 await expect(
                     creditContract
                         .connect(borrower)
-                        .drawdownWithReceivable(
-                            borrower.getAddress(),
-                            receivableId,
-                            receivableAmount,
-                        ),
+                        .drawdownWithReceivable(receivableId, receivableAmount),
                 ).to.be.revertedWithCustomError(creditManagerContract, "ReceivableIdMismatch");
 
                 await poolConfigContract.connect(poolOwner).setPoolSettings(settings);
@@ -638,7 +623,12 @@ describe("ReceivableBackedCreditLine Tests", function () {
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
             const currentTS = (await getLatestBlock()).timestamp;
-            maturityDate = currentTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+            maturityDate = (
+                await calendarContract.getStartDateOfNextPeriod(
+                    PayPeriodDuration.Monthly,
+                    currentTS,
+                )
+            ).toNumber();
             await receivableContract
                 .connect(borrower)
                 .createReceivable(1, borrowAmount, maturityDate, "", "");
@@ -650,7 +640,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
 
         async function approveAndDrawdown() {
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(100_000),
@@ -662,7 +652,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 );
             await creditContract
                 .connect(borrower)
-                .drawdownWithReceivable(borrower.getAddress(), receivableId, borrowAmount);
+                .drawdownWithReceivable(receivableId, borrowAmount);
         }
 
         beforeEach(async function () {
@@ -921,7 +911,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     .connect(borrower)
                     .approve(creditContract.address, receivableId2);
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveReceivable(borrower.getAddress(), receivableId2);
 
                 await expect(
@@ -982,7 +972,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
 
         async function approveBorrowerAndDrawdown() {
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(100_000),
@@ -994,7 +984,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 );
             await creditContract
                 .connect(borrower)
-                .drawdownWithReceivable(borrower.getAddress(), receivableId, borrowAmount);
+                .drawdownWithReceivable(receivableId, borrowAmount);
         }
 
         beforeEach(async function () {
@@ -1006,11 +996,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 await expect(
                     creditContract
                         .connect(borrower)
-                        .makePrincipalPaymentWithReceivable(
-                            borrower.getAddress(),
-                            receivableId,
-                            borrowAmount,
-                        ),
+                        .makePrincipalPaymentWithReceivable(receivableId, borrowAmount),
                 ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
             });
         });
@@ -1028,11 +1014,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 await expect(
                     creditContract
                         .connect(borrower)
-                        .makePrincipalPaymentWithReceivable(
-                            borrower.getAddress(),
-                            receivableId,
-                            paymentAmount,
-                        ),
+                        .makePrincipalPaymentWithReceivable(receivableId, paymentAmount),
                 )
                     .to.emit(creditContract, "PrincipalPaymentMade")
                     .withArgs(
@@ -1054,18 +1036,38 @@ describe("ReceivableBackedCreditLine Tests", function () {
                         await borrower.getAddress(),
                     );
 
+                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                const currentTS = (await getLatestBlock()).timestamp;
+                const startDateOfNextPeriod = await calendarContract.getStartDateOfNextPeriod(
+                    cc.periodDuration,
+                    currentTS,
+                );
+                const daysRemaining = await calendarContract.getDaysDiff(
+                    currentTS,
+                    startDateOfNextPeriod,
+                );
+                const reducedAccruedYield = calcYield(
+                    paymentAmount,
+                    yieldInBps,
+                    daysRemaining.toNumber(),
+                );
                 const actualCR = await creditContract.getCreditRecord(creditHash);
                 const expectedCR = {
                     ...oldCR,
                     ...{
-                        nextDue: oldCR.yieldDue,
-                        yieldDue: oldCR.yieldDue,
+                        nextDue: oldCR.yieldDue.sub(reducedAccruedYield),
+                        yieldDue: oldCR.yieldDue.sub(reducedAccruedYield),
                     },
                 };
                 checkCreditRecordsMatch(actualCR, expectedCR);
 
                 const actualDD = await creditContract.getDueDetail(creditHash);
-                const expectedDD = oldDD;
+                const expectedDD = {
+                    ...oldDD,
+                    ...{
+                        accrued: oldDD.accrued.sub(reducedAccruedYield),
+                    },
+                };
                 checkDueDetailsMatch(actualDD, expectedDD);
             });
 
@@ -1074,11 +1076,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 await expect(
                     creditContract
                         .connect(borrower)
-                        .makePrincipalPaymentWithReceivable(
-                            borrower.getAddress(),
-                            receivableId,
-                            borrowAmount,
-                        ),
+                        .makePrincipalPaymentWithReceivable(receivableId, borrowAmount),
                 ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
 
@@ -1086,11 +1084,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 await expect(
                     creditContract
                         .connect(borrower)
-                        .makePrincipalPaymentWithReceivable(
-                            borrower.getAddress(),
-                            receivableId,
-                            borrowAmount,
-                        ),
+                        .makePrincipalPaymentWithReceivable(receivableId, borrowAmount),
                 ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
             });
@@ -1099,23 +1093,15 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 await expect(
                     creditContract
                         .connect(lender)
-                        .makePrincipalPaymentWithReceivable(
-                            borrower.getAddress(),
-                            receivableId,
-                            borrowAmount,
-                        ),
-                ).to.be.revertedWithCustomError(creditContract, "BorrowerRequired");
+                        .makePrincipalPaymentWithReceivable(receivableId, borrowAmount),
+                ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
             });
 
             it("Should not allow payment with 0 receivable ID", async function () {
                 await expect(
                     creditContract
                         .connect(borrower)
-                        .makePrincipalPaymentWithReceivable(
-                            borrower.getAddress(),
-                            0,
-                            borrowAmount,
-                        ),
+                        .makePrincipalPaymentWithReceivable(0, borrowAmount),
                 ).to.be.revertedWithCustomError(creditContract, "ZeroReceivableIdProvided");
             });
 
@@ -1134,17 +1120,13 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     .connect(borrower)
                     .approve(creditContract.address, receivableId2);
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveReceivable(borrower.getAddress(), receivableId2);
 
                 await expect(
                     creditContract
                         .connect(borrower)
-                        .makePrincipalPaymentWithReceivable(
-                            borrower.getAddress(),
-                            receivableId2,
-                            borrowAmount,
-                        ),
+                        .makePrincipalPaymentWithReceivable(receivableId2, borrowAmount),
                 ).to.be.revertedWithCustomError(creditContract, "ReceivableOwnerRequired");
 
                 await receivableContract.connect(borrower).burn(receivableId2);
@@ -1224,7 +1206,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
         async function approveBorrower() {
             designatedStartDate = await getFutureBlockTime(2);
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(100_000),
@@ -1239,7 +1221,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
         async function initialDrawdown() {
             await creditContract
                 .connect(borrower)
-                .drawdownWithReceivable(borrower.getAddress(), paymentReceivableId, paymentAmount);
+                .drawdownWithReceivable(paymentReceivableId, paymentAmount);
         }
 
         beforeEach(async function () {
@@ -1252,7 +1234,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     creditContract
                         .connect(borrower)
                         .makePrincipalPaymentAndDrawdownWithReceivable(
-                            borrower.getAddress(),
                             paymentReceivableId,
                             paymentAmount,
                             drawdownReceivableId,
@@ -1272,7 +1253,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 await approveBorrower();
                 // Manually approve the receivable for first drawdown.
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveReceivable(borrower.getAddress(), paymentReceivableId);
                 await initialDrawdown();
                 // Create another receivable for second drawdown, but this receivable won't be approved.
@@ -1291,7 +1272,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     creditContract
                         .connect(borrower)
                         .makePrincipalPaymentAndDrawdownWithReceivable(
-                            borrower.getAddress(),
                             paymentReceivableId,
                             paymentAmount,
                             drawdownReceivableId2,
@@ -1329,7 +1309,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     creditContract
                         .connect(borrower)
                         .makePrincipalPaymentAndDrawdownWithReceivable(
-                            borrower.getAddress(),
                             paymentReceivableId,
                             paymentAmount,
                             drawdownReceivableId,
@@ -1377,7 +1356,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
                         creditContract
                             .connect(borrower)
                             .makePrincipalPaymentAndDrawdownWithReceivable(
-                                borrower.getAddress(),
                                 paymentReceivableId,
                                 paymentAmount,
                                 drawdownReceivableId,
@@ -1433,7 +1411,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
                         creditContract
                             .connect(borrower)
                             .makePrincipalPaymentAndDrawdownWithReceivable(
-                                borrower.getAddress(),
                                 paymentReceivableId,
                                 paymentAmount,
                                 drawdownReceivableId,
@@ -1475,17 +1452,39 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     );
                     expect(poolSafeBalanceAfter.sub(poolSafeBalanceBefore)).to.equal(amountDiff);
 
+                    const cc = await creditManagerContract.getCreditConfig(creditHash);
+                    const currentTS = (await getLatestBlock()).timestamp;
+                    const startDateOfNextPeriod = await calendarContract.getStartDateOfNextPeriod(
+                        cc.periodDuration,
+                        currentTS,
+                    );
+                    const daysRemaining = await calendarContract.getDaysDiff(
+                        currentTS,
+                        startDateOfNextPeriod,
+                    );
+                    const reducedAccruedYield = calcYield(
+                        amountDiff,
+                        yieldInBps,
+                        daysRemaining.toNumber(),
+                    );
                     const actualCR = await creditContract.getCreditRecord(creditHash);
                     const expectedCR = {
                         ...oldCR,
                         ...{
-                            nextDue: oldCR.yieldDue,
+                            nextDue: oldCR.yieldDue.sub(reducedAccruedYield),
+                            yieldDue: oldCR.yieldDue.sub(reducedAccruedYield),
                         },
                     };
                     checkCreditRecordsMatch(actualCR, expectedCR);
 
                     const actualDD = await creditContract.getDueDetail(creditHash);
-                    checkDueDetailsMatch(actualDD, oldDD);
+                    const expectedDD = {
+                        ...oldDD,
+                        ...{
+                            accrued: oldDD.accrued.sub(reducedAccruedYield),
+                        },
+                    };
+                    checkDueDetailsMatch(actualDD, expectedDD);
                 });
             });
 
@@ -1522,7 +1521,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
                         creditContract
                             .connect(borrower)
                             .makePrincipalPaymentAndDrawdownWithReceivable(
-                                borrower.getAddress(),
                                 paymentReceivableId,
                                 paymentAmount,
                                 drawdownReceivableId,
@@ -1586,7 +1584,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     creditContract
                         .connect(borrower)
                         .makePrincipalPaymentAndDrawdownWithReceivable(
-                            borrower.getAddress(),
                             paymentReceivableId,
                             paymentAmount,
                             drawdownReceivableId,
@@ -1598,7 +1595,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 await poolContract.connect(poolOwner).disablePool();
                 await expect(
                     creditContract.makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.getAddress(),
                         paymentReceivableId,
                         paymentAmount,
                         drawdownReceivableId,
@@ -1613,13 +1609,12 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     creditContract
                         .connect(lender)
                         .makePrincipalPaymentAndDrawdownWithReceivable(
-                            borrower.getAddress(),
                             paymentReceivableId,
                             paymentAmount,
                             drawdownReceivableId,
                             paymentAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditContract, "BorrowerRequired");
+                ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
             });
 
             it("Should not allow payment and drawdown if the payment amount is 0", async function () {
@@ -1627,7 +1622,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     creditContract
                         .connect(borrower)
                         .makePrincipalPaymentAndDrawdownWithReceivable(
-                            borrower.getAddress(),
                             paymentReceivableId,
                             0,
                             drawdownReceivableId,
@@ -1641,7 +1635,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     creditContract
                         .connect(borrower)
                         .makePrincipalPaymentAndDrawdownWithReceivable(
-                            borrower.getAddress(),
                             paymentReceivableId,
                             paymentAmount,
                             drawdownReceivableId,
@@ -1655,7 +1648,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     creditContract
                         .connect(borrower)
                         .makePrincipalPaymentAndDrawdownWithReceivable(
-                            borrower.getAddress(),
                             paymentReceivableId,
                             paymentAmount,
                             0,
@@ -1679,14 +1671,13 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     .connect(borrower)
                     .approve(creditContract.address, receivableId2);
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveReceivable(borrower.getAddress(), receivableId2);
 
                 await expect(
                     creditContract
                         .connect(borrower)
                         .makePrincipalPaymentAndDrawdownWithReceivable(
-                            borrower.getAddress(),
                             receivableId2,
                             paymentAmount,
                             drawdownReceivableId,
@@ -1712,7 +1703,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     creditContract
                         .connect(borrower)
                         .makePrincipalPaymentAndDrawdownWithReceivable(
-                            borrower.getAddress(),
                             paymentReceivableId,
                             paymentAmount,
                             receivableId2,
@@ -1726,7 +1716,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     creditContract
                         .connect(borrower)
                         .makePrincipalPaymentAndDrawdownWithReceivable(
-                            borrower.getAddress(),
                             paymentReceivableId,
                             paymentAmount,
                             0,
@@ -1753,7 +1742,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     creditContract
                         .connect(borrower)
                         .makePrincipalPaymentAndDrawdownWithReceivable(
-                            borrower.getAddress(),
                             paymentReceivableId,
                             paymentAmount,
                             receivableId2,
