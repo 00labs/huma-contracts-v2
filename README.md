@@ -1,5 +1,5 @@
-<h1 align="center">Welcome to huma-contracts-v2 👋</h1>
-<p>
+<h1 align="center">Welcome to huma-contracts-v2 </h1>
+<p align="center">
   <img alt="Version" src="https://img.shields.io/badge/version-1.0.0-blue.svg?cacheSeconds=2592000" />
   <a href="docs.huma.finance" target="_blank">
     <img alt="Documentation" src="https://img.shields.io/badge/documentation-yes-brightgreen.svg" />
@@ -14,23 +14,29 @@
 
 > Huma Finance EVM contracts v2
 
-### 🏠 [Homepage](huma.finance)
+### 🏠 [Homepage](https://huma.finance)
 
-## Install
+## Setup development environment
+
+Prerequisites: You need node.js v18+ and yarn installed.
+
+### Checkout this repository
+
+```sh
+git clone https://github.com/00labs/huma-contracts-v2
+cd huma-contracts
+```
+
+### Install the dependencies
 
 ```sh
 yarn install
 ```
 
-## Usage
+### Compile and run tests
 
 ```sh
-yarn build; yarn test
-```
-
-## Run tests
-
-```sh
+yarn compile
 yarn test
 ```
 
@@ -38,12 +44,12 @@ yarn test
 
 👤 **Huma**
 
-* Twitter: [@humafinance](https://twitter.com/humafinance)
-* LinkedIn: [@huma-finance](https://linkedin.com/in/huma-finance)
+- Twitter: [@humafinance](https://twitter.com/humafinance)
+- LinkedIn: [@huma-finance](https://linkedin.com/in/huma-finance)
 
 ## 🤝 Contributing
 
-Contributions, issues and feature requests are welcome!<br />Feel free to check [issues page](https://cantina.xyz/bounties/7321db84-3628-4cd7-bc0d-ea0888a3546f). 
+Contributions, issues and feature requests are welcome!<br />Feel free to check [issues page](https://cantina.xyz/bounties/7321db84-3628-4cd7-bc0d-ea0888a3546f).
 
 ## Show your support
 
@@ -53,5 +59,6 @@ Give a ⭐️ if this project helped you!
 
 This project is [AGPL--3.0--or--later](https://spdx.org/licenses/AGPL-3.0-or-later.html) licensed.
 
-***
+---
+
 _This README was generated with ❤️ by [readme-md-generator](https://github.com/kefranabg/readme-md-generator)_
