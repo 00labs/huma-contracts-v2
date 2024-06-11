@@ -24,7 +24,7 @@ Prerequisites: You need node.js v18+ and yarn installed.
 
 ```sh
 git clone https://github.com/00labs/huma-contracts-v2
-cd huma-contracts
+cd huma-contracts-v2
 ```
 
 ### Install the dependencies
