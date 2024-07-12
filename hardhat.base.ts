@@ -58,6 +58,11 @@ const config: HardhatUserConfig = {
             accounts: [deployer],
             chainId: 534351,
         },
+        scroll: {
+            url: "https://rpc.scroll.io",
+            accounts: [deployer],
+            chainId: 534352,
+        },
     },
     solidity: {
         compilers: [
@@ -80,6 +85,7 @@ const config: HardhatUserConfig = {
             baseSepolia: process.env.BASESCAN_API_KEY || "",
             amoy: process.env.ETHERSCAN_API_KEY || "",
             scrollSepolia: process.env.SCROLLSCAN_API_KEY || "",
+            scroll: process.env.SCROLLSCAN_API_KEY || "",
         },
         customChains: [
             {
@@ -120,6 +126,14 @@ const config: HardhatUserConfig = {
                 urls: {
                     apiURL: "https://api-sepolia.scrollscan.com/api",
                     browserURL: "https://sepolia.scrollscan.dev/",
+                },
+            },
+            {
+                network: "scroll",
+                chainId: 534352,
+                urls: {
+                    apiURL: "https://api.scrollscan.com/api",
+                    browserURL: "https://scrollscan.com/",
                 },
             },
         ],

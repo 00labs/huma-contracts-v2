@@ -6,8 +6,8 @@ import { BigNumber as BN, ethers } from "ethers";
 import fs from "fs";
 const DEPLOYED_PATH = "./deployment/";
 
-const MAX_FEE_PER_GAS = 1_000_000;
-const MAX_PRIORITY_FEE_PER_GAS = 0;
+const MAX_FEE_PER_GAS = 300_000_000;
+const MAX_PRIORITY_FEE_PER_GAS = 100_000_000;
 
 const getContractAddressFile = async function (fileType = "deployed", network) {
     if (!network) {
@@ -154,22 +154,22 @@ export async function deploy(
     // const gasPrice = web3.utils.toHex('33000000000')
 
     let contract;
-    // if (contractParameters) {
-    //     contract = await Contract.deploy(...contractParameters, {
-    //         maxFeePerGas: MAX_FEE_PER_GAS,
-    //         maxPriorityFeePerGas: MAX_PRIORITY_FEE_PER_GAS,
-    //     });
-    // } else {
-    //     contract = await Contract.deploy({
-    //         maxFeePerGas: MAX_FEE_PER_GAS,
-    //         maxPriorityFeePerGas: MAX_PRIORITY_FEE_PER_GAS,
-    //     });
-    // }
     if (contractParameters) {
-        contract = await Contract.deploy(...contractParameters);
+        contract = await Contract.deploy(...contractParameters, {
+            maxFeePerGas: MAX_FEE_PER_GAS,
+            maxPriorityFeePerGas: MAX_PRIORITY_FEE_PER_GAS,
+        });
     } else {
-        contract = await Contract.deploy();
+        contract = await Contract.deploy({
+            maxFeePerGas: MAX_FEE_PER_GAS,
+            maxPriorityFeePerGas: MAX_PRIORITY_FEE_PER_GAS,
+        });
     }
+    // if (contractParameters) {
+    //     contract = await Contract.deploy(...contractParameters);
+    // } else {
+    //     contract = await Contract.deploy();
+    // }
     console.log(`${keyName} TransactionHash: ${contract.deployTransaction.hash}`);
     await contract.deployed();
     console.log(`${keyName}: ${contract.address}`);
