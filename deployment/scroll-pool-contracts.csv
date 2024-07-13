@@ -1,0 +1,7 @@
+network,poolId,contractName,contractAddress
+scroll,1,poolConfig,0xebf8D31C5492Dc93FC73a6AD136d47c45AB2C7a5
+scroll,1,juniorTranche,0x483D02C11f8F1E31C267040A6C86AaB80c428BaB
+scroll,1,poolSafe,0x7F4f55fAeE753D8dbB3E5F04861dB38E9DB70c3D
+scroll,1,seniorTranche,0x4cdCedcF50266aD9ed809048BC9874320EC902bC
+scroll,1,creditManager,0x061411d05074Bc974f814AC86309D2204f4c265d
+scroll,1,credit,0xc6F10af4746784a0DD095f4E5718d53ff94eB4a0
