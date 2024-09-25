@@ -12,8 +12,8 @@ async function verifyContract(): Promise<void> {
     const args: unknown[] = [
         0,
         ["0x9eA47A502BEffB25c8d559e614203562bb7d886d"],
-        ["0xABd48A580F66ad5Ad0Fe983968De686F408c88EE"],
-        "0xABd48A580F66ad5Ad0Fe983968De686F408c88EE",
+        ["0x73285f0013F76366e0442180C5Ae3A67Da2ab4fC"],
+        "0x0000000000000000000000000000000000000000",
     ];
     // const PoolFactory = await hre.ethers.getContractFactory("PoolFactory", {
     //     libraries: { LibTimelockController: deployedContracts["LibTimelockController"] },
@@ -27,7 +27,7 @@ async function verifyContract(): Promise<void> {
 
     // * only verify on testnets or mainnets.
     if (chainId != 31337 && process.env.CELOSCAN_API_KEY) {
-        await verify("0x14B067bac6039429A11baf564db90eDBcc4E27F3", args);
+        await verify("0x47fa6Ffb3021836a321cC36df82a46c2D6eAd44E", args);
     }
 }
 
