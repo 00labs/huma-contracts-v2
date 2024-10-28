@@ -2,7 +2,7 @@
 pragma solidity 0.8.23;
 
 import {Errors} from "../common/Errors.sol";
-import {PoolConfig, PoolSettings} from "../common/PoolConfig.sol";
+import {LPConfig, PoolConfig, PoolSettings} from "../common/PoolConfig.sol";
 import {PoolConfigCache} from "../common/PoolConfigCache.sol";
 import {DEFAULT_DECIMALS_FACTOR, SECONDS_IN_A_DAY} from "../common/SharedDefs.sol";
 import {TrancheVaultStorage, IERC20} from "./TrancheVaultStorage.sol";
@@ -15,6 +15,7 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {HumaConfig} from "../common/HumaConfig.sol";
 
 /**
  * @title TrancheVault
@@ -96,11 +97,17 @@ contract TrancheVault is
 
     /**
      * @notice A redemption request has been added.
-     * @param account The account whose shares to be redeemed.
+     * @param account The account whose shares are requested for redemption.
+     * @param requester The account that requested redemption.
      * @param shares The number of shares to be redeemed.
      * @param epochId The epoch ID.
      */
-    event RedemptionRequestAdded(address indexed account, uint256 shares, uint256 epochId);
+    event RedemptionRequestAdded(
+        address indexed account,
+        address indexed requester,
+        uint256 shares,
+        uint256 epochId
+    );
 
     /**
      * @notice A redemption request has been canceled.
@@ -313,11 +320,22 @@ contract TrancheVault is
 
     /**
      * @notice Records a new redemption request.
+     * @notice If `autoRedemptionAfterLockup` is true, then allow Sentinel service account to request redemption
+     * on behalf of the lender as required by the SPV of certain pools.
+     * @param lender The account whose shares are requested for redemption.
      * @param shares The number of shares the lender wants to redeem.
-     * @custom:access Only the lender can submit for themselves.
+     * @custom:access Only the lender and the Sentinel service account can request redemption.
      */
-    function addRedemptionRequest(uint256 shares) external {
+    function addRedemptionRequest(address lender, uint256 shares) external {
         if (shares == 0) revert Errors.ZeroAmountProvided();
+        LPConfig memory lpConfig = poolConfig.getLPConfig();
+        if (msg.sender != lender) {
+            if (lpConfig.autoRedemptionAfterLockup && msg.sender != humaConfig.sentinelServiceAccount()) {
+                revert Errors.SentinelServiceAccountRequired();
+            } else {
+                revert Errors.LenderRequired();
+            }
+        }
         poolConfig.onlyProtocolAndPoolOn();
 
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
@@ -326,22 +344,22 @@ contract TrancheVault is
             block.timestamp
         );
 
-        // Checks against withdrawal lockup period.
-        DepositRecord memory depositRecord = _getDepositRecord(msg.sender);
+        // Check against withdrawal lockup period.
+        DepositRecord memory depositRecord = _getDepositRecord(lender);
         if (
             nextEpochStartTime <
             depositRecord.lastDepositTime +
-                poolConfig.getLPConfig().withdrawalLockoutPeriodInDays *
+                lpConfig.withdrawalLockoutPeriodInDays *
                 SECONDS_IN_A_DAY
         ) revert Errors.WithdrawTooEarly();
 
-        uint256 sharesBalance = ERC20Upgradeable.balanceOf(msg.sender);
+        uint256 sharesBalance = ERC20Upgradeable.balanceOf(lender);
         if (shares > sharesBalance) {
             revert Errors.InsufficientSharesForRequest();
         }
         uint256 assetsAfterRedemption = convertToAssets(sharesBalance - shares);
         poolConfig.checkLiquidityRequirementForRedemption(
-            msg.sender,
+            lender,
             address(this),
             assetsAfterRedemption
         );
@@ -362,27 +380,31 @@ contract TrancheVault is
         _setEpochRedemptionSummary(currRedemptionSummary);
 
         LenderRedemptionRecord memory lenderRedemptionRecord = _getLatestLenderRedemptionRecord(
-            msg.sender,
+            lender,
             currentEpochId
         );
         lenderRedemptionRecord.numSharesRequested += uint96(shares);
         uint256 principalRequested = (depositRecord.principal * shares) / sharesBalance;
         lenderRedemptionRecord.principalRequested += uint96(principalRequested);
-        _setLenderRedemptionRecord(msg.sender, lenderRedemptionRecord);
+        _setLenderRedemptionRecord(lender, lenderRedemptionRecord);
         depositRecord.principal -= uint96(principalRequested);
-        _setDepositRecord(msg.sender, depositRecord);
+        _setDepositRecord(lender, depositRecord);
 
-        ERC20Upgradeable._transfer(msg.sender, address(this), shares);
+        ERC20Upgradeable._transfer(lender, address(this), shares);
 
-        emit RedemptionRequestAdded(msg.sender, shares, currentEpochId);
+        emit RedemptionRequestAdded(lender, msg.sender, shares, currentEpochId);
     }
 
     /**
      * @notice Cancels a redemption request submitted before.
+     * @notice If `autoRedemptionAfterLockup` is true, then cancellation is disabled to enforce
+     * redemption requests processing.
      * @param shares The number of shares in the redemption request to be canceled.
      * @custom:access Only the lender can submit for themselves.
      */
     function cancelRedemptionRequest(uint256 shares) external {
+        LPConfig memory lpConfig = poolConfig.getLPConfig();
+        if (lpConfig.autoRedemptionAfterLockup) revert Errors.RedemptionCancellationDisabled();
         if (shares == 0) revert Errors.ZeroAmountProvided();
         poolConfig.onlyProtocolAndPoolOn();
 
@@ -589,6 +611,10 @@ contract TrancheVault is
         assert(addr != address(0));
         underlyingToken = IERC20(addr);
         _decimals = IERC20MetadataUpgradeable(addr).decimals();
+
+        addr = address(poolConfig_.humaConfig());
+        assert(addr != address(0));
+        humaConfig = HumaConfig(addr);
 
         addr = poolConfig_.pool();
         assert(addr != address(0));

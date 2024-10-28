@@ -63,6 +63,8 @@ struct LPConfig {
     uint16 tranchesRiskAdjustmentInBps;
     // How long a lender has to wait after the last deposit before they can withdraw
     uint16 withdrawalLockoutPeriodInDays;
+    // When enabled, lenders' shares are automatically redeemed after the lockup period.
+    bool autoRedemptionAfterLockup;
 }
 
 struct FrontLoadingFeesStructure {
@@ -197,6 +199,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         uint16 fixedSeniorYieldInBps,
         uint16 tranchesRiskAdjustmentInBps,
         uint16 withdrawalLockoutInDays,
+        bool autoRedemptionAfterLockup,
         address by
     );
     event FrontLoadingFeesChanged(
@@ -553,6 +556,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
             lpConfig.fixedSeniorYieldInBps,
             lpConfig.tranchesRiskAdjustmentInBps,
             lpConfig.withdrawalLockoutPeriodInDays,
+            lpConfig.autoRedemptionAfterLockup,
             msg.sender
         );
     }

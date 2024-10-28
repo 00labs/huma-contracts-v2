@@ -539,7 +539,7 @@ describe("Pool Test", function () {
                 const sharesToRedeem = toToken(2539);
                 await seniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+                    .addRedemptionRequest(lender.address, sharesToRedeem);
 
                 const profit = toToken(198),
                     loss = toToken(67),
@@ -575,11 +575,11 @@ describe("Pool Test", function () {
                 const lenderSharesRequested = toToken(236);
                 await seniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(lenderSharesRequested);
+                    .addRedemptionRequest(lender.address, lenderSharesRequested);
                 const lender2SharesRequested = toToken(1357);
                 await seniorTrancheVaultContract
                     .connect(lender2)
-                    .addRedemptionRequest(lender2SharesRequested);
+                    .addRedemptionRequest(lender2.address, lender2SharesRequested);
                 const totalSharesRequested = lenderSharesRequested.add(lender2SharesRequested);
                 const profit = toToken(198),
                     loss = toToken(67),
@@ -613,7 +613,7 @@ describe("Pool Test", function () {
                 const sharesToRedeem = toToken(1);
                 await juniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+                    .addRedemptionRequest(lender.address, sharesToRedeem);
 
                 const profit = toToken(198),
                     loss = toToken(67),
