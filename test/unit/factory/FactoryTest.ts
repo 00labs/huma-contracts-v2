@@ -155,19 +155,19 @@ describe("Factory Test", function () {
 
     it("Deployer role test", async function () {
         await poolFactoryContract.addDeployer(poolOperator.getAddress());
-        await expect(
+        expect(
             await poolFactoryContract.hasRole(
                 poolFactoryContract.DEPLOYER_ROLE(),
                 poolOperator.getAddress(),
             ),
-        ).to.equal(true);
+        ).to.be.true;
         await poolFactoryContract.removeDeployer(poolOperator.getAddress());
-        await expect(
+        expect(
             await poolFactoryContract.hasRole(
                 poolFactoryContract.DEPLOYER_ROLE(),
                 poolOperator.getAddress(),
             ),
-        ).to.equal(false);
+        ).to.be.false;
     });
 
     it("Non Factory Admin cannot add or remove deployer", async function () {
@@ -188,9 +188,10 @@ describe("Factory Test", function () {
             "fixed",
             "test pool",
         );
-        await expect(poolRecord.poolName).to.equal("test pool");
-        await expect(poolRecord.poolStatus).to.equal(0);
+        expect(poolRecord.poolName).to.equal("test pool");
+        expect(poolRecord.poolStatus).to.equal(0);
     });
+
     it("Deploy a pool using factory - non deployer", async function () {
         await expect(
             poolFactoryContract
@@ -204,6 +205,7 @@ describe("Factory Test", function () {
                 ),
         ).to.be.revertedWithCustomError(poolFactoryContract, "DeployerRequired");
     });
+
     it("Deploy a pool using factory - invalid pool type", async function () {
         await expect(
             poolFactoryContract.deployPool(
@@ -215,6 +217,7 @@ describe("Factory Test", function () {
             ),
         ).to.be.revertedWithCustomError(poolFactoryContract, "InvalidTranchesPolicyType");
     });
+
     it("Deploy a pool using factory - invalid credit line type", async function () {
         await expect(
             poolFactoryContract.deployPool(
@@ -246,12 +249,13 @@ describe("Factory Test", function () {
             true,
             true,
         );
-        await poolFactoryContract.setLPConfig(1, toToken(1_000_000), 4, 1000, 1000, 60);
+        await poolFactoryContract.setLPConfig(1, toToken(1_000_000), 4, 1000, 1000, 60, false);
         await poolFactoryContract.setFees(1, 0, 1000, 1500, 0, 100, 0, 0, 0, 0);
         await poolFactoryContract.addPoolOperator(1, poolOperator.getAddress());
         await poolFactoryContract.updatePoolStatus(1, 1);
-        await expect((await poolFactoryContract.checkPool(1)).poolStatus).to.equal(1);
+        expect((await poolFactoryContract.checkPool(1)).poolStatus).to.equal(1);
     });
+
     it("Deploy a pool using factory and initialize the pool, then add timelock", async function () {
         await poolFactoryContract.deployPool(
             "test pool",
@@ -271,13 +275,13 @@ describe("Factory Test", function () {
             true,
             true,
         );
-        await poolFactoryContract.setLPConfig(1, toToken(1_000_000), 4, 1000, 1000, 60);
+        await poolFactoryContract.setLPConfig(1, toToken(1_000_000), 4, 1000, 1000, 60, false);
         await poolFactoryContract.setFees(1, 0, 1000, 1500, 0, 100, 0, 0, 0, 0);
         await poolFactoryContract.setPoolOwnerTreasury(1, poolOwnerTreasury.getAddress());
         await poolFactoryContract.setPoolEvaluationAgent(1, evaluationAgent.getAddress());
         await poolFactoryContract.addPoolOperator(1, poolOperator.getAddress());
         await poolFactoryContract.updatePoolStatus(1, 1);
-        await expect((await poolFactoryContract.checkPool(1)).poolStatus).to.equal(1);
+        expect((await poolFactoryContract.checkPool(1)).poolStatus).to.equal(1);
         await poolFactoryContract.addTimelock(
             1,
             [poolOwner.getAddress()],
@@ -286,16 +290,16 @@ describe("Factory Test", function () {
         const poolConfigAddress = (await poolFactoryContract.checkPool(1)).poolConfigAddress;
         const timelockAddress = (await poolFactoryContract.checkPool(1)).poolTimelock;
         const poolConfig = await ethers.getContractAt("PoolConfig", poolConfigAddress);
-        await expect(
+        expect(
             await poolConfig.hasRole(
                 await poolConfig.DEFAULT_ADMIN_ROLE(),
                 poolOwner.getAddress(),
             ),
-        ).to.equal(false);
-        await expect(
-            await poolConfig.hasRole(await poolConfig.DEFAULT_ADMIN_ROLE(), timelockAddress),
-        ).to.equal(true);
+        ).to.be.false;
+        expect(await poolConfig.hasRole(await poolConfig.DEFAULT_ADMIN_ROLE(), timelockAddress)).to
+            .be.true;
     });
+
     it("Set first loss cover", async function () {
         await poolFactoryContract.deployPool(
             "test pool",
@@ -316,12 +320,20 @@ describe("Factory Test", function () {
             true,
             true,
         );
-        await poolFactoryContract.setLPConfig(poolId, toToken(1_000_000), 4, 1000, 1000, 60);
+        await poolFactoryContract.setLPConfig(
+            poolId,
+            toToken(1_000_000),
+            4,
+            1000,
+            1000,
+            60,
+            false,
+        );
         await poolFactoryContract.setFees(poolId, 0, 1000, 1500, 0, 100, 0, 0, 0, 0);
         await poolFactoryContract.addPoolOperator(poolId, poolOperator.getAddress());
         await poolFactoryContract.updatePoolStatus(poolId, 1);
 
-        await expect((await poolFactoryContract.checkPool(poolId)).poolStatus).to.equal(1);
+        expect((await poolFactoryContract.checkPool(poolId)).poolStatus).to.equal(1);
         const poolConfigAddress = (await poolFactoryContract.checkPool(poolId)).poolConfigAddress;
         await poolFactoryContract.setFirstLossCover(
             poolConfigAddress,
@@ -335,6 +347,7 @@ describe("Factory Test", function () {
             "BFLC",
         );
     });
+
     it("Non deployer cannot set first loss cover", async function () {
         await poolFactoryContract.deployPool(
             "test pool",
@@ -343,8 +356,6 @@ describe("Factory Test", function () {
             "adjusted",
             "receivablebacked",
         );
-        const poolId = await poolFactoryContract.poolId();
-        const poolConfigAddress = (await poolFactoryContract.checkPool(poolId)).poolConfigAddress;
         await expect(
             poolFactoryContract
                 .connect(poolOperator)
@@ -361,6 +372,7 @@ describe("Factory Test", function () {
                 ),
         ).to.be.revertedWithCustomError(poolFactoryContract, "DeployerRequired");
     });
+
     it("Close a pool", async function () {
         await poolFactoryContract.deployPool(
             "test pool",
@@ -371,8 +383,9 @@ describe("Factory Test", function () {
         );
         const poolId = await poolFactoryContract.poolId();
         await poolFactoryContract.updatePoolStatus(poolId, 2);
-        await expect((await poolFactoryContract.checkPool(poolId)).poolStatus).to.equal(2);
+        expect((await poolFactoryContract.checkPool(poolId)).poolStatus).to.equal(2);
     });
+
     it("Check invalid poolId", async function () {
         await poolFactoryContract.deployPool(
             "test pool",
@@ -425,7 +438,6 @@ describe("Factory Test", function () {
     });
 
     it("PoolFactory cannot be initialized twice", async function () {
-        let addresses = new Array(13);
         await expect(
             poolFactoryContract.initialize(humaConfigContract.address),
         ).to.be.revertedWith("Initializable: contract is already initialized");

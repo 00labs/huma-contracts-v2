@@ -60,6 +60,7 @@ contract Errors {
     error AlreadyALender(); // 0xce4108ca
     error NonReinvestYieldLenderCapacityReached(); // 0x39ad903d
     error ReinvestYieldOptionAlreadySet(); // 0xb44d305d
+    error RedemptionCancellationDisabled(); // 0x70c5f64d
 
     // First loss cover
     error InsufficientFirstLossCover(); // 0x86fdb63a
