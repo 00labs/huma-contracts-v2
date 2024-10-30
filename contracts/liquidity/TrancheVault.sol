@@ -329,13 +329,13 @@ contract TrancheVault is
         if (shares == 0) revert Errors.ZeroAmountProvided();
         LPConfig memory lpConfig = poolConfig.getLPConfig();
         if (msg.sender != lender) {
-            if (
-                lpConfig.autoRedemptionAfterLockup &&
-                msg.sender != poolConfig_.humaConfig().sentinelServiceAccount()
-            ) {
-                revert Errors.SentinelServiceAccountRequired();
-            } else {
+            if (!lpConfig.autoRedemptionAfterLockup) {
+                // If `autoRedemptionAfterLockup` is not enabled, then only the lender can request redemption.
                 revert Errors.LenderRequired();
+            }
+            // Otherwise, only the Sentinel service account can request redemption on behalf of the lender.
+            if (msg.sender != poolConfig.humaConfig().sentinelServiceAccount()) {
+                revert Errors.SentinelServiceAccountRequired();
             }
         }
         poolConfig.onlyProtocolAndPoolOn();
