@@ -15,7 +15,6 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {HumaConfig} from "../common/HumaConfig.sol";
 
 /**
  * @title TrancheVault
@@ -330,7 +329,10 @@ contract TrancheVault is
         if (shares == 0) revert Errors.ZeroAmountProvided();
         LPConfig memory lpConfig = poolConfig.getLPConfig();
         if (msg.sender != lender) {
-            if (lpConfig.autoRedemptionAfterLockup && msg.sender != humaConfig.sentinelServiceAccount()) {
+            if (
+                lpConfig.autoRedemptionAfterLockup &&
+                msg.sender != poolConfig_.humaConfig().sentinelServiceAccount()
+            ) {
                 revert Errors.SentinelServiceAccountRequired();
             } else {
                 revert Errors.LenderRequired();
@@ -611,10 +613,6 @@ contract TrancheVault is
         assert(addr != address(0));
         underlyingToken = IERC20(addr);
         _decimals = IERC20MetadataUpgradeable(addr).decimals();
-
-        addr = address(poolConfig_.humaConfig());
-        assert(addr != address(0));
-        humaConfig = HumaConfig(addr);
 
         addr = poolConfig_.pool();
         assert(addr != address(0));

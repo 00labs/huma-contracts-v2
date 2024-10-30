@@ -7,7 +7,6 @@ import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ICalendar} from "../common/interfaces/ICalendar.sol";
-import {HumaConfig} from "../common/HumaConfig.sol";
 
 contract TrancheVaultStorage {
     struct LenderRedemptionRecord {
@@ -37,7 +36,6 @@ contract TrancheVaultStorage {
     /// Senior or junior tranche index.
     uint8 public trancheIndex;
 
-    HumaConfig public humaConfig;
     IPool public pool;
     IPoolSafe public poolSafe;
     IEpochManager public epochManager;
