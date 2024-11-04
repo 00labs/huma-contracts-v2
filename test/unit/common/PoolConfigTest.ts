@@ -2036,6 +2036,7 @@ describe("PoolConfig Tests", function () {
                     fixedSeniorYieldInBps: 2000,
                     tranchesRiskAdjustmentInBps: 8000,
                     withdrawalLockoutPeriodInDays: 30,
+                    autoRedemptionAfterLockup: true,
                 };
             });
 
@@ -2048,6 +2049,7 @@ describe("PoolConfig Tests", function () {
                         newLPConfig.fixedSeniorYieldInBps,
                         newLPConfig.tranchesRiskAdjustmentInBps,
                         newLPConfig.withdrawalLockoutPeriodInDays,
+                        newLPConfig.autoRedemptionAfterLockup,
                         poolOwner.address,
                     );
                 const lpConfig = await poolConfigContract.getLPConfig();
@@ -2060,6 +2062,9 @@ describe("PoolConfig Tests", function () {
                 expect(lpConfig.tranchesRiskAdjustmentInBps).to.equal(
                     newLPConfig.tranchesRiskAdjustmentInBps,
                 );
+                expect(lpConfig.autoRedemptionAfterLockup).to.equal(
+                    newLPConfig.autoRedemptionAfterLockup,
+                );
             });
 
             it("Should allow the Huma owner to set the LP config", async function () {
@@ -2071,6 +2076,7 @@ describe("PoolConfig Tests", function () {
                         newLPConfig.fixedSeniorYieldInBps,
                         newLPConfig.tranchesRiskAdjustmentInBps,
                         newLPConfig.withdrawalLockoutPeriodInDays,
+                        newLPConfig.autoRedemptionAfterLockup,
                         protocolOwner.address,
                     );
                 const lpConfig = await poolConfigContract.getLPConfig();
@@ -2082,6 +2088,9 @@ describe("PoolConfig Tests", function () {
                 expect(lpConfig.fixedSeniorYieldInBps).to.equal(newLPConfig.fixedSeniorYieldInBps);
                 expect(lpConfig.tranchesRiskAdjustmentInBps).to.equal(
                     newLPConfig.tranchesRiskAdjustmentInBps,
+                );
+                expect(lpConfig.autoRedemptionAfterLockup).to.equal(
+                    newLPConfig.autoRedemptionAfterLockup,
                 );
             });
 

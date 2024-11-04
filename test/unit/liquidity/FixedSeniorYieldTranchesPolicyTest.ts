@@ -407,7 +407,9 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
 
         it("Should update the yield tracker when withdrawal is made from the senior tranche", async function () {
             const shares = toToken(1000);
-            await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+            await seniorTrancheVaultContract
+                .connect(lender)
+                .addRedemptionRequest(lender.address, shares);
             const lastEpoch = await epochManagerContract.currentEpoch();
             const nextTS = await calendarContract.getStartOfNextDay(lastEpoch.endTime);
             await setNextBlockTimestamp(nextTS);
@@ -436,7 +438,9 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
 
         it("Should update the yield tracker when withdrawal is made from the junior tranche", async function () {
             const shares = toToken(1000);
-            await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+            await juniorTrancheVaultContract
+                .connect(lender)
+                .addRedemptionRequest(lender.address, shares);
             const lastEpoch = await epochManagerContract.currentEpoch();
             const nextTS = await calendarContract.getStartOfNextDay(lastEpoch.endTime);
             await setNextBlockTimestamp(nextTS);

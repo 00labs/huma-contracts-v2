@@ -464,7 +464,8 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         uint8 maxSeniorJuniorRatio,
         uint16 fixedSeniorYieldInBps,
         uint16 tranchesRiskAdjustmentInBps,
-        uint16 withdrawalLockoutPeriodInDays
+        uint16 withdrawalLockoutPeriodInDays,
+        bool autoRedemptionAfterLockup
     ) external {
         _onlyDeployer(msg.sender);
         LPConfig memory lpConfig = LPConfig({
@@ -472,7 +473,8 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             maxSeniorJuniorRatio: maxSeniorJuniorRatio,
             fixedSeniorYieldInBps: fixedSeniorYieldInBps,
             tranchesRiskAdjustmentInBps: tranchesRiskAdjustmentInBps,
-            withdrawalLockoutPeriodInDays: withdrawalLockoutPeriodInDays
+            withdrawalLockoutPeriodInDays: withdrawalLockoutPeriodInDays,
+            autoRedemptionAfterLockup: autoRedemptionAfterLockup
         });
         PoolConfig(_pools[poolId_].poolConfigAddress).setLPConfig(lpConfig);
     }
