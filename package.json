@@ -1,6 +1,6 @@
 {
   "name": "huma-contracts-v2",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "",
   "keywords": [],
   "license": "AGPL-3.0-or-later",
@@ -14,6 +14,7 @@
     "deploy-local": "hardhat run ./scripts/deploy-all-local-test-pools.ts --network localhost",
     "deploy-local-credit": "hardhat run ./scripts/deploy-credit-line-pools.ts --network localhost",
     "deploy-local-receivable": "hardhat run ./scripts/deploy-receivable-backed-credit-line-pools.ts --network localhost",
+    "deploy-local-synpress-scenario": "hardhat run ./scripts/deploy-all-local-test-pools-synpress-scenario.ts --network localhost",
     "format": "prettier '**/*.{js,json,ts,yml,yaml}' --write --plugin=prettier-plugin-organize-imports",
     "format-solidity": "prettier 'contracts/**/*.sol' --write --plugin=prettier-plugin-solidity",
     "foundry": "bash scripts/install-foundry.sh",

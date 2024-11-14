@@ -1667,7 +1667,7 @@ describe("CreditLine Test", function () {
                 await loadFixture(prepareForDrawdown);
             });
 
-            it("Should allow the borrower to borrow if the committed yield is less than the accrued yield", async function () {
+            it("Should allow the borrower to borrow if the accrued yield is greater than the committed yield", async function () {
                 const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
                 const borrowAmount = toToken(30_000);
@@ -1685,6 +1685,7 @@ describe("CreditLine Test", function () {
                 ).toNumber();
                 let cc = await creditManagerContract.getCreditConfig(creditHash);
                 const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days);
+                expect(yieldDue).to.be.gt(committed);
 
                 const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
                 const poolSafeOldBalance = await mockTokenContract.balanceOf(
@@ -1722,24 +1723,25 @@ describe("CreditLine Test", function () {
                 );
             });
 
-            it("Should allow the borrower to borrow if the committed yield is greater than the accrued yield", async function () {
+            it("Should allow the borrower to borrow if the accrued yield is less than the committed yield", async function () {
                 const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
                 const borrowAmount = toToken(10_000);
                 const netBorrowAmount = borrowAmount;
-                let nextTime = await getFutureBlockTime(3);
+                const nextTime = await getFutureBlockTime(3);
                 await setNextBlockTimestamp(nextTime);
 
-                let startOfDay = getStartOfDay(nextTime);
-                let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                const startOfDay = getStartOfDay(nextTime);
+                const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
                     PayPeriodDuration.Monthly,
                     nextTime,
                 );
-                let days = (
+                const days = (
                     await calendarContract.getDaysDiff(startOfDay, nextDueDate)
                 ).toNumber();
-                let cc = await creditManagerContract.getCreditConfig(creditHash);
+                const cc = await creditManagerContract.getCreditConfig(creditHash);
                 const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days);
+                expect(yieldDue).to.be.lt(committed);
 
                 const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
                 const poolSafeOldBalance = await mockTokenContract.balanceOf(
@@ -1777,7 +1779,7 @@ describe("CreditLine Test", function () {
                 );
             });
 
-            it("Should allow the borrower to borrow if the committed yield is greater than the accrued yield first, but becomes less than accrued yield after drawdown", async function () {
+            it("Should allow the borrower to borrow if the the accrued yield is less than the committed yield first, but becomes greater than committed yield after drawdown", async function () {
                 const frontLoadingFeeFlat = toToken(100);
                 const frontLoadingFeeBps = BN.from(100);
                 await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
@@ -1789,10 +1791,6 @@ describe("CreditLine Test", function () {
 
                 let borrowAmount = toToken(10_000);
                 let totalBorrowAmount = borrowAmount;
-                let netBorrowAmount = borrowAmount
-                    .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
-                    .div(CONSTANTS.BP_FACTOR)
-                    .sub(frontLoadingFeeFlat);
                 let nextTime = await getFutureBlockTime(3);
                 await setNextBlockTimestamp(nextTime);
 
@@ -1807,6 +1805,7 @@ describe("CreditLine Test", function () {
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
                 let [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days);
                 let totalYieldDue = yieldDue;
+                expect(totalYieldDue).to.be.lt(committed);
 
                 await creditContract.connect(borrower).drawdown(borrowAmount);
 
@@ -1836,7 +1835,7 @@ describe("CreditLine Test", function () {
 
                 borrowAmount = toToken(50_000);
                 totalBorrowAmount = totalBorrowAmount.add(borrowAmount);
-                netBorrowAmount = borrowAmount
+                const netBorrowAmount = borrowAmount
                     .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
                     .div(CONSTANTS.BP_FACTOR)
                     .sub(frontLoadingFeeFlat);
@@ -1845,6 +1844,7 @@ describe("CreditLine Test", function () {
                 days = (await calendarContract.getDaysDiff(startOfDay, nextDueDate)).toNumber();
                 [yieldDue] = calcYieldDue(cc, borrowAmount, days);
                 totalYieldDue = totalYieldDue.add(yieldDue);
+                expect(totalYieldDue).to.be.gt(committed);
 
                 let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
                 await expect(creditContract.connect(borrower).drawdown(borrowAmount))
@@ -1873,7 +1873,7 @@ describe("CreditLine Test", function () {
                 );
             });
 
-            it("Should allow the borrower to borrow twice if the committed yield is greater than the accrued yield", async function () {
+            it("Should allow the borrower to borrow twice if the accrued yield stays below the committed yield", async function () {
                 const frontLoadingFeeFlat = toToken(100);
                 const frontLoadingFeeBps = BN.from(100);
                 await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
@@ -1883,12 +1883,8 @@ describe("CreditLine Test", function () {
 
                 const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
-                let borrowAmount = toToken(25_000);
+                let borrowAmount = toToken(10_000);
                 let totalBorrowAmount = borrowAmount;
-                let netBorrowAmount = borrowAmount
-                    .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
-                    .div(CONSTANTS.BP_FACTOR)
-                    .sub(frontLoadingFeeFlat);
                 let nextTime = await getFutureBlockTime(3);
                 await setNextBlockTimestamp(nextTime);
 
@@ -1902,7 +1898,8 @@ describe("CreditLine Test", function () {
                 ).toNumber();
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
                 let [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days);
-                let totalYieldDue = yieldDue;
+                let accruedYieldDue = yieldDue;
+                expect(accruedYieldDue).to.be.lt(committed);
 
                 await creditContract.connect(borrower).drawdown(borrowAmount);
 
@@ -1911,8 +1908,8 @@ describe("CreditLine Test", function () {
                     cr,
                     borrowAmount,
                     nextDueDate,
-                    totalYieldDue,
-                    totalYieldDue,
+                    committed,
+                    committed,
                     BN.from(0),
                     0,
                     numOfPeriods - 1,
@@ -1923,16 +1920,16 @@ describe("CreditLine Test", function () {
                 let dueDetail = await creditContract.getDueDetail(creditHash);
                 checkDueDetailsMatch(
                     dueDetail,
-                    genDueDetail({ accrued: totalYieldDue, committed: committed }),
+                    genDueDetail({ accrued: accruedYieldDue, committed: committed }),
                 );
 
                 // move forward to the middle of the remaining time of the period
                 nextTime = nextTime + Math.floor((nextDueDate.toNumber() - nextTime) / 2);
                 await setNextBlockTimestamp(nextTime);
 
-                borrowAmount = toToken(10_000);
+                borrowAmount = toToken(5_000);
                 totalBorrowAmount = totalBorrowAmount.add(borrowAmount);
-                netBorrowAmount = borrowAmount
+                const netBorrowAmount = borrowAmount
                     .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
                     .div(CONSTANTS.BP_FACTOR)
                     .sub(frontLoadingFeeFlat);
@@ -1940,7 +1937,8 @@ describe("CreditLine Test", function () {
                 startOfDay = getStartOfDay(nextTime);
                 days = (await calendarContract.getDaysDiff(startOfDay, nextDueDate)).toNumber();
                 [yieldDue] = calcYieldDue(cc, borrowAmount, days);
-                totalYieldDue = totalYieldDue.add(yieldDue);
+                accruedYieldDue = accruedYieldDue.add(yieldDue);
+                expect(accruedYieldDue).to.be.lt(committed);
 
                 let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
                 await expect(creditContract.connect(borrower).drawdown(borrowAmount))
@@ -1955,8 +1953,8 @@ describe("CreditLine Test", function () {
                     cr,
                     totalBorrowAmount,
                     nextDueDate,
-                    totalYieldDue,
-                    totalYieldDue,
+                    committed,
+                    committed,
                     BN.from(0),
                     0,
                     remainingPeriods,
@@ -1965,7 +1963,7 @@ describe("CreditLine Test", function () {
                 dueDetail = await creditContract.getDueDetail(creditHash);
                 checkDueDetailsMatch(
                     dueDetail,
-                    genDueDetail({ accrued: totalYieldDue, committed: committed }),
+                    genDueDetail({ accrued: accruedYieldDue, committed: committed }),
                 );
             });
         });

@@ -193,10 +193,18 @@ describe("EpochManager Test", function () {
         });
 
         it("Should start a new epoch when there are unprocessed redemption requests", async function () {
-            await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(toToken(1000));
-            await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(toToken(2000));
-            await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(toToken(1500));
-            await juniorTrancheVaultContract.connect(lender2).addRedemptionRequest(toToken(2500));
+            await seniorTrancheVaultContract
+                .connect(lender)
+                .addRedemptionRequest(lender.address, toToken(1000));
+            await seniorTrancheVaultContract
+                .connect(lender)
+                .addRedemptionRequest(lender.address, toToken(2000));
+            await juniorTrancheVaultContract
+                .connect(lender)
+                .addRedemptionRequest(lender.address, toToken(1500));
+            await juniorTrancheVaultContract
+                .connect(lender2)
+                .addRedemptionRequest(lender2.address, toToken(2500));
 
             await poolContract.connect(poolOwner).disablePool();
 
@@ -342,7 +350,7 @@ describe("EpochManager Test", function () {
                 const sharesToRedeem = toToken(2539);
                 await seniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+                    .addRedemptionRequest(lender.address, sharesToRedeem);
 
                 const oldEpochId = await epochManagerContract.currentEpochId();
                 await testCloseEpoch(sharesToRedeem, sharesToRedeem, BN.from(0), BN.from(0));
@@ -364,7 +372,7 @@ describe("EpochManager Test", function () {
                 const sharesToRedeemInEpoch1 = toToken(236);
                 await seniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeemInEpoch1);
+                    .addRedemptionRequest(lender.address, sharesToRedeemInEpoch1);
                 let epochId = await epochManagerContract.currentEpochId();
                 await testCloseEpoch(sharesToRedeemInEpoch1, BN.from(0), BN.from(0), BN.from(0));
                 await epochChecker.checkSeniorRedemptionSummaryById(
@@ -381,7 +389,7 @@ describe("EpochManager Test", function () {
                 await creditContract.makePayment(ethers.constants.HashZero, allShares);
                 await seniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeemInEpoch2);
+                    .addRedemptionRequest(lender.address, sharesToRedeemInEpoch2);
                 await testCloseEpoch(allShares, allShares, BN.from(0), BN.from(0));
                 await epochChecker.checkSeniorRedemptionSummaryById(
                     epochId,
@@ -406,7 +414,7 @@ describe("EpochManager Test", function () {
                     let allShares = sharesToRedeem;
                     await seniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(sharesToRedeem);
+                        .addRedemptionRequest(lender.address, sharesToRedeem);
                     let epochId = await epochManagerContract.currentEpochId();
                     await testCloseEpoch(sharesToRedeem, BN.from(0), BN.from(0), BN.from(0));
                     await epochChecker.checkSeniorRedemptionSummaryById(epochId, allShares);
@@ -418,7 +426,7 @@ describe("EpochManager Test", function () {
                     allShares = allShares.add(sharesToRedeem);
                     await seniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(sharesToRedeem);
+                        .addRedemptionRequest(lender.address, sharesToRedeem);
                     await testCloseEpoch(allShares, BN.from(0), BN.from(0), BN.from(0));
                     await epochChecker.checkSeniorRedemptionSummaryById(epochId, allShares);
                     epochId = await epochChecker.checkSeniorCurrentRedemptionSummary(allShares);
@@ -429,7 +437,7 @@ describe("EpochManager Test", function () {
                     allShares = allShares.add(sharesToRedeem);
                     await seniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(sharesToRedeem);
+                        .addRedemptionRequest(lender.address, sharesToRedeem);
                     await testCloseEpoch(allShares, BN.from(0), BN.from(0), BN.from(0));
                     await epochChecker.checkSeniorRedemptionSummaryById(epochId, allShares);
                     epochId = await epochChecker.checkSeniorCurrentRedemptionSummary(allShares);
@@ -440,7 +448,7 @@ describe("EpochManager Test", function () {
                     allShares = allShares.add(sharesToRedeem);
                     await seniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(sharesToRedeem);
+                        .addRedemptionRequest(lender.address, sharesToRedeem);
                     await testCloseEpoch(allShares, sharesRedeemable, BN.from(0), BN.from(0));
                     await epochChecker.checkSeniorRedemptionSummaryById(
                         epochId,
@@ -458,7 +466,7 @@ describe("EpochManager Test", function () {
                 const sharesToRedeem = toToken(7363);
                 await juniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+                    .addRedemptionRequest(lender.address, sharesToRedeem);
                 let epochId = await epochManagerContract.currentEpochId();
                 await testCloseEpoch(BN.from(0), BN.from(0), sharesToRedeem, sharesToRedeem);
                 await epochChecker.checkJuniorRedemptionSummaryById(
@@ -479,7 +487,7 @@ describe("EpochManager Test", function () {
                 let allShares = sharesToRedeem;
                 await juniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+                    .addRedemptionRequest(lender.address, sharesToRedeem);
                 let epochId = await epochManagerContract.currentEpochId();
                 await testCloseEpoch(BN.from(0), BN.from(0), allShares, BN.from(0));
                 await epochChecker.checkJuniorRedemptionSummaryById(epochId, allShares);
@@ -490,7 +498,7 @@ describe("EpochManager Test", function () {
                 allShares = allShares.add(sharesToRedeem);
                 await juniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+                    .addRedemptionRequest(lender.address, sharesToRedeem);
                 await testCloseEpoch(BN.from(0), BN.from(0), allShares, BN.from(0));
                 await epochChecker.checkJuniorRedemptionSummaryById(epochId, allShares);
                 epochId = await epochChecker.checkJuniorCurrentRedemptionSummary(allShares);
@@ -500,7 +508,7 @@ describe("EpochManager Test", function () {
                 allShares = allShares.add(sharesToRedeem);
                 await juniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+                    .addRedemptionRequest(lender.address, sharesToRedeem);
                 await creditContract.makePayment(ethers.constants.HashZero, allShares);
                 await testCloseEpoch(BN.from(0), BN.from(0), allShares, allShares);
                 await epochChecker.checkJuniorRedemptionSummaryById(
@@ -525,7 +533,7 @@ describe("EpochManager Test", function () {
                     let allShares = sharesToRedeem;
                     await juniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(sharesToRedeem);
+                        .addRedemptionRequest(lender.address, sharesToRedeem);
                     let epochId = await epochManagerContract.currentEpochId();
                     await testCloseEpoch(BN.from(0), BN.from(0), allShares, BN.from(0));
                     await epochChecker.checkJuniorRedemptionSummaryById(epochId, allShares);
@@ -537,7 +545,7 @@ describe("EpochManager Test", function () {
                     sharesRedeemable = sharesRedeemable.add(toToken(2637));
                     await juniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(sharesToRedeem);
+                        .addRedemptionRequest(lender.address, sharesToRedeem);
                     await testCloseEpoch(BN.from(0), BN.from(0), allShares, BN.from(0));
                     await epochChecker.checkJuniorRedemptionSummaryById(epochId, allShares);
                     epochId = await epochChecker.checkJuniorCurrentRedemptionSummary(allShares);
@@ -547,7 +555,7 @@ describe("EpochManager Test", function () {
                     allShares = allShares.add(sharesToRedeem);
                     await juniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(sharesToRedeem);
+                        .addRedemptionRequest(lender.address, sharesToRedeem);
                     await testCloseEpoch(BN.from(0), BN.from(0), allShares, BN.from(0));
                     await epochChecker.checkJuniorRedemptionSummaryById(epochId, allShares);
                     epochId = await epochChecker.checkJuniorCurrentRedemptionSummary(allShares);
@@ -557,7 +565,7 @@ describe("EpochManager Test", function () {
                     allShares = allShares.add(sharesToRedeem);
                     await juniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(sharesToRedeem);
+                        .addRedemptionRequest(lender.address, sharesToRedeem);
                     await creditContract.makePayment(ethers.constants.HashZero, sharesRedeemable);
                     await testCloseEpoch(BN.from(0), BN.from(0), allShares, sharesRedeemable);
                     await epochChecker.checkJuniorRedemptionSummaryById(
@@ -576,10 +584,10 @@ describe("EpochManager Test", function () {
                 const sharesToRedeem = toToken(1000);
                 await seniorTrancheVaultContract
                     .connect(lender2)
-                    .addRedemptionRequest(sharesToRedeem);
+                    .addRedemptionRequest(lender2.address, sharesToRedeem);
                 await juniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+                    .addRedemptionRequest(lender.address, sharesToRedeem);
 
                 let epochId = await epochManagerContract.currentEpochId();
                 await testCloseEpoch(
@@ -617,14 +625,14 @@ describe("EpochManager Test", function () {
                     let allShares = juniorSharesToRedeem;
                     await juniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(juniorSharesToRedeem);
+                        .addRedemptionRequest(lender.address, juniorSharesToRedeem);
 
                     let seniorSharesToRedeem = toToken(357);
                     let allSeniorShares = seniorSharesToRedeem;
                     allShares = allShares.add(seniorSharesToRedeem);
                     await seniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(seniorSharesToRedeem);
+                        .addRedemptionRequest(lender.address, seniorSharesToRedeem);
 
                     let epochId = await epochManagerContract.currentEpochId();
                     await testCloseEpoch(allSeniorShares, BN.from(0), allJuniorShares, BN.from(0));
@@ -651,13 +659,13 @@ describe("EpochManager Test", function () {
                     allJuniorShares = allJuniorShares.add(juniorSharesToRedeem);
                     await juniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(juniorSharesToRedeem);
+                        .addRedemptionRequest(lender.address, juniorSharesToRedeem);
                     seniorSharesToRedeem = toToken(2536);
                     allShares = allShares.add(seniorSharesToRedeem);
                     allSeniorShares = allSeniorShares.add(seniorSharesToRedeem);
                     await seniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(seniorSharesToRedeem);
+                        .addRedemptionRequest(lender.address, seniorSharesToRedeem);
                     await testCloseEpoch(allSeniorShares, BN.from(0), allJuniorShares, BN.from(0));
                     await epochChecker.checkSeniorRedemptionSummaryById(epochId, allSeniorShares);
                     await epochChecker.checkJuniorRedemptionSummaryById(epochId, allJuniorShares);
@@ -672,13 +680,13 @@ describe("EpochManager Test", function () {
                     allJuniorShares = allJuniorShares.add(juniorSharesToRedeem);
                     await juniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(juniorSharesToRedeem);
+                        .addRedemptionRequest(lender.address, juniorSharesToRedeem);
                     seniorSharesToRedeem = toToken(736);
                     allShares = allShares.add(seniorSharesToRedeem);
                     allSeniorShares = allSeniorShares.add(seniorSharesToRedeem);
                     await seniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(seniorSharesToRedeem);
+                        .addRedemptionRequest(lender.address, seniorSharesToRedeem);
                     await testCloseEpoch(allSeniorShares, BN.from(0), allJuniorShares, BN.from(0));
                     await epochChecker.checkSeniorRedemptionSummaryById(epochId, allSeniorShares);
                     await epochChecker.checkJuniorRedemptionSummaryById(epochId, allJuniorShares);
@@ -725,12 +733,12 @@ describe("EpochManager Test", function () {
                     let totalSeniorSharesToRedeem = seniorSharesToRedeem;
                     await seniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(seniorSharesToRedeem);
+                        .addRedemptionRequest(lender.address, seniorSharesToRedeem);
                     let juniorSharesToRedeem = toToken(4637);
                     let totalJuniorSharesToRedeem = juniorSharesToRedeem;
                     await juniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(juniorSharesToRedeem);
+                        .addRedemptionRequest(lender.address, juniorSharesToRedeem);
 
                     // Move paid amount out of the pool safe so that only the desired number of shares can be redeemed.
                     const totalAssets = await poolSafeContract.getAvailableBalanceForPool();
@@ -777,7 +785,7 @@ describe("EpochManager Test", function () {
                         totalJuniorSharesToRedeem.add(juniorSharesToRedeem);
                     await juniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(juniorSharesToRedeem);
+                        .addRedemptionRequest(lender.address, juniorSharesToRedeem);
 
                     seniorSharesRedeemable = totalSeniorSharesToRedeem;
                     juniorSharesRedeemable = totalJuniorSharesToRedeem;
@@ -811,13 +819,13 @@ describe("EpochManager Test", function () {
                         totalSeniorSharesToRedeem.add(seniorSharesToRedeem);
                     await seniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(seniorSharesToRedeem);
+                        .addRedemptionRequest(lender.address, seniorSharesToRedeem);
                     juniorSharesToRedeem = toToken(1837);
                     totalJuniorSharesToRedeem =
                         totalJuniorSharesToRedeem.add(juniorSharesToRedeem);
                     await juniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(juniorSharesToRedeem);
+                        .addRedemptionRequest(lender.address, juniorSharesToRedeem);
                     await testCloseEpoch(
                         totalSeniorSharesToRedeem,
                         BN.from(0),
@@ -847,13 +855,13 @@ describe("EpochManager Test", function () {
                         totalSeniorSharesToRedeem.add(seniorSharesToRedeem);
                     await seniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(seniorSharesToRedeem);
+                        .addRedemptionRequest(lender.address, seniorSharesToRedeem);
                     juniorSharesToRedeem = toToken(4697);
                     totalJuniorSharesToRedeem =
                         totalJuniorSharesToRedeem.add(juniorSharesToRedeem);
                     await juniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(juniorSharesToRedeem);
+                        .addRedemptionRequest(lender.address, juniorSharesToRedeem);
 
                     seniorSharesRedeemable = totalSeniorSharesToRedeem;
                     juniorSharesRedeemable = toToken(195);
@@ -898,12 +906,12 @@ describe("EpochManager Test", function () {
                     const juniorSharesToRedeem = toToken(1628);
                     await juniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(juniorSharesToRedeem);
+                        .addRedemptionRequest(lender.address, juniorSharesToRedeem);
 
                     const seniorSharesToRedeem = toToken(357);
                     await seniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(seniorSharesToRedeem);
+                        .addRedemptionRequest(lender.address, seniorSharesToRedeem);
 
                     let epochId = await epochManagerContract.currentEpochId();
                     await testCloseEpoch(
@@ -1061,7 +1069,7 @@ describe("EpochManager Test", function () {
                 const sharesToRedeem = toToken(2539);
                 await seniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+                    .addRedemptionRequest(lender.address, sharesToRedeem);
 
                 const profit = toToken(198),
                     loss = toToken(67),
@@ -1108,7 +1116,7 @@ describe("EpochManager Test", function () {
                 const sharesToRedeem = toToken(2539);
                 await seniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+                    .addRedemptionRequest(lender.address, sharesToRedeem);
                 const seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
                 const seniorTotalSupply = await seniorTrancheVaultContract.totalSupply();
                 // Since all lenders are configured to re-invest their yield in this test, we need to take into account
@@ -1156,7 +1164,7 @@ describe("EpochManager Test", function () {
                 let allShares = sharesToRedeem;
                 await seniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+                    .addRedemptionRequest(lender.address, sharesToRedeem);
                 let epochId = await epochManagerContract.currentEpochId();
                 await testCloseEpoch(allShares, BN.from(0), BN.from(0), BN.from(0));
                 await epochChecker.checkSeniorRedemptionSummaryById(epochId, sharesToRedeem);
@@ -1167,7 +1175,7 @@ describe("EpochManager Test", function () {
                 allShares = allShares.add(sharesToRedeem);
                 await seniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+                    .addRedemptionRequest(lender.address, sharesToRedeem);
                 // Make payment to the pool so that all requests can be processed.
                 const profit = toToken(198),
                     loss = toToken(67),
@@ -1210,7 +1218,7 @@ describe("EpochManager Test", function () {
                     const sharesInEpoch1 = toToken(865);
                     await seniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(sharesInEpoch1);
+                        .addRedemptionRequest(lender.address, sharesInEpoch1);
                     let epochId = await epochManagerContract.currentEpochId();
                     await testCloseEpoch(sharesInEpoch1, BN.from(0), BN.from(0), BN.from(0));
                     await epochChecker.checkSeniorRedemptionSummaryById(epochId, sharesInEpoch1);
@@ -1223,7 +1231,7 @@ describe("EpochManager Test", function () {
                     const totalSharesRequested = sharesInEpoch1.add(sharesInEpoch2);
                     await seniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(sharesInEpoch2);
+                        .addRedemptionRequest(lender.address, sharesInEpoch2);
                     await testCloseEpoch(totalSharesRequested, BN.from(0), BN.from(0), BN.from(0));
                     await epochChecker.checkSeniorRedemptionSummaryById(
                         epochId,
@@ -1251,7 +1259,7 @@ describe("EpochManager Test", function () {
                     const allShares = sumBNArray([sharesInEpoch1, sharesInEpoch2, sharesInEpoch3]);
                     await seniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(sharesInEpoch3);
+                        .addRedemptionRequest(lender.address, sharesInEpoch3);
                     await testCloseEpoch(
                         allShares,
                         sharesProcessable,
@@ -1276,7 +1284,7 @@ describe("EpochManager Test", function () {
                 const sharesToRedeem = toToken(1);
                 await juniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+                    .addRedemptionRequest(lender.address, sharesToRedeem);
 
                 const profit = toToken(198),
                     loss = toToken(67),
@@ -1324,7 +1332,7 @@ describe("EpochManager Test", function () {
                 const sharesToRedeem = toToken(2539);
                 await juniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+                    .addRedemptionRequest(lender.address, sharesToRedeem);
                 const juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
                 const juniorTotalSupply = await juniorTrancheVaultContract.totalSupply();
                 // Since all lenders are configured to re-invest their yield in this test, we need to take into account
@@ -1385,7 +1393,7 @@ describe("EpochManager Test", function () {
                 const sharesToRedeem = toToken(1);
                 await juniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+                    .addRedemptionRequest(lender.address, sharesToRedeem);
 
                 let epochId = await epochManagerContract.currentEpochId();
                 await testCloseEpoch(BN.from(0), BN.from(0), BN.from(0), BN.from(0));
@@ -1402,7 +1410,7 @@ describe("EpochManager Test", function () {
                 let allShares = sharesToRedeem;
                 await juniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+                    .addRedemptionRequest(lender.address, sharesToRedeem);
                 let epochId = await epochManagerContract.currentEpochId();
                 await testCloseEpoch(BN.from(0), BN.from(0), allShares, BN.from(0));
                 await epochChecker.checkJuniorRedemptionSummaryById(epochId, allShares);
@@ -1413,7 +1421,7 @@ describe("EpochManager Test", function () {
                 allShares = allShares.add(sharesToRedeem);
                 await juniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+                    .addRedemptionRequest(lender.address, sharesToRedeem);
                 await testCloseEpoch(BN.from(0), BN.from(0), allShares, BN.from(0));
                 await epochChecker.checkJuniorRedemptionSummaryById(epochId, allShares);
                 epochId = await epochChecker.checkJuniorCurrentRedemptionSummary(allShares);
@@ -1423,7 +1431,7 @@ describe("EpochManager Test", function () {
                 allShares = allShares.add(sharesToRedeem);
                 await juniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+                    .addRedemptionRequest(lender.address, sharesToRedeem);
                 // Make payment so that all shares can be processed.
                 const profit = toToken(198),
                     loss = toToken(67),
@@ -1467,7 +1475,7 @@ describe("EpochManager Test", function () {
                     const sharesInEpoch1 = toToken(1628);
                     await juniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(sharesInEpoch1);
+                        .addRedemptionRequest(lender.address, sharesInEpoch1);
                     let epochId = await epochManagerContract.currentEpochId();
                     await testCloseEpoch(BN.from(0), BN.from(0), sharesInEpoch1, BN.from(0));
                     await epochChecker.checkJuniorRedemptionSummaryById(epochId, sharesInEpoch1);
@@ -1480,7 +1488,7 @@ describe("EpochManager Test", function () {
                     const totalSharesRequested = sharesInEpoch1.add(sharesInEpoch2);
                     await juniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(sharesInEpoch2);
+                        .addRedemptionRequest(lender.address, sharesInEpoch2);
                     await testCloseEpoch(BN.from(0), BN.from(0), totalSharesRequested, BN.from(0));
                     await epochChecker.checkJuniorRedemptionSummaryById(
                         epochId,
@@ -1509,7 +1517,7 @@ describe("EpochManager Test", function () {
                     const allShares = sumBNArray([sharesInEpoch1, sharesInEpoch2, sharesInEpoch3]);
                     await juniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(sharesInEpoch3);
+                        .addRedemptionRequest(lender.address, sharesInEpoch3);
                     await testCloseEpoch(
                         BN.from(0),
                         BN.from(0),
@@ -1549,12 +1557,12 @@ describe("EpochManager Test", function () {
                     let allSeniorShares = seniorSharesToRedeem;
                     await seniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(seniorSharesToRedeem);
+                        .addRedemptionRequest(lender.address, seniorSharesToRedeem);
                     let juniorSharesToRedeem = toToken(1628);
                     let allJuniorShares = juniorSharesToRedeem;
                     await juniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(juniorSharesToRedeem);
+                        .addRedemptionRequest(lender.address, juniorSharesToRedeem);
                     let epochId = await epochManagerContract.currentEpochId();
                     await testCloseEpoch(allSeniorShares, BN.from(0), allJuniorShares, BN.from(0));
                     await epochChecker.checkSeniorRedemptionSummaryById(epochId, allSeniorShares);
@@ -1568,12 +1576,12 @@ describe("EpochManager Test", function () {
                     allSeniorShares = allSeniorShares.add(seniorSharesToRedeem);
                     await seniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(seniorSharesToRedeem);
+                        .addRedemptionRequest(lender.address, seniorSharesToRedeem);
                     juniorSharesToRedeem = toToken(3653);
                     allJuniorShares = allJuniorShares.add(juniorSharesToRedeem);
                     await juniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(juniorSharesToRedeem);
+                        .addRedemptionRequest(lender.address, juniorSharesToRedeem);
                     await testCloseEpoch(allSeniorShares, BN.from(0), allJuniorShares, BN.from(0));
                     await epochChecker.checkSeniorRedemptionSummaryById(epochId, allSeniorShares);
                     await epochChecker.checkJuniorRedemptionSummaryById(epochId, allJuniorShares);
@@ -1586,12 +1594,12 @@ describe("EpochManager Test", function () {
                     allSeniorShares = allSeniorShares.add(seniorSharesToRedeem);
                     await seniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(seniorSharesToRedeem);
+                        .addRedemptionRequest(lender.address, seniorSharesToRedeem);
                     juniorSharesToRedeem = toToken(9474);
                     allJuniorShares = allJuniorShares.add(juniorSharesToRedeem);
                     await juniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(juniorSharesToRedeem);
+                        .addRedemptionRequest(lender.address, juniorSharesToRedeem);
                     await testCloseEpoch(allSeniorShares, BN.from(0), allJuniorShares, BN.from(0));
                     await epochChecker.checkSeniorRedemptionSummaryById(epochId, allSeniorShares);
                     await epochChecker.checkJuniorRedemptionSummaryById(epochId, allJuniorShares);
@@ -1655,12 +1663,12 @@ describe("EpochManager Test", function () {
                     const seniorSharesInEpoch1 = toToken(1938);
                     await seniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(seniorSharesInEpoch1);
+                        .addRedemptionRequest(lender.address, seniorSharesInEpoch1);
                     let totalSeniorSharesToRedeem = seniorSharesInEpoch1;
                     const juniorSharesInEpoch1 = toToken(4637);
                     await juniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(juniorSharesInEpoch1);
+                        .addRedemptionRequest(lender.address, juniorSharesInEpoch1);
                     let totalJuniorSharesToRedeem = juniorSharesInEpoch1;
                     let seniorSharesRedeemable = seniorSharesInEpoch1,
                         juniorSharesRedeemable = toToken(1349);
@@ -1718,7 +1726,7 @@ describe("EpochManager Test", function () {
                     const juniorSharesInEpoch2 = toToken(8524);
                     await juniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(juniorSharesInEpoch2);
+                        .addRedemptionRequest(lender.address, juniorSharesInEpoch2);
                     totalJuniorSharesToRedeem =
                         totalJuniorSharesToRedeem.add(juniorSharesInEpoch2);
                     seniorSharesRedeemable = totalSeniorSharesToRedeem;
@@ -1762,7 +1770,7 @@ describe("EpochManager Test", function () {
                     const juniorSharesInEpoch3 = toToken(1837);
                     await juniorTrancheVaultContract
                         .connect(lender)
-                        .addRedemptionRequest(juniorSharesInEpoch3);
+                        .addRedemptionRequest(lender.address, juniorSharesInEpoch3);
                     totalJuniorSharesToRedeem =
                         totalJuniorSharesToRedeem.add(juniorSharesInEpoch3);
                     juniorSharesRedeemable = BN.from(0);

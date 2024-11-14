@@ -473,7 +473,7 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
             const oldShares = await juniorTrancheVaultContract.balanceOf(jLenders[i].address);
             await juniorTrancheVaultContract
                 .connect(jLenders[i])
-                .addRedemptionRequest(jLenderRequests[i]);
+                .addRedemptionRequest(jLenders[i].address, jLenderRequests[i]);
             expect(await juniorTrancheVaultContract.balanceOf(jLenders[i].address)).to.equal(
                 oldShares.sub(jLenderRequests[i]),
             );
@@ -515,7 +515,7 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
             const oldShares = await seniorTrancheVaultContract.balanceOf(sLenders[i].address);
             await seniorTrancheVaultContract
                 .connect(sLenders[i])
-                .addRedemptionRequest(sLenderRequests[i]);
+                .addRedemptionRequest(sLenders[i].address, sLenderRequests[i]);
             expect(await seniorTrancheVaultContract.balanceOf(sLenders[i].address)).to.equal(
                 oldShares.sub(sLenderRequests[i]),
             );

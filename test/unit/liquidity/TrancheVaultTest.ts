@@ -1006,23 +1006,37 @@ describe("TrancheVault Test", function () {
             describe("addRedemptionRequest", function () {
                 it("Should reject redemption requests with 0 shares", async function () {
                     await expect(
-                        juniorTrancheVaultContract.connect(lender).addRedemptionRequest(0),
+                        juniorTrancheVaultContract
+                            .connect(lender)
+                            .addRedemptionRequest(lender.address, 0),
                     ).to.be.revertedWithCustomError(
                         juniorTrancheVaultContract,
                         "ZeroAmountProvided",
                     );
                 });
 
+                it("Should reject redemption requests not submitted by lenders", async function () {
+                    await expect(
+                        juniorTrancheVaultContract
+                            .connect(sentinelServiceAccount)
+                            .addRedemptionRequest(lender.address, 1),
+                    ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "LenderRequired");
+                });
+
                 it("Should reject redemption requests when protocol is paused or pool is not on", async function () {
                     await humaConfigContract.connect(protocolOwner).pause();
                     await expect(
-                        juniorTrancheVaultContract.connect(lender).addRedemptionRequest(1),
+                        juniorTrancheVaultContract
+                            .connect(lender)
+                            .addRedemptionRequest(lender.address, 1),
                     ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                     await humaConfigContract.connect(protocolOwner).unpause();
 
                     await poolContract.connect(poolOwner).disablePool();
                     await expect(
-                        juniorTrancheVaultContract.connect(lender).addRedemptionRequest(1),
+                        juniorTrancheVaultContract
+                            .connect(lender)
+                            .addRedemptionRequest(lender.address, 1),
                     ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                     await poolContract.connect(poolOwner).enablePool();
                 });
@@ -1032,7 +1046,7 @@ describe("TrancheVault Test", function () {
                     await expect(
                         juniorTrancheVaultContract
                             .connect(lender)
-                            .addRedemptionRequest(shares.add(BN.from(1))),
+                            .addRedemptionRequest(lender.address, shares.add(BN.from(1))),
                     ).to.be.revertedWithCustomError(
                         juniorTrancheVaultContract,
                         "InsufficientSharesForRequest",
@@ -1043,7 +1057,7 @@ describe("TrancheVault Test", function () {
                     await expect(
                         juniorTrancheVaultContract
                             .connect(poolOwnerTreasury)
-                            .addRedemptionRequest(BN.from(1)),
+                            .addRedemptionRequest(poolOwnerTreasury.address, BN.from(1)),
                     ).to.be.revertedWithCustomError(
                         poolConfigContract,
                         "PoolOwnerInsufficientLiquidity",
@@ -1071,7 +1085,7 @@ describe("TrancheVault Test", function () {
                     await expect(
                         juniorTrancheVaultContract
                             .connect(poolOwnerTreasury)
-                            .addRedemptionRequest(sharesRequested),
+                            .addRedemptionRequest(poolOwnerTreasury.address, sharesRequested),
                     ).to.be.revertedWithCustomError(
                         poolConfigContract,
                         "PoolOwnerInsufficientLiquidity",
@@ -1082,7 +1096,7 @@ describe("TrancheVault Test", function () {
                     await expect(
                         seniorTrancheVaultContract
                             .connect(poolOwnerTreasury)
-                            .addRedemptionRequest(BN.from(1)),
+                            .addRedemptionRequest(poolOwnerTreasury.address, BN.from(1)),
                     ).to.be.revertedWithCustomError(
                         poolConfigContract,
                         "PoolOwnerInsufficientLiquidity",
@@ -1110,7 +1124,7 @@ describe("TrancheVault Test", function () {
                     await expect(
                         seniorTrancheVaultContract
                             .connect(poolOwnerTreasury)
-                            .addRedemptionRequest(sharesRequested),
+                            .addRedemptionRequest(poolOwnerTreasury.address, sharesRequested),
                     ).to.be.revertedWithCustomError(
                         poolConfigContract,
                         "PoolOwnerInsufficientLiquidity",
@@ -1121,7 +1135,7 @@ describe("TrancheVault Test", function () {
                     await expect(
                         juniorTrancheVaultContract
                             .connect(evaluationAgent)
-                            .addRedemptionRequest(BN.from(1)),
+                            .addRedemptionRequest(evaluationAgent.address, BN.from(1)),
                     ).to.be.revertedWithCustomError(
                         poolConfigContract,
                         "EvaluationAgentInsufficientLiquidity",
@@ -1138,7 +1152,7 @@ describe("TrancheVault Test", function () {
                     await expect(
                         juniorTrancheVaultContract
                             .connect(lender)
-                            .addRedemptionRequest(BN.from(1)),
+                            .addRedemptionRequest(lender.address, BN.from(1)),
                     ).to.be.revertedWithCustomError(
                         juniorTrancheVaultContract,
                         "WithdrawTooEarly",
@@ -1153,10 +1167,12 @@ describe("TrancheVault Test", function () {
                         await juniorTrancheVaultContract.depositRecords(lender.address)
                     ).principal;
                     await expect(
-                        juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
+                        juniorTrancheVaultContract
+                            .connect(lender)
+                            .addRedemptionRequest(lender.address, shares),
                     )
                         .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
-                        .withArgs(lender.address, shares, currentEpochId);
+                        .withArgs(lender.address, lender.address, shares, currentEpochId);
                     expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
                         balance.sub(shares),
                     );
@@ -1186,10 +1202,12 @@ describe("TrancheVault Test", function () {
                     principal = (await juniorTrancheVaultContract.depositRecords(lender.address))
                         .principal;
                     await expect(
-                        juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
+                        juniorTrancheVaultContract
+                            .connect(lender)
+                            .addRedemptionRequest(lender.address, shares),
                     )
                         .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
-                        .withArgs(lender.address, shares, currentEpochId);
+                        .withArgs(lender.address, lender.address, shares, currentEpochId);
                     expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
                         balance.sub(shares),
                     );
@@ -1222,10 +1240,12 @@ describe("TrancheVault Test", function () {
                     principal = (await juniorTrancheVaultContract.depositRecords(lender2.address))
                         .principal;
                     await expect(
-                        juniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares),
+                        juniorTrancheVaultContract
+                            .connect(lender2)
+                            .addRedemptionRequest(lender2.address, shares),
                     )
                         .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
-                        .withArgs(lender2.address, shares, currentEpochId);
+                        .withArgs(lender2.address, lender2.address, shares, currentEpochId);
                     expect(await juniorTrancheVaultContract.balanceOf(lender2.address)).to.equal(
                         balance.sub(shares),
                     );
@@ -1269,10 +1289,12 @@ describe("TrancheVault Test", function () {
                         await juniorTrancheVaultContract.depositRecords(lender.address)
                     ).principal;
                     await expect(
-                        juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
+                        juniorTrancheVaultContract
+                            .connect(lender)
+                            .addRedemptionRequest(lender.address, shares),
                     )
                         .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
-                        .withArgs(lender.address, shares, currentEpochId);
+                        .withArgs(lender.address, lender.address, shares, currentEpochId);
                     expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
                         balance.sub(shares),
                     );
@@ -1319,10 +1341,12 @@ describe("TrancheVault Test", function () {
                     principal = (await juniorTrancheVaultContract.depositRecords(lender.address))
                         .principal;
                     await expect(
-                        juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
+                        juniorTrancheVaultContract
+                            .connect(lender)
+                            .addRedemptionRequest(lender.address, shares),
                     )
                         .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
-                        .withArgs(lender.address, shares, currentEpochId);
+                        .withArgs(lender.address, lender.address, shares, currentEpochId);
                     expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
                         balance.sub(shares),
                     );
@@ -1354,10 +1378,12 @@ describe("TrancheVault Test", function () {
                     principal = (await juniorTrancheVaultContract.depositRecords(lender2.address))
                         .principal;
                     await expect(
-                        juniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares),
+                        juniorTrancheVaultContract
+                            .connect(lender2)
+                            .addRedemptionRequest(lender2.address, shares),
                     )
                         .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
-                        .withArgs(lender2.address, shares, currentEpochId);
+                        .withArgs(lender2.address, lender2.address, shares, currentEpochId);
                     expect(await juniorTrancheVaultContract.balanceOf(lender2.address)).to.equal(
                         balance.sub(shares),
                     );
@@ -1401,10 +1427,12 @@ describe("TrancheVault Test", function () {
                     principal = (await juniorTrancheVaultContract.depositRecords(lender2.address))
                         .principal;
                     await expect(
-                        juniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares),
+                        juniorTrancheVaultContract
+                            .connect(lender2)
+                            .addRedemptionRequest(lender2.address, shares),
                     )
                         .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
-                        .withArgs(lender2.address, shares, currentEpochId);
+                        .withArgs(lender2.address, lender2.address, shares, currentEpochId);
                     expect(await juniorTrancheVaultContract.balanceOf(lender2.address)).to.equal(
                         balance.sub(shares),
                     );
@@ -1454,10 +1482,15 @@ describe("TrancheVault Test", function () {
                     await expect(
                         seniorTrancheVaultContract
                             .connect(evaluationAgent)
-                            .addRedemptionRequest(sharesRequested),
+                            .addRedemptionRequest(evaluationAgent.address, sharesRequested),
                     )
                         .to.emit(seniorTrancheVaultContract, "RedemptionRequestAdded")
-                        .withArgs(evaluationAgent.address, sharesRequested, currentEpochId);
+                        .withArgs(
+                            evaluationAgent.address,
+                            evaluationAgent.address,
+                            sharesRequested,
+                            currentEpochId,
+                        );
                     expect(
                         await seniorTrancheVaultContract.balanceOf(evaluationAgent.address),
                     ).to.equal(balance.sub(sharesRequested));
@@ -1474,6 +1507,78 @@ describe("TrancheVault Test", function () {
                         sharesRequested,
                     );
                 });
+
+                describe("When `autoRedemptionAfterLockup` is enabled", function () {
+                    async function enableAutoRedemption() {
+                        const lpConfig = await poolConfigContract.getLPConfig();
+                        await poolConfigContract.connect(poolOwner).setLPConfig({
+                            ...lpConfig,
+                            ...{ autoRedemptionAfterLockup: true },
+                        });
+                    }
+
+                    beforeEach(async function () {
+                        await loadFixture(enableAutoRedemption);
+                    });
+
+                    it("Should reject redemption requests not submitted by lenders or the Sentinel service account", async function () {
+                        await expect(
+                            juniorTrancheVaultContract
+                                .connect(lender)
+                                .addRedemptionRequest(lender2.address, 1),
+                        ).to.be.revertedWithCustomError(
+                            juniorTrancheVaultContract,
+                            "SentinelServiceAccountRequired",
+                        );
+                    });
+
+                    it("Should allow the Sentinel service account to request redemption on behalf of the lender", async function () {
+                        const shares = toToken(10_000);
+                        const currentEpochId = await epochManagerContract.currentEpochId();
+                        let balance = await juniorTrancheVaultContract.balanceOf(lender.address);
+                        let principal = (
+                            await juniorTrancheVaultContract.depositRecords(lender.address)
+                        ).principal;
+                        await expect(
+                            juniorTrancheVaultContract
+                                .connect(sentinelServiceAccount)
+                                .addRedemptionRequest(lender.address, shares),
+                        )
+                            .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
+                            .withArgs(
+                                lender.address,
+                                sentinelServiceAccount.address,
+                                shares,
+                                currentEpochId,
+                            );
+                        expect(
+                            await juniorTrancheVaultContract.balanceOf(lender.address),
+                        ).to.equal(balance.sub(shares));
+                        expect(
+                            (await juniorTrancheVaultContract.depositRecords(lender.address))
+                                .principal,
+                        ).to.equal(principal.sub(shares));
+
+                        await checkRedemptionRecordByLender(
+                            juniorTrancheVaultContract,
+                            lender,
+                            currentEpochId,
+                            shares,
+                            shares,
+                        );
+
+                        expect(
+                            await juniorTrancheVaultContract.cancellableRedemptionShares(
+                                lender.address,
+                            ),
+                        ).to.equal(shares);
+
+                        await epochChecker.checkJuniorRedemptionSummaryById(
+                            currentEpochId,
+                            shares,
+                        );
+                    });
+                });
             });
 
             describe("cancellableRedemptionShares", function () {
@@ -1484,7 +1589,9 @@ describe("TrancheVault Test", function () {
                         ),
                     ).to.equal(0);
                     let shares = toToken(10_000);
-                    await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+                    await juniorTrancheVaultContract
+                        .connect(lender)
+                        .addRedemptionRequest(lender.address, shares);
                     expect(
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
                             lender.address,
@@ -1519,7 +1626,9 @@ describe("TrancheVault Test", function () {
 
                 it("Should not allow redemption request cancellation with shares greater than requested shares", async function () {
                     let shares = toToken(10_000);
-                    await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+                    await juniorTrancheVaultContract
+                        .connect(lender)
+                        .addRedemptionRequest(lender.address, shares);
                     await expect(
                         juniorTrancheVaultContract
                             .connect(lender)
@@ -1532,7 +1641,9 @@ describe("TrancheVault Test", function () {
 
                 it("Should allow redemption request cancellation", async function () {
                     let shares = toToken(10_000);
-                    await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+                    await juniorTrancheVaultContract
+                        .connect(lender)
+                        .addRedemptionRequest(lender.address, shares);
                     let lenderShares = shares;
 
                     // Lender removes redemption request
@@ -1593,8 +1704,12 @@ describe("TrancheVault Test", function () {
 
                     // Lender and Lender2 add redemption requests
                     shares = toToken(10_000);
-                    await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
-                    await juniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares);
+                    await juniorTrancheVaultContract
+                        .connect(lender)
+                        .addRedemptionRequest(lender.address, shares);
+                    await juniorTrancheVaultContract
+                        .connect(lender2)
+                        .addRedemptionRequest(lender2.address, shares);
 
                     // Lender removes redemption request
                     balance = await juniorTrancheVaultContract.balanceOf(lender.address);
@@ -1656,10 +1771,12 @@ describe("TrancheVault Test", function () {
 
                     // Lender2 requests redemption in next epoch
                     await expect(
-                        juniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares),
+                        juniorTrancheVaultContract
+                            .connect(lender2)
+                            .addRedemptionRequest(lender2.address, shares),
                     )
                         .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
-                        .withArgs(lender2.address, shares, currentEpochId);
+                        .withArgs(lender2.address, lender2.address, shares, currentEpochId);
 
                     // Lender2 removes redemption request
                     const allShares = shares.mul(BN.from(2));
@@ -1700,6 +1817,31 @@ describe("TrancheVault Test", function () {
                         currentEpochId,
                     );
                 });
+
+                describe("When `autoRedemptionAfterLockup` is enabled", function () {
+                    async function enableAutoRedemption() {
+                        const lpConfig = await poolConfigContract.getLPConfig();
+                        await poolConfigContract.connect(poolOwner).setLPConfig({
+                            ...lpConfig,
+                            ...{ autoRedemptionAfterLockup: true },
+                        });
+                    }
+
+                    beforeEach(async function () {
+                        await loadFixture(enableAutoRedemption);
+                    });
+
+                    it("Should not allow cancellation", async function () {
+                        await expect(
+                            juniorTrancheVaultContract
+                                .connect(sentinelServiceAccount)
+                                .cancelRedemptionRequest(1),
+                        ).to.be.revertedWithCustomError(
+                            juniorTrancheVaultContract,
+                            "RedemptionCancellationDisabled",
+                        );
+                    });
+                });
             });
 
             describe("When there is PnL", function () {
@@ -1717,10 +1859,12 @@ describe("TrancheVault Test", function () {
                     ).principal;
                     let principal = allPrincipal.mul(shares).div(balance);
                     await expect(
-                        juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
+                        juniorTrancheVaultContract
+                            .connect(lender)
+                            .addRedemptionRequest(lender.address, shares),
                     )
                         .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
-                        .withArgs(lender.address, shares, currentEpochId);
+                        .withArgs(lender.address, lender.address, shares, currentEpochId);
                     expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
                         balance.sub(shares),
                     );
@@ -1755,10 +1899,12 @@ describe("TrancheVault Test", function () {
                     ).principal;
                     principal = allPrincipal.mul(shares).div(balance);
                     await expect(
-                        juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
+                        juniorTrancheVaultContract
+                            .connect(lender)
+                            .addRedemptionRequest(lender.address, shares),
                     )
                         .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
-                        .withArgs(lender.address, shares, currentEpochId);
+                        .withArgs(lender.address, lender.address, shares, currentEpochId);
                     expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
                         balance.sub(shares),
                     );
@@ -1868,10 +2014,12 @@ describe("TrancheVault Test", function () {
                     ).principal;
                     let principal = allPrincipal.mul(shares).div(balance);
                     await expect(
-                        juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
+                        juniorTrancheVaultContract
+                            .connect(lender)
+                            .addRedemptionRequest(lender.address, shares),
                     )
                         .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
-                        .withArgs(lender.address, shares, currentEpochId);
+                        .withArgs(lender.address, lender.address, shares, currentEpochId);
                     expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
                         balance.sub(shares),
                     );
@@ -1943,10 +2091,12 @@ describe("TrancheVault Test", function () {
                     ).principal;
                     principal = allPrincipal.mul(shares).div(balance);
                     await expect(
-                        juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
+                        juniorTrancheVaultContract
+                            .connect(lender)
+                            .addRedemptionRequest(lender.address, shares),
                     )
                         .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
-                        .withArgs(lender.address, shares, currentEpochId);
+                        .withArgs(lender.address, lender.address, shares, currentEpochId);
                     expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
                         balance.sub(shares),
                     );
@@ -2038,8 +2188,12 @@ describe("TrancheVault Test", function () {
             it("Should disburse when one epoch was fully processed", async function () {
                 let shares = toToken(1000);
 
-                await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
-                await seniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares);
+                await seniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(lender.address, shares);
+                await seniorTrancheVaultContract
+                    .connect(lender2)
+                    .addRedemptionRequest(lender2.address, shares);
 
                 await seniorTrancheVaultContract.processYieldForLenders();
                 await juniorTrancheVaultContract.processYieldForLenders();
@@ -2121,8 +2275,12 @@ describe("TrancheVault Test", function () {
                 let shares = toToken(1000);
                 let shares2 = toToken(2000);
 
-                await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
-                await seniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares2);
+                await seniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(lender.address, shares);
+                await seniorTrancheVaultContract
+                    .connect(lender2)
+                    .addRedemptionRequest(lender2.address, shares2);
 
                 // Move assets out of pool safe for partial processing
 
@@ -2202,8 +2360,12 @@ describe("TrancheVault Test", function () {
                 allShares2 = allShares2.add(shares2);
                 allAvailableAmount = allAvailableAmount.add(availableAmount);
 
-                await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
-                await seniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares2);
+                await seniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(lender.address, shares);
+                await seniorTrancheVaultContract
+                    .connect(lender2)
+                    .addRedemptionRequest(lender2.address, shares2);
 
                 // Move assets into pool safe for partial processing
 
@@ -2358,10 +2520,12 @@ describe("TrancheVault Test", function () {
                     let principal = allPrincipal.mul(shares).div(allShares);
                     let currentEpochId = await epochManagerContract.currentEpochId();
                     await expect(
-                        juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
+                        juniorTrancheVaultContract
+                            .connect(lender)
+                            .addRedemptionRequest(lender.address, shares),
                     )
                         .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
-                        .withArgs(lender.address, shares, currentEpochId);
+                        .withArgs(lender.address, lender.address, shares, currentEpochId);
                     let sharesRequested = shares;
                     let principalRequested = principal;
 
@@ -2441,10 +2605,12 @@ describe("TrancheVault Test", function () {
                     let principal = allPrincipal.mul(shares).div(allShares);
                     let currentEpochId = await epochManagerContract.currentEpochId();
                     await expect(
-                        juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
+                        juniorTrancheVaultContract
+                            .connect(lender)
+                            .addRedemptionRequest(lender.address, shares),
                     )
                         .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
-                        .withArgs(lender.address, shares, currentEpochId);
+                        .withArgs(lender.address, lender.address, shares, currentEpochId);
                     let sharesRequested = shares;
                     let principalRequested = principal;
 
@@ -2512,7 +2678,7 @@ describe("TrancheVault Test", function () {
                     await juniorTrancheVaultContract.convertToAssets(sharesRequested);
                 await juniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesRequested);
+                    .addRedemptionRequest(lender.address, sharesRequested);
 
                 await poolContract.connect(poolOwner).closePool();
                 expect(await poolContract.isPoolClosed()).to.be.true;
@@ -2596,7 +2762,9 @@ describe("TrancheVault Test", function () {
 
             it("Should process one epoch fully", async function () {
                 let shares = toToken(3000);
-                await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+                await seniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(lender.address, shares);
 
                 let lastEpoch = await epochManagerContract.currentEpoch();
                 let ts = lastEpoch.endTime.toNumber() + 60 * 5;
@@ -2628,7 +2796,9 @@ describe("TrancheVault Test", function () {
 
             it("Should process one epoch partially", async function () {
                 let shares = toToken(3000);
-                await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+                await seniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(lender.address, shares);
 
                 // Move assets out of pool safe for partial processing
 
