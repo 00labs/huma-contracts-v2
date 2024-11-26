@@ -14,7 +14,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 abstract contract PoolConfigCache is Initializable, UUPSUpgradeable {
     PoolConfig public poolConfig;
 
-    /**
+    /**setPoolConfig
      * @notice The pool config cache has changed.
      * @param poolConfig The address of the PoolConfig contract based on which the cache is updated.
      */

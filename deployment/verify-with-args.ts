@@ -11,8 +11,8 @@ async function verifyContract(): Promise<void> {
 
     const args: unknown[] = [
         0,
-        ["0x9eA47A502BEffB25c8d559e614203562bb7d886d"],
-        ["0x73285f0013F76366e0442180C5Ae3A67Da2ab4fC"],
+        ["0xEC5c04192A251f6ffD42a48ad3Ee8250F7757D08"],
+        ["0xEC5c04192A251f6ffD42a48ad3Ee8250F7757D08"],
         "0x0000000000000000000000000000000000000000",
     ];
     // const PoolFactory = await hre.ethers.getContractFactory("PoolFactory", {
@@ -26,9 +26,9 @@ async function verifyContract(): Promise<void> {
     // const args: unknown[] = ["0x077b618a91129435f5110915080c60eea078639f", calldata];
 
     // * only verify on testnets or mainnets.
-    if (chainId != 31337 && process.env.CELOSCAN_API_KEY) {
-        await verify("0x47fa6Ffb3021836a321cC36df82a46c2D6eAd44E", args);
-    }
+    // if (chainId != 31337 && process.env.CELOSCAN_API_KEY) {
+    await verify("0xaFD64e8CBE22e2Bd81c3210B2b7AAa43309e7dc5", args);
+    // }
 }
 
 const verify = async (contractAddress: string, args: unknown[]) => {
