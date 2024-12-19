@@ -506,7 +506,6 @@ contract TrancheVault is
             DepositRecord memory depositRecord = _getDepositRecord(lender);
             uint256 principalWithDecimals = depositRecord.principal * DEFAULT_DECIMALS_FACTOR;
             if (assetsWithDecimals > principalWithDecimals) {
-                // TODO(jiatu): Check yield > 0 instead?
                 uint256 yieldWithDecimals = assetsWithDecimals - principalWithDecimals;
                 uint256 yield = yieldWithDecimals / DEFAULT_DECIMALS_FACTOR;
                 // Round up the number of shares the lender has to burn in order to receive
