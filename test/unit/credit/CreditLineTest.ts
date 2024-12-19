@@ -7623,6 +7623,7 @@ describe("CreditLine Test", function () {
             const oldPoolOwnerTreasuryBalance = await mockTokenContract.balanceOf(
                 poolOwnerTreasury.getAddress(),
             );
+            const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
 
             if (paymentAmountUsed.gt(ethers.constants.Zero)) {
                 let poolDistributionEventName = "";
@@ -7686,6 +7687,8 @@ describe("CreditLine Test", function () {
             expect(oldPoolOwnerTreasuryBalance.sub(newPoolOwnerTreasuryBalance)).to.equal(
                 paymentAmountUsed,
             );
+            const newBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
+            expect(oldBorrowerBalance).to.equal(newBorrowerBalance);
 
             const newCR = await creditContract.getCreditRecord(creditHash);
             let periodsPassed = 0;
