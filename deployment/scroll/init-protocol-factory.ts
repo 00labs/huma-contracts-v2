@@ -10,22 +10,22 @@ let networkName;
 let deployer;
 let deployedContracts;
 const HUMA_TREASURY_ACCOUNT = "0xABd48A580F66ad5Ad0Fe983968De686F408c88EE";
-const SENTINEL_ACCOUNT = "0x8Dfe5F02b6D3B6b0355FC7d918Daf59C5C2E2EB8";
+const SENTINEL_ACCOUNT = "0x5F60a64952344018028D977774019845e14e8062";
 const contracts = [
-    // "PoolConfig",
-    // "PoolFeeManager",
-    // "PoolSafe",
-    // "FirstLossCover",
-    // "RiskAdjustedTranchesPolicy",
-    // "FixedSeniorYieldTranchesPolicy",
-    // "Pool",
-    // "EpochManager",
-    // "TrancheVault",
-    // "CreditLine",
-    // "ReceivableBackedCreditLine",
-    // "ReceivableFactoringCredit",
-    // "CreditDueManager",
-    // "CreditLineManager",
+    "PoolConfig",
+    "PoolFeeManager",
+    "PoolSafe",
+    "FirstLossCover",
+    "RiskAdjustedTranchesPolicy",
+    "FixedSeniorYieldTranchesPolicy",
+    "Pool",
+    "EpochManager",
+    "TrancheVault",
+    "CreditLine",
+    "ReceivableBackedCreditLine",
+    "ReceivableFactoringCredit",
+    "CreditDueManager",
+    "CreditLineManager",
     "ReceivableBackedCreditLineManager",
     "ReceivableFactoringCreditManager",
     "Receivable",
@@ -125,7 +125,7 @@ async function initPoolFactory() {
     await updateInitializedContract("PoolFactory", networkName);
 }
 
-async function initContracts() {
+export async function initContracts() {
     // const networkName = (await hre.ethers.provider.getNetworkName()).name;
     networkName = network.name;
     console.log("networkName : ", networkName);
@@ -140,9 +140,9 @@ async function initContracts() {
     await initPoolFactory();
 }
 
-initContracts()
-    .then(() => process.exit(0))
-    .catch((error) => {
-        console.error(error);
-        process.exit(1);
-    });
+// initContracts()
+//     .then(() => process.exit(0))
+//     .catch((error) => {
+//         console.error(error);
+//         process.exit(1);
+//     });

@@ -20,6 +20,7 @@ const getContractAddressFile = async function (fileType = "deployed", network) {
 
 const readFileContent = async function (fileType = "deployed", network) {
     const contractAddressFile = await getContractAddressFile(fileType, network);
+    console.log("contractAddressFile: ", contractAddressFile);
     const data = fs.readFileSync(contractAddressFile, { flag: "a+" });
     const content = data.toString();
     if (content.length == 0) {
@@ -107,7 +108,7 @@ export const sendTransaction = async function (
     logMessage?,
 ) {
     // const gasPrice = await hre.ethers.provider.getGasPrice()
-    await sleep(5000);
+    // await sleep(5000);
     logMessage = !logMessage ? methodName : logMessage;
     const method = contractInstance[methodName];
     console.log(`${contractName}:${logMessage} Start!`);
