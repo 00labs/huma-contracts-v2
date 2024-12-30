@@ -632,6 +632,10 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             revert Errors.SentinelServiceAccountRequired();
     }
 
+    function _onlyPoolOwnerTreasury(address account) internal view {
+        if (account != poolConfig.poolOwnerTreasury()) revert Errors.PoolOwnerTreasuryRequired();
+    }
+
     /**
      * @notice Returns from whose account the funds for payment should be extracted.
      * @notice This function exists because of Auto-pay:

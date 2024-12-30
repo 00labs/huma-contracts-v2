@@ -38,6 +38,20 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
     );
 
     /**
+     * @notice A payment has been made against the credit line by someone on behalf of the borrower.
+     * @param borrower The address of the borrower.
+     * @param receivableId The ID of the receivable.
+     * @param amount The payback amount.
+     * @param by The address that initiated the payment.
+     */
+    event PaymentMadeOnBehalfOfWithReceivable(
+        address indexed borrower,
+        uint256 indexed receivableId,
+        uint256 amount,
+        address by
+    );
+
+    /**
      * @notice A borrowing event has happened to the credit line.
      * @param borrower The address of the borrower.
      * @param receivableId The ID of the receivable.
@@ -116,6 +130,27 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         (amountPaid, paidoff) = _makePayment(borrower, creditHash, amount);
 
         emit PaymentMadeWithReceivable(borrower, receivableId, amount, msg.sender);
+    }
+
+    /**
+     * @notice Allows the Pool Owner Treasury to pay back on behalf of the borrower with a receivable
+     */
+    function makePaymentOnBehalfOfWithReceivable(
+        address borrower,
+        uint256 receivableId,
+        uint256 amount
+    ) public virtual returns (uint256 amountPaid, bool paidoff) {
+        poolConfig.onlyProtocolAndPoolOn();
+        _onlyPoolOwnerTreasury(msg.sender);
+
+        bytes32 creditHash = getCreditHash(borrower);
+        creditManager.onlyCreditBorrower(creditHash, borrower);
+
+        _prepareForPayment(borrower, poolConfig.receivableAsset(), receivableId);
+
+        (amountPaid, paidoff) = _makePayment(borrower, creditHash, amount);
+
+        emit PaymentMadeOnBehalfOfWithReceivable(borrower, receivableId, amount, msg.sender);
     }
 
     /**

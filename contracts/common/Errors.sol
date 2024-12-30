@@ -16,6 +16,7 @@ contract Errors {
     error PoolOwnerOrHumaOwnerRequired(); // 0x3e984120
     error PoolOperatorRequired(); // 0xae7fe070
     error PoolOwnerRequired(); // 0x8b506451
+    error PoolOwnerTreasuryRequired(); // 0xf527eb38
     error HumaTreasuryRequired(); // 0x6e0a9ac9
     error PoolOwnerOrEARequired(); // 0xe54466f3
     error PauserRequired(); // 0xd4a99e4e

@@ -10,6 +10,7 @@
   "PoolOwnerOrHumaOwnerRequired()": "0x3e984120",
   "PoolOperatorRequired()": "0xae7fe070",
   "PoolOwnerRequired()": "0x8b506451",
+  "PoolOwnerTreasuryRequired()": "0xf527eb38",
   "HumaTreasuryRequired()": "0x6e0a9ac9",
   "PoolOwnerOrEARequired()": "0xe54466f3",
   "PauserRequired()": "0xd4a99e4e",
