@@ -15,7 +15,6 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
 /**
  * @title TrancheVault
  * @notice TrancheVault is the vault for a tranche. It is the primary interface for lenders
@@ -486,46 +485,70 @@ contract TrancheVault is
         }
     }
 
-    /**
-     * @notice Processes yield payout to all the lenders who are set to receive their yield
-     * distribution at the end of each period. Their tokens will be burned for the payout and
-     * their investment in the pool measured by dollar amount remains unchanged.
-     * @custom:access Anyone can call to trigger the processing. In reality, we expect
-     * a cron-like mechanism like autotask to trigger it.
-     */
-    function processYieldForLenders() external {
-        poolConfig.onlyProtocolAndPoolOn();
+    function copyStorageDataFromOldContract(
+        address oldTrancheVaultAddress,
+        address[] memory lenders,
+        uint256[] memory epochIds
+    ) external {
+        poolConfig.onlyHumaOwner(msg.sender);
 
-        uint256 priceWithDecimals = convertToAssets(DEFAULT_DECIMALS_FACTOR);
-        uint256 len = nonReinvestingLenders.length;
-        uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
+        TrancheVault oldTrancheVault = TrancheVault(oldTrancheVaultAddress);
+
+        uint256 len = epochIds.length;
         for (uint256 i = 0; i < len; i++) {
-            address lender = nonReinvestingLenders[i];
-            uint256 shares = ERC20Upgradeable.balanceOf(lender);
-            uint256 assetsWithDecimals = shares * priceWithDecimals;
-            DepositRecord memory depositRecord = _getDepositRecord(lender);
-            uint256 principalWithDecimals = depositRecord.principal * DEFAULT_DECIMALS_FACTOR;
-            if (assetsWithDecimals > principalWithDecimals) {
-                uint256 yieldWithDecimals = assetsWithDecimals - principalWithDecimals;
-                uint256 yield = yieldWithDecimals / DEFAULT_DECIMALS_FACTOR;
-                // Round up the number of shares the lender has to burn in order to receive
-                // the given amount of yield. Round-up applies the favor-the-pool principle.
-                shares = Math.ceilDiv(yieldWithDecimals, priceWithDecimals);
-                // The underlying asset of the pool may incorporate a blocklist feature that prevents the lender
-                // from receiving yield if they are subject to sanctions, and consequently the `transfer` call
-                // would fail for the lender. We bypass the yield of this lender so that other lenders can
-                // still get their yield paid out as normal.
-                try poolSafe.withdraw(lender, yield) {
-                    tranchesAssets[trancheIndex] -= uint96(yield);
-                    ERC20Upgradeable._burn(lender, shares);
-                    emit YieldPaidOut(lender, yield, shares);
-                } catch Error(string memory reason) {
-                    emit YieldPayoutFailed(lender, yield, shares, reason);
-                }
+            uint256 inputEpochId = epochIds[i];
+            (
+                uint64 epochId,
+                uint96 totalSharesRequested,
+                uint96 totalSharesProcessed,
+                uint96 totalAmountProcessed
+            ) = oldTrancheVault.epochRedemptionSummaries(inputEpochId);
+            assert(epochId == inputEpochId);
+            epochRedemptionSummaries[inputEpochId] = EpochRedemptionSummary(
+                epochId,
+                totalSharesRequested,
+                totalSharesProcessed,
+                totalAmountProcessed
+            );
+        }
+
+        len = lenders.length;
+        for (uint256 i = 0; i < len; ++i) {
+            address lender = lenders[i];
+            _grantRole(LENDER_ROLE, lender);
+
+            (
+                uint64 nextEpochIdToProcess,
+                uint96 numSharesRequested,
+                uint96 principalRequested,
+                uint96 totalAmountProcessed,
+                uint96 totalAmountWithdrawn
+            ) = oldTrancheVault.lenderRedemptionRecords(lender);
+            lenderRedemptionRecords[lender] = LenderRedemptionRecord(
+                nextEpochIdToProcess,
+                numSharesRequested,
+                principalRequested,
+                totalAmountProcessed,
+                totalAmountWithdrawn
+            );
+
+            (uint96 principal, bool reinvestYield, uint64 lastDepositTime) = oldTrancheVault
+                .depositRecords(lender);
+            depositRecords[lender] = DepositRecord(principal, reinvestYield, lastDepositTime);
+
+            // Mint LP tokens to existing lenders.
+            uint256 oldBalance = oldTrancheVault.balanceOf(lender);
+            if (balanceOf(lender) == 0) {
+                _mint(lender, oldBalance);
             }
         }
-        poolSafe.resetUnprocessedProfit();
-        pool.updateTranchesAssets(tranchesAssets);
+    }
+
+    function restoreLPTokensForTrancheVault(address oldTrancheVaultAddress) external {
+        TrancheVault oldTrancheVault = TrancheVault(oldTrancheVaultAddress);
+        uint256 oldBalance = oldTrancheVault.balanceOf(oldTrancheVaultAddress);
+        assert(balanceOf(address(this)) == 0);
+        _mint(address(this), oldBalance);
     }
 
     /// @inheritdoc IRedemptionHandler

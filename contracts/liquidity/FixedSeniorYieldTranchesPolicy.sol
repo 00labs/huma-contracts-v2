@@ -56,6 +56,17 @@ contract FixedSeniorYieldTranchesPolicy is BaseTranchesPolicy {
         }
     }
 
+    function copyStorageDataFromOldContract() external {
+        poolConfig.onlyHumaOwner(msg.sender);
+
+        FixedSeniorYieldTranchesPolicy oldPolicy = FixedSeniorYieldTranchesPolicy(
+            0x13d8446B1b365d53B0696947fa96624b5CE19bf3
+        );
+        (uint96 totalAssets, uint96 unpaidYield, uint64 lastUpdatedDate) = oldPolicy
+            .seniorYieldTracker();
+        seniorYieldTracker = SeniorYieldTracker(totalAssets, unpaidYield, lastUpdatedDate);
+    }
+
     function _calcProfitForSeniorTranche(
         uint256 profit,
         uint96[2] memory assets

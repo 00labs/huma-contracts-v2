@@ -78,6 +78,35 @@ contract ReceivableBackedCreditLineManager is
         _availableCredits[creditHash] = uint96(availableCredit);
     }
 
+    function copyStorageDataFromOldContract(
+        address borrower,
+        uint256[] memory receivableIds
+    ) external {
+        poolConfig.onlyHumaOwner(msg.sender);
+
+        ReceivableBackedCreditLineManager oldManager = ReceivableBackedCreditLineManager(
+            0x061411d05074Bc974f814AC86309D2204f4c265d
+        );
+        bytes32 creditHash = oldManager.getCreditHash(borrower);
+
+        CreditConfig memory oldConfig = oldManager.getCreditConfig(creditHash);
+        bytes32 newCreditHash = getCreditHash(borrower);
+        _creditConfigMap[newCreditHash] = oldConfig;
+
+        address oldBorrower = oldManager.getCreditBorrower(creditHash);
+        assert(oldBorrower == borrower);
+        _creditBorrowerMap[newCreditHash] = oldBorrower;
+
+        uint256 oldAvailableCredits = oldManager.getAvailableCredit(creditHash);
+        _availableCredits[newCreditHash] = uint96(oldAvailableCredits);
+
+        uint256 len = receivableIds.length;
+        for (uint256 i = 0; i < len; i++) {
+            address oldReceivableBorrower = oldManager.receivableBorrowerMap(receivableIds[i]);
+            receivableBorrowerMap[receivableIds[i]] = oldReceivableBorrower;
+        }
+    }
+
     /// @inheritdoc IReceivableBackedCreditLineManager
     function validateReceivableOwnership(address borrower, uint256 receivableId) external view {
         if (receivableBorrowerMap[receivableId] != borrower) revert Errors.ReceivableIdMismatch();

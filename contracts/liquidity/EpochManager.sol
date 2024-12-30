@@ -123,6 +123,14 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         emit EpochProcessedAfterPoolClosure(currentEpochId_);
     }
 
+    function copyStorageDataFromOldContract() external {
+        poolConfig.onlyHumaOwner(msg.sender);
+
+        EpochManager oldEpochManager = EpochManager(0x1a2C87Be5e785493310526faA7739Bbe4E10c0F6);
+        CurrentEpoch memory oldCurrentEpoch = oldEpochManager.currentEpoch();
+        _currentEpoch = oldCurrentEpoch;
+    }
+
     /// @inheritdoc IEpochManager
     function currentEpochId() external view returns (uint256) {
         return _currentEpoch.id;

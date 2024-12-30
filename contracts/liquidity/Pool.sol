@@ -206,6 +206,16 @@ contract Pool is PoolConfigCache, IPool {
         _updateTranchesAssets(assets);
     }
 
+    function copyStorageDataFromOldContract() external {
+        poolConfig.onlyHumaOwner(msg.sender);
+
+        Pool oldPool = Pool(0x5227254a6aCa397e95F310b52f6D3143A5A9Ee14);
+        (uint96 seniorTotalAssets, uint96 juniorTotalAssets) = oldPool.tranchesAssets();
+        tranchesAssets = TranchesAssets(seniorTotalAssets, juniorTotalAssets);
+
+        _status = PoolStatus.On;
+    }
+
     /// @inheritdoc IPool
     function trancheTotalAssets(uint256 index) external view returns (uint256) {
         uint96[2] memory assets = currentTranchesAssets();
