@@ -15,7 +15,6 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
 /**
  * @title TrancheVault
  * @notice TrancheVault is the vault for a tranche. It is the primary interface for lenders
@@ -489,20 +488,23 @@ contract TrancheVault is
     function copyStorageDataFromOldContract(
         address oldTrancheVaultAddress,
         address[] memory lenders,
-        uint256 maxEpochId
+        uint256[] memory epochIds
     ) external {
         poolConfig.onlyHumaOwner(msg.sender);
 
         TrancheVault oldTrancheVault = TrancheVault(oldTrancheVaultAddress);
 
-        for (uint256 i = 0; i <= maxEpochId; i++) {
+        uint256 len = epochIds.length;
+        for (uint256 i = 0; i < len; i++) {
+            uint256 inputEpochId = epochIds[i];
             (
                 uint64 epochId,
                 uint96 totalSharesRequested,
                 uint96 totalSharesProcessed,
                 uint96 totalAmountProcessed
-            ) = oldTrancheVault.epochRedemptionSummaries(i);
-            epochRedemptionSummaries[i] = EpochRedemptionSummary(
+            ) = oldTrancheVault.epochRedemptionSummaries(inputEpochId);
+            assert(epochId == inputEpochId);
+            epochRedemptionSummaries[inputEpochId] = EpochRedemptionSummary(
                 epochId,
                 totalSharesRequested,
                 totalSharesProcessed,
@@ -510,7 +512,7 @@ contract TrancheVault is
             );
         }
 
-        uint256 len = lenders.length;
+        len = lenders.length;
         for (uint256 i = 0; i < len; ++i) {
             address lender = lenders[i];
             _grantRole(LENDER_ROLE, lender);

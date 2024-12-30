@@ -90,20 +90,20 @@ contract ReceivableBackedCreditLineManager is
         bytes32 creditHash = oldManager.getCreditHash(borrower);
 
         CreditConfig memory oldConfig = oldManager.getCreditConfig(creditHash);
-        _creditConfigMap[creditHash] = oldConfig;
+        bytes32 newCreditHash = getCreditHash(borrower);
+        _creditConfigMap[newCreditHash] = oldConfig;
 
         address oldBorrower = oldManager.getCreditBorrower(creditHash);
         assert(oldBorrower == borrower);
-        _creditBorrowerMap[creditHash] = oldBorrower;
+        _creditBorrowerMap[newCreditHash] = oldBorrower;
 
         uint256 oldAvailableCredits = oldManager.getAvailableCredit(creditHash);
-        _availableCredits[creditHash] = uint96(oldAvailableCredits);
+        _availableCredits[newCreditHash] = uint96(oldAvailableCredits);
 
         uint256 len = receivableIds.length;
         for (uint256 i = 0; i < len; i++) {
-            address oldReceivableBorrower = oldManager.receivableBorrowerMap(i);
-            assert(oldReceivableBorrower == borrower);
-            receivableBorrowerMap[i] = oldReceivableBorrower;
+            address oldReceivableBorrower = oldManager.receivableBorrowerMap(receivableIds[i]);
+            receivableBorrowerMap[receivableIds[i]] = oldReceivableBorrower;
         }
     }
 
