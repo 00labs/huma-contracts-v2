@@ -65,6 +65,21 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         address by
     );
 
+    function copyStorageDataFromOldContract(address borrower) external {
+        poolConfig.onlyHumaOwner(msg.sender);
+
+        ReceivableBackedCreditLine oldCredit = ReceivableBackedCreditLine(
+            0xc6F10af4746784a0DD095f4E5718d53ff94eB4a0
+        );
+        bytes32 creditHash = oldCredit.getCreditHash(borrower);
+
+        CreditRecord memory oldCreditRecord = oldCredit.getCreditRecord(creditHash);
+        _creditRecordMap[creditHash] = oldCreditRecord;
+
+        DueDetail memory oldDueDetail = oldCredit.getDueDetail(creditHash);
+        _dueDetailMap[creditHash] = oldDueDetail;
+    }
+
     function onERC721Received(
         address /*operator*/,
         address /*from*/,
