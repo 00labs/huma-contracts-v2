@@ -4,7 +4,7 @@
 /* eslint-disable no-undef */
 import { BigNumber as BN, ethers } from "ethers";
 import fs from "fs";
-const DEPLOYED_PATH = "./deployment/";
+const DEPLOYED_PATH = "./deployment/scroll-temp/";
 
 const MAX_FEE_PER_GAS = 300_000_000;
 const MAX_PRIORITY_FEE_PER_GAS = 100_000_000;

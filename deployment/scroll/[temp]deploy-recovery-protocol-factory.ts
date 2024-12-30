@@ -7,23 +7,23 @@ let networkName;
 
 async function deployImplementationContracts() {
     const contracts = [
-        "PoolConfig",
-        "PoolFeeManager",
-        "PoolSafe",
-        "FirstLossCover",
-        "RiskAdjustedTranchesPolicy",
-        "FixedSeniorYieldTranchesPolicy",
-        "Pool",
-        "EpochManager",
-        "TrancheVault",
-        "CreditLine",
+        // "PoolConfig",
+        // "PoolFeeManager",
+        // "PoolSafe",
+        // "FirstLossCover",
+        // "RiskAdjustedTranchesPolicy",
+        // "FixedSeniorYieldTranchesPolicy",
+        // "Pool",
+        // "EpochManager",
+        // "TrancheVault",
+        // "CreditLine",
         "ReceivableBackedCreditLine",
-        "ReceivableFactoringCredit",
-        "CreditDueManager",
-        "CreditLineManager",
-        "ReceivableBackedCreditLineManager",
-        "ReceivableFactoringCreditManager",
-        "Receivable",
+        // "ReceivableFactoringCredit",
+        // "CreditDueManager",
+        // "CreditLineManager",
+        // "ReceivableBackedCreditLineManager",
+        // "ReceivableFactoringCreditManager",
+        // "Receivable",
     ];
 
     for (var contractName of contracts) {
@@ -152,10 +152,10 @@ async function deployContracts() {
     await deploy(networkName, "MockToken", "MockToken");
     const humaConfigAddress = await deployProtocolContracts();
     await deployImplementationContracts();
-    await deployFactory(humaConfigAddress);
+    // await deployFactory(humaConfigAddress);
     // await deployPoolConfigOne();
     // await deployPoolConfigTwo();
-    // await deployTranchesPolicy();
+    await deployTranchesPolicy();
 }
 
 deployContracts()

@@ -29,6 +29,10 @@ const config: HardhatUserConfig = {
                   }
                 : undefined,
         },
+        localhost: {
+            url: "http://localhost:8545",
+            accounts: [deployer],
+        },
         sepolia: {
             url: sepoliaUrl,
             accounts: [deployer],
