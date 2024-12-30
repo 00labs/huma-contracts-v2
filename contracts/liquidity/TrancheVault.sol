@@ -490,7 +490,7 @@ contract TrancheVault is
         address[] memory lenders,
         uint256[] memory epochIds
     ) external {
-        poolConfig.onlyHumaOwner(msg.sender);
+        poolConfig.onlyPoolOwner(msg.sender);
 
         TrancheVault oldTrancheVault = TrancheVault(oldTrancheVaultAddress);
 
@@ -545,6 +545,8 @@ contract TrancheVault is
     }
 
     function restoreLPTokensForTrancheVault(address oldTrancheVaultAddress) external {
+        poolConfig.onlyPoolOwner(msg.sender);
+
         TrancheVault oldTrancheVault = TrancheVault(oldTrancheVaultAddress);
         uint256 oldBalance = oldTrancheVault.balanceOf(oldTrancheVaultAddress);
         assert(balanceOf(address(this)) == 0);

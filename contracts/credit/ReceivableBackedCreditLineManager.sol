@@ -82,7 +82,7 @@ contract ReceivableBackedCreditLineManager is
         address borrower,
         uint256[] memory receivableIds
     ) external {
-        poolConfig.onlyHumaOwner(msg.sender);
+        poolConfig.onlyPoolOwner(msg.sender);
 
         ReceivableBackedCreditLineManager oldManager = ReceivableBackedCreditLineManager(
             0x061411d05074Bc974f814AC86309D2204f4c265d

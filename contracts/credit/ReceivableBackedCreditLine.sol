@@ -66,7 +66,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
     );
 
     function copyStorageDataFromOldContract(address borrower) external {
-        poolConfig.onlyHumaOwner(msg.sender);
+        poolConfig.onlyPoolOwner(msg.sender);
 
         ReceivableBackedCreditLine oldCredit = ReceivableBackedCreditLine(
             0xc6F10af4746784a0DD095f4E5718d53ff94eB4a0

@@ -57,7 +57,7 @@ contract FixedSeniorYieldTranchesPolicy is BaseTranchesPolicy {
     }
 
     function copyStorageDataFromOldContract() external {
-        poolConfig.onlyHumaOwner(msg.sender);
+        poolConfig.onlyPoolOwner(msg.sender);
 
         FixedSeniorYieldTranchesPolicy oldPolicy = FixedSeniorYieldTranchesPolicy(
             0x13d8446B1b365d53B0696947fa96624b5CE19bf3
