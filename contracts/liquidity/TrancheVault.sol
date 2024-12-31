@@ -538,8 +538,8 @@ contract TrancheVault is
 
             // Mint LP tokens to existing lenders.
             uint256 oldBalance = oldTrancheVault.balanceOf(lender);
-            if (balanceOf(lender) == 0) {
-                _mint(lender, oldBalance);
+            if (oldBalance != balanceOf(lender)) {
+                _mint(lender, oldBalance - balanceOf(lender));
             }
         }
     }
