@@ -13,6 +13,8 @@ import {SENIOR_TRANCHE, JUNIOR_TRANCHE} from "../common/SharedDefs.sol";
 import {BORROWER_LOSS_COVER_INDEX, INSURANCE_LOSS_COVER_INDEX, ADMIN_LOSS_COVER_INDEX} from "../common/SharedDefs.sol";
 import {LibTimelockController} from "./library/LibTimelockController.sol";
 
+import "hardhat/console.sol";
+
 interface IPoolConfigCacheLike {
     function initialize(address poolConfig) external;
 }
@@ -467,7 +469,16 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         uint16 withdrawalLockoutPeriodInDays,
         bool autoRedemptionAfterLockup
     ) external {
+        console.log("poolId_: %s", poolId_);
+        console.log("liquidityCap: %s", liquidityCap);
+        console.log("maxSeniorJuniorRatio: %s", maxSeniorJuniorRatio);
+        console.log("fixedSeniorYieldInBps: %s", fixedSeniorYieldInBps);
+        console.log("tranchesRiskAdjustmentInBps: %s", tranchesRiskAdjustmentInBps);
+        console.log("withdrawalLockoutPeriodInDays: %s", withdrawalLockoutPeriodInDays);
+        console.log("autoRedemptionAfterLockup: %s", autoRedemptionAfterLockup);
+        console.log("msg.sender: %s", msg.sender);
         _onlyDeployer(msg.sender);
+        console.log("111111111");
         LPConfig memory lpConfig = LPConfig({
             liquidityCap: liquidityCap,
             maxSeniorJuniorRatio: maxSeniorJuniorRatio,
@@ -476,7 +487,10 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             withdrawalLockoutPeriodInDays: withdrawalLockoutPeriodInDays,
             autoRedemptionAfterLockup: autoRedemptionAfterLockup
         });
+        console.log("222222222");
+        console.log("poolConfig address: %s", _pools[poolId_].poolConfigAddress);
         PoolConfig(_pools[poolId_].poolConfigAddress).setLPConfig(lpConfig);
+        console.log("333333333");
     }
 
     /// After deploying a new pool, the deployer needs to set the fee structure using this function.
@@ -567,6 +581,12 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
 
         emit TimelockAddedToPool(poolId_, _pools[poolId_].poolAddress, timelockAddress);
         _pools[poolId_].poolTimelock = timelockAddress;
+    }
+
+    function addPoolOwner(uint256 poolId_, address poolOwner) external {
+        _onlyDeployer(msg.sender);
+        PoolConfig poolConfig = PoolConfig(_pools[poolId_].poolConfigAddress);
+        poolConfig.grantRole(poolConfig.DEFAULT_ADMIN_ROLE(), poolOwner);
     }
 
     /**

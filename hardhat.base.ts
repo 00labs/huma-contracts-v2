@@ -1,3 +1,4 @@
+import "@nomicfoundation/hardhat-ledger";
 import "@nomicfoundation/hardhat-toolbox";
 import "dotenv/config";
 import "hardhat-abi-exporter";
@@ -32,6 +33,7 @@ const config: HardhatUserConfig = {
         localhost: {
             url: "http://localhost:8545",
             accounts: [deployer],
+            ledgerAccounts: ["0xf52130518d74d14573A59d10a26f6b89A263214e"],
         },
         sepolia: {
             url: sepoliaUrl,

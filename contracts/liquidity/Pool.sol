@@ -207,7 +207,7 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     function copyStorageDataFromOldContract() external {
-        poolConfig.onlyHumaOwner(msg.sender);
+        poolConfig.onlyPoolOwner(msg.sender);
 
         Pool oldPool = Pool(0x5227254a6aCa397e95F310b52f6D3143A5A9Ee14);
         (uint96 seniorTotalAssets, uint96 juniorTotalAssets) = oldPool.tranchesAssets();

@@ -104,7 +104,7 @@ export const sendTransaction = async function (
     contractName,
     contractInstance,
     methodName,
-    parameters = [any],
+    parameters? = [any],
     logMessage?,
 ) {
     // const gasPrice = await hre.ethers.provider.getGasPrice()

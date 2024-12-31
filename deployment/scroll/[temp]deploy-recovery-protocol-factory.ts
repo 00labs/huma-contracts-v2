@@ -62,7 +62,7 @@ async function deployProtocolContracts() {
     return humaConfig.address;
 }
 
-async function deployContracts() {
+export async function deployContracts() {
     // const networkName = (await hre.ethers.provider.getNetworkName()).name;
     networkName = network.name;
     console.log("networkName : ", networkName);
@@ -79,9 +79,9 @@ async function deployContracts() {
     await deployFactory(humaConfigAddress);
 }
 
-deployContracts()
-    .then(() => process.exit(0))
-    .catch((error) => {
-        console.error(error);
-        process.exit(1);
-    });
+// deployContracts()
+//     .then(() => process.exit(0))
+//     .catch((error) => {
+//         console.error(error);
+//         process.exit(1);
+//     });

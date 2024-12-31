@@ -490,7 +490,7 @@ contract TrancheVault is
         address[] memory lenders,
         uint256[] memory epochIds
     ) external {
-        poolConfig.onlyHumaOwner(msg.sender);
+        poolConfig.onlyPoolOwner(msg.sender);
 
         TrancheVault oldTrancheVault = TrancheVault(oldTrancheVaultAddress);
 
@@ -538,13 +538,14 @@ contract TrancheVault is
 
             // Mint LP tokens to existing lenders.
             uint256 oldBalance = oldTrancheVault.balanceOf(lender);
-            if (balanceOf(lender) == 0) {
-                _mint(lender, oldBalance);
+            if (balanceOf(lender) != oldBalance) {
+                _mint(lender, oldBalance - balanceOf(lender));
             }
         }
     }
 
     function restoreLPTokensForTrancheVault(address oldTrancheVaultAddress) external {
+        poolConfig.onlyPoolOwner(msg.sender);
         TrancheVault oldTrancheVault = TrancheVault(oldTrancheVaultAddress);
         uint256 oldBalance = oldTrancheVault.balanceOf(oldTrancheVaultAddress);
         assert(balanceOf(address(this)) == 0);
