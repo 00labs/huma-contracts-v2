@@ -21,20 +21,7 @@ async function main() {
     deployedContracts = await getDeployedContracts(networkName);
     console.log(deployedContracts);
 
-    // let ethAmount = ethers.BigNumber.from("1000000000000000000000");
-
-    // await hre.network.provider.send("hardhat_setBalance", [
-    //     deployer.address,
-    //     ethAmount.toHexString(),
-    // ]);
-
     await upgradeProxies();
-    // await deployContracts();
-    // await initPoolFactory();
-    // await createPool();
-    // await setPool();
-    // await addOwnership();
-    // await migrateStorage();
 }
 
 async function impersonateAccount(account: string) {
@@ -65,12 +52,6 @@ async function getPoolConfig(poolId: number) {
 }
 
 async function upgradeProxies() {
-    // await hre.network.provider.request({
-    //     method: "hardhat_impersonateAccount",
-    //     params: ["0xf52130518d74d14573A59d10a26f6b89A263214e"],
-    // });
-
-    // const ledger = await new LedgerSigner(hre.ethers.provider, "hid", "m/44'/60'/0'/0");
     const poolConfig = await getPoolConfig(1);
     const humaConfig = await hre.ethers.getContractAt("HumaConfig", await poolConfig.humaConfig());
     console.log(await humaConfig.owner());

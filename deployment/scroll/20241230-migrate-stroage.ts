@@ -2,9 +2,7 @@
 import { expect } from "chai";
 import fs from "fs";
 import hre, { network } from "hardhat";
-import { sendTransaction } from "../deployUtils";
-// import { deployContracts } from "./[temp]deploy-recovery-protocol-factory";
-// import { initContracts as initPoolFactory } from "./init-protocol-factory";
+import { getDeployedContracts, sendTransaction } from "../deployUtils";
 
 let deployer;
 let networkName;
@@ -24,24 +22,16 @@ async function main() {
 
     console.log("deployer address: " + deployer.address);
 
-    // deployedContracts = await getDeployedContracts(networkName);
-    // console.log(deployedContracts);
-
-    // let ethAmount = ethers.BigNumber.from("1000000000000000000000");
-
-    // await hre.network.provider.send("hardhat_setBalance", [
-    //     deployer.address,
-    //     ethAmount.toHexString(),
-    // ]);
+    deployedContracts = await getDeployedContracts(networkName);
+    console.log(deployedContracts);
 
     // await deployContracts();
     // await initPoolFactory();
-    // await sleep(5000);
-    // await createPool();
-    // await setPool();
-    // await addOwnership();
-    // await addTimeLock();
-    // await migrateStorage();
+    await createPool();
+    await setPool();
+    await addOwnership();
+    await addTimeLock();
+    await migrateStorage();
 }
 
 async function migrateStorage() {

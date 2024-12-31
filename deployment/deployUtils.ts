@@ -108,7 +108,7 @@ export const sendTransaction = async function (
     logMessage?,
 ) {
     // const gasPrice = await hre.ethers.provider.getGasPrice()
-    // await sleep(5000);
+    await sleep(5000);
     logMessage = !logMessage ? methodName : logMessage;
     const method = contractInstance[methodName];
     console.log(`${contractName}:${logMessage} Start!`);

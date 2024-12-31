@@ -29,6 +29,9 @@ const config: HardhatUserConfig = {
                       mnemonic: process.env.LOCALHOST_MNEMONIC_PHRASE,
                   }
                 : undefined,
+            forking: {
+                url: "https://scroll-mainnet.g.alchemy.com/v2/N5soMVjdW0CxGKbbllHGyxbaOrrpu7th",
+            },
         },
         localhost: {
             url: "http://localhost:8545",

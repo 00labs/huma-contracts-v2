@@ -1,4 +1,5 @@
 /* eslint-disable no-undef */
+import { impersonateAccount } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { Signer } from "ethers";
 import hre, { network } from "hardhat";
 import { getDeployedContracts, sendTransaction } from "../deployUtils";
@@ -6,11 +7,23 @@ let deployer;
 let networkName;
 let deployedContracts;
 let borrower;
-const RECEIVABLE_ID = 44;
+const RECEIVABLE_ID = 43;
 const USDC_ADDRESS = "0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4";
 const USDC_MAP_SLOT = "0x9";
 
 async function main() {
+    await network.provider.request({
+        method: "hardhat_reset",
+        params: [
+            {
+                forking: {
+                    jsonRpcUrl:
+                        "https://scroll-mainnet.g.alchemy.com/v2/N5soMVjdW0CxGKbbllHGyxbaOrrpu7th",
+                    // blockNumber: 33667900,
+                },
+            },
+        ],
+    });
     networkName = network.name;
     console.log("networkName : ", networkName);
     const accounts = await hre.ethers.getSigners();
@@ -31,43 +44,32 @@ async function main() {
     //     ethAmount.toHexString(),
     // ]);
     const borrowerAddress = "0x08534d9b632a7A35d7af4aAe5d487A15FC247691";
-    // borrower = await impersonateAccount(borrowerAddress);
+    borrower = await impersonateAccount(borrowerAddress);
 
-    borrower = await hre.ethers.getImpersonatedSigner(borrowerAddress);
-    await borrower.sendTransaction({
-        to: deployer.address,
-        value: hre.ethers.utils.parseEther("0.01"),
-    });
-
-    // const IERC20 = "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20";
-    // const usdc = await hre.ethers.getContractAt(IERC20, USDC_ADDRESS);
-    // const usdcWithSigner = await usdc.connect(await hre.ethers.getSigner(borrowerAddress));
-    // await usdcWithSigner.approve(deployer.address, hre.ethers.constants.MaxUint256);
-
-    // await getUSDC();
-    // await createReceivable();
-    // await getReceivableId();
-    // await replaceEA();
-    // await approveReceivable();
-    // await replacePoolOwnerTreasury();
-    // await transferReceivable();
-
-    // await getUSDC(deployer.address);
-    // await approveUSDC(deployer);
-    // await approveUSDCforBorrower(borrower.address);
-    // await makePayment();
+    await getUSDC(deployer.address);
+    await makePayment();
     // await checkCreditRecord();
 
-    // await processYield();
-    // await setBlockTimeStamp();
-    // await closeEpoch();
+    await processYield();
+    await setBlockTimeStamp();
+    await closeEpoch();
+    await checkRedemptionSummary();
+}
 
-    // await deployContracts();
-    // await initPoolFactory();
-    // await createPool();
-    // await setPool();
-    // await addOwnership();
-    // await migrateStorage();
+async function disburseLiquidity() {
+    const poolConfig = await getPoolConfig(1);
+    const contractAddress = await poolConfig.callStatic["credit"]();
+    const Contract = await hre.ethers.getContractAt("ReceivableBackedCreditLine", contractAddress);
+    await Contract.disburseLiquidity();
+}
+
+async function checkRedemptionSummary() {
+    for (const tranche of ["juniorTranche", "seniorTranche"]) {
+        const poolConfig = await getPoolConfig(1);
+        const contractAddress = await poolConfig.callStatic[tranche]();
+        const Contract = await hre.ethers.getContractAt("TrancheVault", contractAddress);
+        console.log(`${tranche} redemption summary: `, await Contract.epochRedemptionSummary(7));
+    }
 }
 
 async function impersonateAccount(account: string) {
@@ -183,15 +185,17 @@ async function replaceEA() {
 }
 
 async function approveReceivable() {
+    const ea = await impersonateAccount("0x1D0952Dbe8351477125A31Da857E8b148f04372D");
     const poolConfig = await getPoolConfig(1);
     const Contract = await hre.ethers.getContractAt(
         "ReceivableBackedCreditLineManager",
         poolConfig.callStatic["creditManager"](),
     );
-    await sendTransaction("ReceivableBackedCreditLineManager", Contract, "approveReceivable", [
-        borrower.address,
-        RECEIVABLE_ID,
-    ]);
+    await Contract.connect(ea).approveReceivable(borrower.address, RECEIVABLE_ID);
+    // await sendTransaction("ReceivableBackedCreditLineManager", Contract, "approveReceivable", [
+    //     borrower.address,
+    //     RECEIVABLE_ID,
+    // ]);
 }
 
 async function getReceivableId() {
@@ -210,17 +214,27 @@ async function replacePoolOwnerTreasury() {
 }
 
 async function makePayment() {
+    const poolOwnerTreasury = await impersonateAccount(
+        "0x73285f0013F76366e0442180C5Ae3A67Da2ab4fC",
+    );
+    await getUSDC(poolOwnerTreasury.address);
+    await approveUSDC(poolOwnerTreasury);
     const poolConfig = await getPoolConfig(1);
     const contractAddress = await poolConfig.callStatic["credit"]();
     console.log(`Credit address: ${contractAddress}`);
     const Contract = await hre.ethers.getContractAt("ReceivableBackedCreditLine", contractAddress);
-    const ContractWithSigner = Contract.connect(borrower);
-    await sendTransaction(
-        "ReceivableBackedCreditLine",
-        Contract,
-        "makePaymentOnBehalfOfWithReceivable",
-        [borrower.address, RECEIVABLE_ID, 788_283_000_000],
+    const ContractWithSigner = Contract.connect(poolOwnerTreasury);
+    await ContractWithSigner.makePaymentOnBehalfOfWithReceivable(
+        borrower.address,
+        RECEIVABLE_ID,
+        785_138_000_000,
     );
+    // await sendTransaction(
+    //     "ReceivableBackedCreditLine",
+    //     ContractWithSigner,
+    //     "makePaymentOnBehalfOfWithReceivable",
+    //     [borrower.address, RECEIVABLE_ID, 785_138_000_000],
+    // );
     // await sendTransaction(
     //     "ReceivableBackedCreditLine",
     //     ContractWithSigner,
