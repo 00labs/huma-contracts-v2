@@ -7422,6 +7422,496 @@ describe("CreditLine Test", function () {
         });
     });
 
+    describe("makePaymentOnBehalfOf", function () {
+        const yieldInBps = 1217,
+            lateFeeBps = 300,
+            latePaymentGracePeriodInDays = 5,
+            remainingPeriods = 6;
+        let principalRateInBps: number;
+        let borrowAmount: BN, creditHash: string;
+        let drawdownDate: moment.Moment, makePaymentDate: moment.Moment;
+
+        async function approveCredit() {
+            const settings = await poolConfigContract.getPoolSettings();
+            await poolConfigContract
+                .connect(poolOwner)
+                .setPoolSettings({ ...settings, ...{ latePaymentGracePeriodInDays: 5 } });
+
+            await creditManagerContract
+                .connect(evaluationAgent)
+                .approveBorrower(
+                    borrower.getAddress(),
+                    toToken(100_000),
+                    remainingPeriods,
+                    yieldInBps,
+                    toToken(100_000),
+                    0,
+                    true,
+                );
+        }
+
+        async function drawdown() {
+            const currentTS = (await getLatestBlock()).timestamp;
+            drawdownDate = moment.utc(
+                (
+                    await calendarContract.getStartDateOfNextPeriod(
+                        PayPeriodDuration.Monthly,
+                        currentTS,
+                    )
+                ).toNumber() * 1000,
+            );
+            drawdownDate = drawdownDate
+                .add(11, "days")
+                .add(13, "hours")
+                .add(47, "minutes")
+                .add(8, "seconds");
+            await setNextBlockTimestamp(drawdownDate.unix());
+
+            borrowAmount = toToken(50_000);
+            await creditContract.connect(borrower).drawdown(borrowAmount);
+        }
+
+        async function testMakePaymentOnBehalfOf(
+            paymentAmount: BN,
+            paymentDate: moment.Moment = makePaymentDate,
+            paymentInitiator: SignerWithAddress = borrower,
+        ) {
+            const cc = await creditManagerContract.getCreditConfig(creditHash);
+            const cr = await creditContract.getCreditRecord(creditHash);
+            const dd = await creditContract.getDueDetail(creditHash);
+            const maturityDate = moment.utc(
+                getMaturityDate(cc.periodDuration, cc.numOfPeriods - 1, drawdownDate.unix()) *
+                    1000,
+            );
+
+            // Calculate the dues, fees and dates right before the payment is made.
+            let [
+                remainingUnbilledPrincipal,
+                remainingPrincipalPastDue,
+                remainingPrincipalNextDue,
+            ] = await calcPrincipalDueNew(
+                calendarContract,
+                cc,
+                cr,
+                dd,
+                paymentDate,
+                maturityDate,
+                latePaymentGracePeriodInDays,
+                principalRateInBps,
+            );
+            let [
+                remainingYieldPastDue,
+                remainingYieldNextDue,
+                [accruedYieldNextDue, committedYieldNextDue],
+            ] = await calcYieldDueNew(
+                calendarContract,
+                cc,
+                cr,
+                dd,
+                paymentDate,
+                latePaymentGracePeriodInDays,
+            );
+            let [lateFeeUpdatedDate, remainingLateFee] = await calcLateFeeNew(
+                poolConfigContract,
+                calendarContract,
+                cc,
+                cr,
+                dd,
+                paymentDate,
+                latePaymentGracePeriodInDays,
+            );
+            let nextDueBefore = remainingPrincipalNextDue.add(remainingYieldNextDue);
+
+            let principalDuePaid = BN.from(0),
+                yieldDuePaid = BN.from(0),
+                unbilledPrincipalPaid = BN.from(0),
+                principalPastDuePaid = BN.from(0),
+                yieldPastDuePaid = BN.from(0),
+                lateFeePaid = BN.from(0),
+                remainingPaymentAmount = paymentAmount;
+            // If there is past due, attempt to pay past due first.
+            let remainingPastDue = remainingPrincipalPastDue
+                .add(remainingYieldPastDue)
+                .add(remainingLateFee);
+            if (remainingPastDue.gt(0)) {
+                if (paymentAmount.gte(remainingPastDue)) {
+                    yieldPastDuePaid = remainingYieldPastDue;
+                    remainingYieldPastDue = BN.from(0);
+                    principalPastDuePaid = remainingPrincipalPastDue;
+                    remainingPrincipalPastDue = BN.from(0);
+                    lateFeePaid = remainingLateFee;
+                    remainingLateFee = BN.from(0);
+                    remainingPaymentAmount = paymentAmount.sub(remainingPastDue);
+                } else if (paymentAmount.gte(remainingYieldPastDue.add(remainingLateFee))) {
+                    principalPastDuePaid = paymentAmount
+                        .sub(remainingYieldPastDue)
+                        .sub(remainingLateFee);
+                    remainingPrincipalPastDue =
+                        remainingPrincipalPastDue.sub(principalPastDuePaid);
+                    yieldPastDuePaid = remainingYieldPastDue;
+                    remainingYieldPastDue = BN.from(0);
+                    lateFeePaid = remainingLateFee;
+                    remainingLateFee = BN.from(0);
+                    remainingPaymentAmount = BN.from(0);
+                } else if (paymentAmount.gte(remainingYieldPastDue)) {
+                    lateFeePaid = paymentAmount.sub(remainingYieldPastDue);
+                    remainingLateFee = remainingLateFee.sub(lateFeePaid);
+                    yieldPastDuePaid = remainingYieldPastDue;
+                    remainingYieldPastDue = BN.from(0);
+                    remainingPaymentAmount = BN.from(0);
+                } else {
+                    yieldPastDuePaid = paymentAmount;
+                    remainingYieldPastDue = remainingYieldPastDue.sub(paymentAmount);
+                    remainingPaymentAmount = BN.from(0);
+                }
+                remainingPastDue = remainingPrincipalPastDue
+                    .add(remainingYieldPastDue)
+                    .add(remainingLateFee);
+            }
+            // Then pay next due.
+            let nextDueAfter = nextDueBefore;
+            if (remainingPaymentAmount.gt(0)) {
+                if (remainingPaymentAmount.gte(nextDueBefore)) {
+                    yieldDuePaid = remainingYieldNextDue;
+                    principalDuePaid = remainingPrincipalNextDue;
+                    remainingPaymentAmount = remainingPaymentAmount.sub(nextDueBefore);
+                    remainingYieldNextDue = BN.from(0);
+                    remainingPrincipalNextDue = BN.from(0);
+                    unbilledPrincipalPaid = minBigNumber(
+                        remainingUnbilledPrincipal,
+                        remainingPaymentAmount,
+                    );
+                    remainingUnbilledPrincipal =
+                        remainingUnbilledPrincipal.sub(unbilledPrincipalPaid);
+                    remainingPaymentAmount = remainingPaymentAmount.sub(unbilledPrincipalPaid);
+                } else if (remainingPaymentAmount.gte(remainingYieldNextDue)) {
+                    yieldDuePaid = remainingYieldNextDue;
+                    principalDuePaid = remainingPaymentAmount.sub(remainingYieldNextDue);
+                    remainingPrincipalNextDue = remainingPrincipalNextDue.sub(
+                        remainingPaymentAmount.sub(remainingYieldNextDue),
+                    );
+                    remainingYieldNextDue = BN.from(0);
+                    remainingPaymentAmount = BN.from(0);
+                } else {
+                    yieldDuePaid = remainingPaymentAmount;
+                    remainingYieldNextDue = remainingYieldNextDue.sub(remainingPaymentAmount);
+                    remainingPaymentAmount = BN.from(0);
+                }
+                nextDueAfter = remainingYieldNextDue.add(remainingPrincipalNextDue);
+            }
+
+            // Clear late fee updated date if the bill is paid off
+            if (remainingPastDue.isZero()) {
+                lateFeeUpdatedDate = BN.from(0);
+            }
+
+            let newDueDate;
+            if (
+                paymentDate.isSameOrBefore(
+                    getNextBillRefreshDate(cr, paymentDate, latePaymentGracePeriodInDays),
+                )
+            ) {
+                newDueDate = cr.nextDueDate;
+            } else {
+                newDueDate = await calendarContract.getStartDateOfNextPeriod(
+                    cc.periodDuration,
+                    paymentDate.unix(),
+                );
+            }
+            const paymentAmountUsed = paymentAmount.sub(remainingPaymentAmount);
+
+            const oldPoolOwnerTreasuryBalance = await mockTokenContract.balanceOf(
+                poolOwnerTreasury.getAddress(),
+            );
+            const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
+
+            if (paymentAmountUsed.gt(ethers.constants.Zero)) {
+                let poolDistributionEventName = "";
+                if (cr.state === CreditState.Defaulted) {
+                    poolDistributionEventName = "LossRecoveryDistributed";
+                } else if (yieldPastDuePaid.add(yieldDuePaid).add(lateFeePaid).gt(0)) {
+                    poolDistributionEventName = "ProfitDistributed";
+                }
+
+                if (poolDistributionEventName !== "") {
+                    await expect(
+                        creditContract
+                            .connect(paymentInitiator)
+                            .makePaymentOnBehalfOf(borrower.getAddress(), paymentAmount),
+                    )
+                        .to.emit(creditContract, "PaymentMade")
+                        .withArgs(
+                            await borrower.getAddress(),
+                            await poolOwnerTreasury.getAddress(),
+                            paymentAmountUsed,
+                            yieldDuePaid,
+                            principalDuePaid,
+                            unbilledPrincipalPaid,
+                            yieldPastDuePaid,
+                            lateFeePaid,
+                            principalPastDuePaid,
+                            await paymentInitiator.getAddress(),
+                        )
+                        .to.emit(poolContract, poolDistributionEventName);
+                } else {
+                    await expect(
+                        creditContract
+                            .connect(paymentInitiator)
+                            .makePaymentOnBehalfOf(borrower.getAddress(), paymentAmount),
+                    )
+                        .to.emit(creditContract, "PaymentMade")
+                        .withArgs(
+                            await borrower.getAddress(),
+                            await poolOwnerTreasury.getAddress(),
+                            paymentAmountUsed,
+                            yieldDuePaid,
+                            principalDuePaid,
+                            unbilledPrincipalPaid,
+                            yieldPastDuePaid,
+                            lateFeePaid,
+                            principalPastDuePaid,
+                            await paymentInitiator.getAddress(),
+                        );
+                }
+            } else {
+                await expect(
+                    creditContract
+                        .connect(paymentInitiator)
+                        .makePaymentOnBehalfOf(borrower.getAddress(), paymentAmount),
+                ).not.to.emit(creditContract, "PaymentMade");
+            }
+
+            const newPoolOwnerTreasuryBalance = await mockTokenContract.balanceOf(
+                poolOwnerTreasury.getAddress(),
+            );
+            expect(oldPoolOwnerTreasuryBalance.sub(newPoolOwnerTreasuryBalance)).to.equal(
+                paymentAmountUsed,
+            );
+            const newBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
+            expect(oldBorrowerBalance).to.equal(newBorrowerBalance);
+
+            const newCR = await creditContract.getCreditRecord(creditHash);
+            let periodsPassed = 0;
+            if (cr.state === CreditState.Approved) {
+                periodsPassed = 1;
+            } else if (cr.state === CreditState.GoodStanding) {
+                if (
+                    paymentDate.isAfter(
+                        getLatePaymentGracePeriodDeadline(cr, latePaymentGracePeriodInDays),
+                    )
+                ) {
+                    periodsPassed =
+                        (
+                            await calendarContract.getNumPeriodsPassed(
+                                cc.periodDuration,
+                                cr.nextDueDate,
+                                paymentDate.unix(),
+                            )
+                        ).toNumber() + 1;
+                }
+            } else if (paymentDate.isAfter(moment.utc(cr.nextDueDate.toNumber() * 1000))) {
+                periodsPassed =
+                    (
+                        await calendarContract.getNumPeriodsPassed(
+                            cc.periodDuration,
+                            cr.nextDueDate,
+                            paymentDate.unix(),
+                        )
+                    ).toNumber() + 1;
+            }
+            const remainingPeriods = Math.max(cr.remainingPeriods - periodsPassed, 0);
+            // Whether the bill is late up until payment is made.
+            const isLate =
+                cr.missedPeriods > 0 ||
+                (cr.nextDue.gt(0) &&
+                    paymentDate.isAfter(
+                        getLatePaymentGracePeriodDeadline(cr, latePaymentGracePeriodInDays),
+                    ));
+            const missedPeriods =
+                !isLate || remainingPastDue.isZero() ? 0 : cr.missedPeriods + periodsPassed;
+            let creditState;
+            if (remainingPastDue.isZero()) {
+                if (nextDueAfter.isZero() && remainingUnbilledPrincipal.isZero()) {
+                    if (remainingPeriods === 0) {
+                        creditState = CreditState.Deleted;
+                    } else {
+                        creditState = CreditState.GoodStanding;
+                    }
+                } else if (cr.state === CreditState.Delayed) {
+                    creditState = CreditState.GoodStanding;
+                } else {
+                    creditState = cr.state;
+                }
+            } else if (missedPeriods != 0) {
+                if (cr.state === CreditState.GoodStanding) {
+                    creditState = CreditState.Delayed;
+                } else {
+                    creditState = cr.state;
+                }
+            } else {
+                creditState = cr.state;
+            }
+            let expectedNewCR, expectedNewDD;
+            if (
+                nextDueAfter.isZero() &&
+                !remainingUnbilledPrincipal.isZero() &&
+                newDueDate.lt(paymentDate.unix())
+            ) {
+                // We expect the bill to be refreshed if all next due is paid off and the bill is in the
+                // new billing cycle.
+                const [accrued, committed] = calcYieldDue(
+                    cc,
+                    remainingUnbilledPrincipal,
+                    CONSTANTS.DAYS_IN_A_MONTH,
+                );
+                const yieldDue = maxBigNumber(accrued, committed);
+                let principalDue;
+                newDueDate = await calendarContract.getStartDateOfNextPeriod(
+                    cc.periodDuration,
+                    newDueDate,
+                );
+                if (newDueDate.eq(maturityDate.unix())) {
+                    principalDue = remainingUnbilledPrincipal;
+                } else {
+                    principalDue = calcPrincipalDueForFullPeriods(
+                        remainingUnbilledPrincipal,
+                        principalRateInBps,
+                        1,
+                    );
+                }
+                expectedNewCR = {
+                    unbilledPrincipal: remainingUnbilledPrincipal.sub(principalDue),
+                    nextDueDate: newDueDate,
+                    nextDue: yieldDue.add(principalDue),
+                    yieldDue: yieldDue,
+                    totalPastDue: BN.from(0),
+                    missedPeriods: 0,
+                    remainingPeriods: remainingPeriods - 1,
+                    state: CreditState.GoodStanding,
+                };
+                expectedNewDD = {
+                    lateFeeUpdatedDate: 0,
+                    lateFee: 0,
+                    principalPastDue: 0,
+                    yieldPastDue: 0,
+                    accrued: accrued,
+                    committed: committed,
+                    paid: 0,
+                };
+            } else {
+                expectedNewCR = {
+                    unbilledPrincipal: remainingUnbilledPrincipal,
+                    nextDueDate: newDueDate,
+                    nextDue: nextDueAfter,
+                    yieldDue: remainingYieldNextDue,
+                    totalPastDue: remainingPastDue,
+                    missedPeriods,
+                    remainingPeriods,
+                    state: creditState,
+                };
+                const yieldPaidInCurrentCycle =
+                    newDueDate === cr.nextDueDate ? dd.paid.add(yieldDuePaid) : yieldDuePaid;
+                expectedNewDD = {
+                    lateFeeUpdatedDate,
+                    lateFee: remainingLateFee,
+                    principalPastDue: remainingPrincipalPastDue,
+                    yieldPastDue: remainingYieldPastDue,
+                    accrued: accruedYieldNextDue,
+                    committed: committedYieldNextDue,
+                    paid: yieldPaidInCurrentCycle,
+                };
+            }
+            await checkCreditRecordsMatch(newCR, expectedNewCR);
+
+            const newDD = await creditContract.getDueDetail(creditHash);
+            await checkDueDetailsMatch(newDD, expectedNewDD);
+        }
+
+        async function prepare() {
+            creditHash = await borrowerLevelCreditHash(creditContract, borrower);
+
+            principalRateInBps = 0;
+            await poolConfigContract.connect(poolOwner).setFeeStructure({
+                yieldInBps,
+                minPrincipalRateInBps: principalRateInBps,
+                lateFeeBps,
+            });
+            await approveCredit();
+            await drawdown();
+
+            makePaymentDate = drawdownDate
+                .clone()
+                .add(16, "days")
+                .add(2, "hours")
+                .add(31, "seconds");
+            await setNextBlockTimestamp(makePaymentDate.unix());
+        }
+
+        beforeEach(async function () {
+            await loadFixture(prepare);
+        });
+
+        it("Should allow the borrower to make multiple payments", async function () {
+            const cc = await creditManagerContract.getCreditConfig(creditHash);
+            const cr = await creditContract.getCreditRecord(creditHash);
+            const dd = await creditContract.getDueDetail(creditHash);
+
+            const [, yieldNextDue] = await calcYieldDueNew(
+                calendarContract,
+                cc,
+                cr,
+                dd,
+                makePaymentDate,
+                latePaymentGracePeriodInDays,
+            );
+
+            // Make a series of payment gradually and eventually pay off the bill.
+            await testMakePaymentOnBehalfOf(yieldNextDue, makePaymentDate, poolOwnerTreasury);
+
+            const secondPaymentDate = makePaymentDate.clone().add(1, "day").add(4, "hours");
+            setNextBlockTimestamp(secondPaymentDate.unix());
+            await testMakePaymentOnBehalfOf(borrowAmount, secondPaymentDate, poolOwnerTreasury);
+
+            const thirdPaymentDate = secondPaymentDate.clone().add("3", "hours");
+            setNextBlockTimestamp(thirdPaymentDate.unix());
+            await testMakePaymentOnBehalfOf(toToken(1), thirdPaymentDate, poolOwnerTreasury);
+        });
+
+        it("Should not allow payment when the protocol is paused or the pool is not on", async function () {
+            await humaConfigContract.connect(protocolOwner).pause();
+            await expect(
+                creditContract
+                    .connect(poolOwnerTreasury)
+                    .makePaymentOnBehalfOf(borrower.getAddress(), toToken(1)),
+            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
+            await humaConfigContract.connect(protocolOwner).unpause();
+
+            await poolContract.connect(poolOwner).disablePool();
+            await expect(
+                creditContract
+                    .connect(poolOwnerTreasury)
+                    .makePaymentOnBehalfOf(borrower.getAddress(), toToken(1)),
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
+            await poolContract.connect(poolOwner).enablePool();
+        });
+
+        it("Should not allow non-Pool-Owner-Treasury to make payment on behalf of the borrower", async function () {
+            await expect(
+                creditContract
+                    .connect(borrower)
+                    .makePaymentOnBehalfOf(borrower.getAddress(), toToken(1)),
+            ).to.be.revertedWithCustomError(creditContract, "PoolOwnerTreasuryRequired");
+        });
+
+        it("Should not allow payment with 0 amount", async function () {
+            await expect(
+                creditContract
+                    .connect(poolOwnerTreasury)
+                    .makePaymentOnBehalfOf(borrower.getAddress(), 0),
+            ).to.be.revertedWithCustomError(creditContract, "ZeroAmountProvided");
+        });
+    });
+
     describe("makePrincipalPayment", function () {
         const yieldInBps = 1217,
             lateFeeBps = 300,

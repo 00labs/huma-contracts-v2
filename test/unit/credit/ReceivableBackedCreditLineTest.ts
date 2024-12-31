@@ -929,6 +929,347 @@ describe("ReceivableBackedCreditLine Tests", function () {
         });
     });
 
+    describe("makePaymentOnBehalfOfWithReceivable", function () {
+        const yieldInBps = 1217,
+            principalRate = 100,
+            lateFeeBps = 2400;
+        const numOfPeriods = 3,
+            latePaymentGracePeriodInDays = 5;
+        let maturityDate: number;
+        let committedAmount: BN, borrowAmount: BN, receivableId: BN;
+        let creditHash: string;
+
+        async function prepareForMakePayment() {
+            const settings = await poolConfigContract.getPoolSettings();
+            await poolConfigContract.connect(poolOwner).setPoolSettings({
+                ...settings,
+                ...{
+                    latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
+                    advanceRateInBps: CONSTANTS.BP_FACTOR,
+                    receivableAutoApproval: true,
+                },
+            });
+            await poolConfigContract.connect(poolOwner).setFeeStructure({
+                yieldInBps,
+                minPrincipalRateInBps: principalRate,
+                lateFeeBps,
+            });
+
+            committedAmount = toToken(10_000);
+            borrowAmount = toToken(15_000);
+            creditHash = await borrowerLevelCreditHash(creditContract, borrower);
+
+            const currentTS = (await getLatestBlock()).timestamp;
+            maturityDate = (
+                await calendarContract.getStartDateOfNextPeriod(
+                    PayPeriodDuration.Monthly,
+                    currentTS,
+                )
+            ).toNumber();
+            await receivableContract
+                .connect(borrower)
+                .createReceivable(1, borrowAmount, maturityDate, "", "");
+            receivableId = await receivableContract.tokenOfOwnerByIndex(borrower.getAddress(), 0);
+            await receivableContract
+                .connect(borrower)
+                .approve(creditContract.address, receivableId);
+        }
+
+        async function approveAndDrawdown() {
+            await creditManagerContract
+                .connect(evaluationAgent)
+                .approveBorrower(
+                    borrower.getAddress(),
+                    toToken(100_000),
+                    numOfPeriods,
+                    yieldInBps,
+                    committedAmount,
+                    0,
+                    true,
+                );
+            await creditContract
+                .connect(borrower)
+                .drawdownWithReceivable(receivableId, borrowAmount);
+        }
+
+        beforeEach(async function () {
+            await loadFixture(prepareForMakePayment);
+        });
+
+        describe("Without credit approval", function () {
+            it("Should not allow payment on a non-existent credit", async function () {
+                await expect(
+                    creditContract
+                        .connect(poolOwnerTreasury)
+                        .makePaymentOnBehalfOfWithReceivable(
+                            borrower.getAddress(),
+                            receivableId,
+                            borrowAmount,
+                        ),
+                ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
+            });
+        });
+
+        describe("With credit approval", function () {
+            beforeEach(async function () {
+                await loadFixture(approveAndDrawdown);
+            });
+
+            it("Should allow the Pool Owner Treasury to make payment on behalf of the borrower", async function () {
+                const oldCR = await creditContract.getCreditRecord(creditHash);
+                const oldDD = await creditContract.getDueDetail(creditHash);
+                const paymentAmount = oldCR.yieldDue;
+
+                await expect(
+                    creditContract
+                        .connect(poolOwnerTreasury)
+                        .makePaymentOnBehalfOfWithReceivable(
+                            borrower.getAddress(),
+                            receivableId,
+                            paymentAmount,
+                        ),
+                )
+                    .to.emit(creditContract, "PaymentMade")
+                    .withArgs(
+                        await borrower.getAddress(),
+                        await poolOwnerTreasury.getAddress(),
+                        paymentAmount,
+                        oldCR.yieldDue,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        await poolOwnerTreasury.getAddress(),
+                    )
+                    .to.emit(creditContract, "PaymentMadeOnBehalfOfWithReceivable")
+                    .withArgs(
+                        await borrower.getAddress(),
+                        receivableId,
+                        paymentAmount,
+                        await poolOwnerTreasury.getAddress(),
+                    );
+
+                const actualCR = await creditContract.getCreditRecord(creditHash);
+                const expectedCR = {
+                    ...oldCR,
+                    ...{
+                        nextDue: oldCR.nextDue.sub(oldCR.yieldDue),
+                        yieldDue: 0,
+                    },
+                };
+                checkCreditRecordsMatch(actualCR, expectedCR);
+
+                const actualDD = await creditContract.getDueDetail(creditHash);
+                const expectedDD = {
+                    ...oldDD,
+                    ...{
+                        paid: paymentAmount,
+                    },
+                };
+                checkDueDetailsMatch(actualDD, expectedDD);
+            });
+
+            it("Should allow the Pool Owner Treasury to make payment even if the receivable has matured", async function () {
+                const oldCR = await creditContract.getCreditRecord(creditHash);
+                const oldDD = await creditContract.getDueDetail(creditHash);
+                const paymentAmount = oldCR.yieldDue;
+
+                // Advance the block timestamp to be after the maturity date and make sure the payment can
+                // still go through.
+                await setNextBlockTimestamp(maturityDate + 1);
+                await expect(
+                    creditContract
+                        .connect(poolOwnerTreasury)
+                        .makePaymentOnBehalfOfWithReceivable(
+                            borrower.getAddress(),
+                            receivableId,
+                            paymentAmount,
+                        ),
+                )
+                    .to.emit(creditContract, "PaymentMade")
+                    .withArgs(
+                        await borrower.getAddress(),
+                        await poolOwnerTreasury.getAddress(),
+                        paymentAmount,
+                        oldCR.yieldDue,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        await poolOwnerTreasury.getAddress(),
+                    )
+                    .to.emit(creditContract, "PaymentMadeOnBehalfOfWithReceivable")
+                    .withArgs(
+                        await borrower.getAddress(),
+                        receivableId,
+                        paymentAmount,
+                        await poolOwnerTreasury.getAddress(),
+                    );
+
+                const actualCR = await creditContract.getCreditRecord(creditHash);
+                const expectedCR = {
+                    ...oldCR,
+                    ...{
+                        nextDue: oldCR.nextDue.sub(oldCR.yieldDue),
+                        yieldDue: 0,
+                    },
+                };
+                checkCreditRecordsMatch(actualCR, expectedCR);
+
+                const actualDD = await creditContract.getDueDetail(creditHash);
+                const expectedDD = {
+                    ...oldDD,
+                    ...{
+                        paid: paymentAmount,
+                    },
+                };
+                checkDueDetailsMatch(actualDD, expectedDD);
+            });
+
+            it("Should allow the Pool Owner Treasury to make payment even if the receivable is not just minted", async function () {
+                const oldCR = await creditContract.getCreditRecord(creditHash);
+                const oldDD = await creditContract.getDueDetail(creditHash);
+                const paymentAmount = oldCR.yieldDue;
+                // Declare payment on the receivable so it's partially paid.
+                await receivableContract
+                    .connect(borrower)
+                    .declarePayment(receivableId, toToken(1));
+
+                await expect(
+                    creditContract
+                        .connect(poolOwnerTreasury)
+                        .makePaymentOnBehalfOfWithReceivable(
+                            borrower.getAddress(),
+                            receivableId,
+                            paymentAmount,
+                        ),
+                )
+                    .to.emit(creditContract, "PaymentMade")
+                    .withArgs(
+                        await borrower.getAddress(),
+                        await poolOwnerTreasury.getAddress(),
+                        paymentAmount,
+                        oldCR.yieldDue,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        await poolOwnerTreasury.getAddress(),
+                    )
+                    .to.emit(creditContract, "PaymentMadeOnBehalfOfWithReceivable")
+                    .withArgs(
+                        await borrower.getAddress(),
+                        receivableId,
+                        paymentAmount,
+                        await poolOwnerTreasury.getAddress(),
+                    );
+
+                const actualCR = await creditContract.getCreditRecord(creditHash);
+                const expectedCR = {
+                    ...oldCR,
+                    ...{
+                        nextDue: oldCR.nextDue.sub(oldCR.yieldDue),
+                        yieldDue: 0,
+                    },
+                };
+                checkCreditRecordsMatch(actualCR, expectedCR);
+
+                const actualDD = await creditContract.getDueDetail(creditHash);
+                const expectedDD = {
+                    ...oldDD,
+                    ...{
+                        paid: paymentAmount,
+                    },
+                };
+                checkDueDetailsMatch(actualDD, expectedDD);
+            });
+
+            it("Should not allow payment when the protocol is paused or the pool is not on", async function () {
+                await humaConfigContract.connect(protocolOwner).pause();
+                await expect(
+                    creditContract
+                        .connect(poolOwnerTreasury)
+                        .makePaymentOnBehalfOfWithReceivable(
+                            borrower.getAddress(),
+                            receivableId,
+                            borrowAmount,
+                        ),
+                ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
+                await humaConfigContract.connect(protocolOwner).unpause();
+
+                await poolContract.connect(poolOwner).disablePool();
+                await expect(
+                    creditContract
+                        .connect(poolOwnerTreasury)
+                        .makePaymentOnBehalfOfWithReceivable(
+                            borrower.getAddress(),
+                            receivableId,
+                            borrowAmount,
+                        ),
+                ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
+                await poolContract.connect(poolOwner).enablePool();
+            });
+
+            it("Should not allow payment by non-Pool Owner Treasury", async function () {
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePaymentOnBehalfOfWithReceivable(
+                            borrower.getAddress(),
+                            receivableId,
+                            borrowAmount,
+                        ),
+                ).to.be.revertedWithCustomError(creditContract, "PoolOwnerTreasuryRequired");
+            });
+
+            it("Should not allow payment with 0 receivable ID", async function () {
+                await expect(
+                    creditContract
+                        .connect(poolOwnerTreasury)
+                        .makePaymentOnBehalfOfWithReceivable(
+                            borrower.getAddress(),
+                            0,
+                            borrowAmount,
+                        ),
+                ).to.be.revertedWithCustomError(creditContract, "ZeroReceivableIdProvided");
+            });
+
+            it("Should not allow payment if the receivable wasn't transferred to the contract", async function () {
+                // Create another receivable that wasn't used for drawdown, hence not transferred to the contract.
+                await receivableContract
+                    .connect(borrower)
+                    .createReceivable(2, borrowAmount, maturityDate, "", "");
+                const balance = await receivableContract.balanceOf(borrower.getAddress());
+                expect(balance).to.equal(1);
+                const receivableId2 = await receivableContract.tokenOfOwnerByIndex(
+                    borrower.getAddress(),
+                    0,
+                );
+                await receivableContract
+                    .connect(borrower)
+                    .approve(creditContract.address, receivableId2);
+                await creditManagerContract
+                    .connect(evaluationAgent)
+                    .approveReceivable(borrower.getAddress(), receivableId2);
+
+                await expect(
+                    creditContract
+                        .connect(poolOwnerTreasury)
+                        .makePaymentOnBehalfOfWithReceivable(
+                            borrower.getAddress(),
+                            receivableId2,
+                            borrowAmount,
+                        ),
+                ).to.be.revertedWithCustomError(creditContract, "ReceivableOwnerRequired");
+
+                await receivableContract.connect(borrower).burn(receivableId2);
+            });
+        });
+    });
+
     describe("makePrincipalPaymentWithReceivable", function () {
         const yieldInBps = 1217,
             principalRate = 100,

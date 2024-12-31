@@ -37,6 +37,20 @@ contract CreditLine is Credit, ICreditLine {
     }
 
     /// @inheritdoc ICreditLine
+    function makePaymentOnBehalfOf(
+        address borrower,
+        uint256 amount
+    ) external virtual override returns (uint256 amountPaid, bool paidoff) {
+        poolConfig.onlyProtocolAndPoolOn();
+        _onlyPoolOwnerTreasury(msg.sender);
+
+        bytes32 creditHash = getCreditHash(borrower);
+        creditManager.onlyCreditBorrower(creditHash, borrower);
+
+        return _makePayment(borrower, creditHash, amount);
+    }
+
+    /// @inheritdoc ICreditLine
     function makePrincipalPayment(
         uint256 amount
     ) external virtual override returns (uint256 amountPaid, bool paidoff) {
