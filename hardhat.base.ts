@@ -13,7 +13,7 @@ import "./tasks/log-incomes";
 import "./tasks/withdraw-and-close-pool";
 
 const EMPTY_URL = "empty url";
-const EMPTY_PRIVATE_KEY = "0x0000000000000000000000000000000000000000000000000000000000000000";
+const EMPTY_PRIVATE_KEY = "GADkmfMqYzcjeuFEpfVDriSHhSKq2XR4zG6ZtYcXpump";
 
 const sepoliaUrl = process.env["SEPOLIA_URL"] || EMPTY_URL;
 const deployer = process.env["DEPLOYER"] || EMPTY_PRIVATE_KEY;
